@@ -15,6 +15,7 @@ describe("parsePage", () => {
       path: "concepts/scopes.md",
       frontmatter: { theme: "dev", tags: ["a", "b"] },
       links: ["traversal", "audit"],
+      references: [],
     });
   });
 
@@ -75,5 +76,44 @@ describe("readDocuments", () => {
     const { nodes, edges } = await readDocuments(dir, { source: "docs:test", defaultScope: { kind: "shared" } });
     expect(nodes.map((n) => n.provenance.path)).toEqual(["concepts/scopes.md", "index.md"]);
     expect(edges).toHaveLength(2);
+  });
+});
+
+describe("typed references", () => {
+  const pages = [
+    parsePage(
+      "adr.md",
+      "---\ntype: decision\nreferences:\n  - { type: DECIDES, to: api }\n  - glossary\n  - { type: DERIVED_FROM, to: missing }\n---\nSee [[api]] and [[glossary]].",
+    ),
+    parsePage("api.md", "---\ntype: Endpoint\n---\n"),
+    parsePage("glossary.md", "---\ntype: entity\n---\n"),
+  ];
+  const { nodes, edges } = toGraph(pages, { source: "docs:test", defaultScope: { kind: "shared" } });
+
+  it("reads typed and bare references from the frontmatter", () => {
+    expect(pages[0]?.references).toEqual([
+      { type: "DECIDES", to: "api" },
+      { type: "REFERENCES", to: "glossary" },
+      { type: "DERIVED_FROM", to: "missing" },
+    ]);
+  });
+
+  it("lets a typed reference replace the wikilink to the same target, without duplicates", () => {
+    expect(edges).toEqual([
+      { type: "DECIDES", from: "adr", to: "api" },
+      { type: "REFERENCES", from: "adr", to: "glossary" },
+    ]);
+  });
+
+  it("maps type: to a node type in any case, else Concept", () => {
+    expect(nodes.map((n) => n.type)).toEqual(["Decision", "Endpoint", "Concept"]);
+  });
+
+  it("rejects an unknown edge type, naming the file", () => {
+    expect(() => parsePage("bad.md", "---\nreferences:\n  - { type: LIKES, to: x }\n---\n")).toThrow(/bad\.md: invalid references/);
+  });
+
+  it("rejects references that are not a list", () => {
+    expect(() => parsePage("bad.md", "---\nreferences: api\n---\n")).toThrow(/bad\.md/);
   });
 });
