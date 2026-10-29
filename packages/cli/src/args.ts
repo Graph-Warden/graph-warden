@@ -1,21 +1,21 @@
 import { parseArgs } from "node:util";
-import { EdgeTypeSchema, type Scope, type TraversalOptions } from "@graph-warden/core";
-import { parseScope, type Page } from "@graph-warden/documents";
+import { EdgeTypeSchema, parseScope, type Principal, type Scope, type TraversalOptions } from "@graph-warden/core";
+import type { Page } from "@graph-warden/documents";
 
 export const USAGE = `Usage:
   gwarden ingest <dir> --source <name> --user <user> [--team <team>]... [--where key=value]...
-                 [--default-scope <scope>] [--org <file>]
+                 [--default-scope <scope>]
   gwarden traverse <node-id> --user <user> [--team <team>]... [--direction out|in|both]
-                   [--depth <n>] [--edge <TYPE>]... [--org <file>]
+                   [--depth <n>] [--edge <TYPE>]...
   gwarden audit [--user <user>]
 
-Scopes: shared, team:<name>, private:<user>. A document without a scope: field is private to the
+Scopes: shared, team:<name>, teams:<a>,<b> (members of every team), private:<user>. A document without a scope: field is private to the
 ingesting --user unless --default-scope says otherwise. Every traverse is recorded in the audit log, which
 audit prints oldest first.
 
---org (or GWARDEN_ORG) names a YAML file mapping each team to its parent team, or to nothing for a
-top-level team. A team reads its own nodes and those of every team below it. A document derived
-from others (DERIVED_FROM) takes the narrowest scope of its sources. Neo4j settings come from NEO4J_URI, NEO4J_USER and
+--team lists the groups the identity provider reports for --user, nested groups included. A document
+derived from others (DERIVED_FROM) is narrowed so that only readers of all its sources read it; the
+ingesting --user and --team must read every source. Neo4j settings come from NEO4J_URI, NEO4J_USER and
 NEO4J_PASSWORD (see .env.example).`;
 
 export type Command =
@@ -25,17 +25,13 @@ export type Command =
       readonly source: string;
       readonly include: (page: Page) => boolean;
       readonly defaultScope: Scope;
-      readonly user: string;
-      readonly teams: readonly string[];
-      readonly org?: string;
+      readonly author: Principal;
     }
   | {
       readonly name: "traverse";
       readonly start: string;
-      readonly user: string;
-      readonly teams: readonly string[];
+      readonly principal: Principal;
       readonly options: TraversalOptions;
-      readonly org?: string;
     }
   | {
       readonly name: "audit";
@@ -56,13 +52,10 @@ export function parseCommand(argv: readonly string[]): Command {
       direction: { type: "string", default: "out" },
       depth: { type: "string" },
       edge: { type: "string", multiple: true },
-      org: { type: "string" },
     },
   });
   if (name === "audit") return values.user === undefined ? { name } : { name, user: values.user };
 
-  const org = values.org ?? process.env.GWARDEN_ORG;
-  const withOrg = org === undefined || org === "" ? {} : { org };
   const [target] = positionals;
   if (target === undefined) throw new Error(USAGE);
 
@@ -77,9 +70,7 @@ export function parseCommand(argv: readonly string[]): Command {
         source: values.source,
         include: (page) => filters.every(([key, value]) => matches(page.frontmatter[key], value)),
         defaultScope: parseScope(values["default-scope"] ?? `private:${values.user}`),
-        user: values.user,
-        teams: values.team,
-        ...withOrg,
+        author: { user: values.user, teams: values.team },
       };
     }
     case "traverse": {
@@ -95,9 +86,7 @@ export function parseCommand(argv: readonly string[]): Command {
       return {
         name,
         start: target,
-        user: values.user,
-        teams: values.team,
-        ...withOrg,
+        principal: { user: values.user, teams: values.team },
         options: {
           direction,
           ...(depth === undefined ? {} : { maxDepth: depth }),

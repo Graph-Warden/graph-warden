@@ -59,6 +59,14 @@ describe.skipIf(uri === undefined)("Neo4j adapter", () => {
       expect(await store().getNode("missing")).toBeUndefined();
     });
 
+    it("stores a scope shared by several teams", async () => {
+      const summary: Node = { ...concept, id: "summary", scope: { kind: "teams", teams: ["bff", "front"] } };
+      await store().upsertNodes([summary]);
+      expect(await store().getNode("summary")).toEqual(summary);
+      await store().upsertNodes([{ ...summary, scope: { kind: "shared" } }]);
+      expect(await store().getNode("summary")).toEqual({ ...summary, scope: { kind: "shared" } });
+    });
+
     it("upserts idempotently", async () => {
       await store().upsertNodes([decision]);
       await store().upsertNodes([{ ...decision, scope: { kind: "shared" } }]);

@@ -19,11 +19,13 @@ describe("ingest", () => {
   it("widens the default scope only when asked", () => {
     const shared = parseCommand(["ingest", "./docs", "--source", "x", "--user", "alice", "--default-scope", "team:dev"]);
     expect(shared).toMatchObject({ defaultScope: { kind: "team", team: "dev" } });
+    const both = parseCommand(["ingest", "./docs", "--source", "x", "--user", "alice", "--default-scope", "teams:front,bff"]);
+    expect(both).toMatchObject({ defaultScope: { kind: "teams", teams: ["bff", "front"] } });
   });
 
-  it("reads the author's teams and the organisation file", () => {
-    const command = parseCommand(["ingest", "./docs", "--source", "x", "--user", "alice", "--team", "front-a", "--org", "org.yaml"]);
-    expect(command).toMatchObject({ user: "alice", teams: ["front-a"], org: "org.yaml" });
+  it("takes the author's groups", () => {
+    const command = parseCommand(["ingest", "./docs", "--source", "x", "--user", "lea", "--team", "bff", "--team", "front"]);
+    expect(command).toMatchObject({ author: { user: "lea", teams: ["bff", "front"] } });
   });
 
   it("requires a source, a user and well-formed filters", () => {
@@ -42,8 +44,7 @@ describe("traverse", () => {
     expect(command).toEqual({
       name: "traverse",
       start: "graph-warden",
-      user: "alice",
-      teams: ["bff", "front-a"],
+      principal: { user: "alice", teams: ["bff", "front-a"] },
       options: { direction: "both", maxDepth: 2, edgeTypes: ["REFERENCES"] },
     });
   });

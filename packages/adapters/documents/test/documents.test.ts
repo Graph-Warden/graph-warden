@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { parsePage, parseScope, readDocuments, toGraph } from "../src/index.js";
+import { parsePage, readDocuments, toGraph } from "../src/index.js";
 
 describe("parsePage", () => {
   it("reads the frontmatter and the wikilinks, without aliases, headings or duplicates", () => {
@@ -21,19 +21,6 @@ describe("parsePage", () => {
 
   it("accepts a page without frontmatter", () => {
     expect(parsePage("note.md", "Just [[text]].").frontmatter).toEqual({});
-  });
-});
-
-describe("parseScope", () => {
-  it("reads the three scope forms", () => {
-    expect(parseScope("shared")).toEqual({ kind: "shared" });
-    expect(parseScope("team:bff")).toEqual({ kind: "team", team: "bff" });
-    expect(parseScope("private:alice")).toEqual({ kind: "private", user: "alice" });
-  });
-
-  it("rejects anything else", () => {
-    expect(() => parseScope("public")).toThrow();
-    expect(() => parseScope("team:")).toThrow();
   });
 });
 

@@ -13,6 +13,7 @@ const edgeTypes = ["IMPORTS", "CONSUMES", "DERIVED_FROM"] as const;
 const scope: fc.Arbitrary<Scope> = fc.oneof(
   fc.constant({ kind: "shared" } as const),
   fc.constantFrom(...teams).map((team) => ({ kind: "team", team }) as const),
+  fc.uniqueArray(fc.constantFrom(...teams), { minLength: 2 }).map((names) => ({ kind: "teams", teams: names.sort() }) as const),
   fc.constantFrom(...users).map((user) => ({ kind: "private", user }) as const),
 );
 
