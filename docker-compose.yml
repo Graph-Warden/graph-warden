@@ -16,5 +16,22 @@ services:
       timeout: 3s
       retries: 30
 
+  # Throwaway database for the adapter tests, wiped by every test and kept in memory:
+  # `docker compose --profile test up -d --wait neo4j-test`, then NEO4J_TEST_URI=bolt://localhost:7688.
+  neo4j-test:
+    image: neo4j:5.26-community
+    profiles: [test]
+    ports:
+      - "7688:7687"
+    environment:
+      NEO4J_AUTH: neo4j/graph-warden
+    tmpfs:
+      - /data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:7474 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
 volumes:
   neo4j-data:
