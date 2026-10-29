@@ -42,7 +42,7 @@ importers:
         specifier: ^3.2.7
         version: 3.2.7(@types/node@22.20.5)(jiti@2.7.0)(yaml@2.9.1)
 
-  packages/adapters/markdown:
+  packages/adapters/documents:
     dependencies:
       '@graph-warden/core':
         specifier: workspace:*
@@ -68,9 +68,9 @@ importers:
       '@graph-warden/core':
         specifier: workspace:*
         version: link:../core
-      '@graph-warden/markdown':
+      '@graph-warden/documents':
         specifier: workspace:*
-        version: link:../adapters/markdown
+        version: link:../adapters/documents
       '@graph-warden/neo4j':
         specifier: workspace:*
         version: link:../adapters/neo4j

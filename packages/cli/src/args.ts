@@ -1,6 +1,6 @@
 import { parseArgs } from "node:util";
 import { EdgeTypeSchema, type Principal, type Scope, type TraversalOptions } from "@graph-warden/core";
-import { parseScope, type Page } from "@graph-warden/markdown";
+import { parseScope, type Page } from "@graph-warden/documents";
 
 export const USAGE = `Usage:
   gwarden ingest-markdown <dir> --source <name> --user <user> [--where key=value]...

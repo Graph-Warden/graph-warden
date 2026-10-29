@@ -117,3 +117,50 @@ describe("typed references", () => {
     expect(() => parsePage("bad.md", "---\nreferences: api\n---\n")).toThrow(/bad\.md/);
   });
 });
+
+describe("JSON and YAML documents", () => {
+  it("reads the whole object as fields, with id, type, scope and references", () => {
+    const json = parsePage(
+      "decisions/adr-2.json",
+      JSON.stringify({ id: "adr-0002", type: "Decision", scope: "team:bff", references: [{ type: "DECIDES", to: "api" }] }),
+    );
+    const yaml = parsePage("api.yaml", "type: endpoint\nreferences:\n  - adr-0002\n");
+    expect(json).toMatchObject({ name: "adr-0002", links: [], references: [{ type: "DECIDES", to: "api" }] });
+    expect(yaml).toMatchObject({ name: "api", references: [{ type: "REFERENCES", to: "adr-0002" }] });
+
+    const { nodes, edges } = toGraph([json, yaml], { source: "docs:test", defaultScope: { kind: "shared" } });
+    expect(nodes.map((n) => [n.id, n.type, n.scope])).toEqual([
+      ["adr-0002", "Decision", { kind: "team", team: "bff" }],
+      ["api", "Endpoint", { kind: "shared" }],
+    ]);
+    expect(edges).toEqual([
+      { type: "DECIDES", from: "adr-0002", to: "api" },
+      { type: "REFERENCES", from: "api", to: "adr-0002" },
+    ]);
+  });
+
+  it("accepts .yml and an empty file", () => {
+    expect(parsePage("empty.yml", "").name).toBe("empty");
+  });
+
+  it("rejects malformed documents, naming the file", () => {
+    expect(() => parsePage("bad.json", "{ nope")).toThrow(/bad\.json: invalid JSON/);
+    expect(() => parsePage("bad.yaml", "a: [")).toThrow(/bad\.yaml: invalid YAML/);
+    expect(() => parsePage("list.yaml", "- a\n- b\n")).toThrow(/list\.yaml: a document must be an object/);
+    expect(() => parsePage("id.json", '{ "id": 3 }')).toThrow(/id\.json: id must be/);
+    expect(() => parsePage("notes.txt", "")).toThrow(/notes\.txt: unsupported/);
+  });
+});
+
+describe("readDocuments across formats", () => {
+  it("reads Markdown, JSON and YAML files and ignores the rest", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "docs-"));
+    await writeFile(join(dir, "a.md"), "[[b]]");
+    await writeFile(join(dir, "b.json"), '{ "references": ["c"] }');
+    await writeFile(join(dir, "c.yml"), "type: concept\n");
+    await writeFile(join(dir, "d.txt"), "ignored");
+    const { nodes, edges } = await readDocuments(dir, { source: "docs:test", defaultScope: { kind: "shared" } });
+    expect(nodes.map((n) => n.id)).toEqual(["a", "b", "c"]);
+    expect(edges).toHaveLength(2);
+  });
+});

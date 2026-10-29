@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@graph-warden/core": "workspace:*",
-    "@graph-warden/markdown": "workspace:*",
+    "@graph-warden/documents": "workspace:*",
     "@graph-warden/neo4j": "workspace:*",
     "neo4j-driver": "^6.2.0"
   }

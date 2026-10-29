@@ -1,5 +1,5 @@
 import { readdir, readFile } from "node:fs/promises";
-import { basename, join, relative } from "node:path";
+import { basename, extname, join, relative } from "node:path";
 import {
   EdgeTypeSchema,
   NodeSchema,
@@ -14,10 +14,12 @@ import {
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
 
-// A folder of Markdown documents as nodes and edges. A page is a node named after its file. Edges
-// come from the typed `references:` frontmatter field and from [[wikilinks]], which are untyped
-// REFERENCES; a typed reference to a target replaces the wikilink to the same target. References
-// to pages that were not read (filtered out, or missing) are dropped, so no edge dangles.
+// A folder of Markdown, JSON and YAML documents as nodes and edges. A document is a node whose id
+// is its `id` field, or its file name. Its fields are the frontmatter of a Markdown page, or the
+// whole object of a JSON or YAML file. Edges come from the typed `references` field and, in
+// Markdown, from [[wikilinks]], which are untyped REFERENCES; a typed reference to a target
+// replaces the wikilink to the same target. References to documents that were not read
+// (filtered out, or missing) are dropped, so no edge dangles.
 
 export type Frontmatter = Readonly<Record<string, unknown>>;
 
@@ -58,16 +60,42 @@ export interface DocumentOptions {
 const FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/;
 const WIKILINK = /\[\[([^\]|#\n]+)(?:[#|][^\]\n]*)?\]\]/g;
 
+export const EXTENSIONS = [".md", ".json", ".yaml", ".yml"] as const;
+
+// Parses one document; the format follows the extension of `path`.
 export function parsePage(path: string, text: string): Page {
-  const match = FRONTMATTER.exec(text);
-  const yaml: unknown = match?.[1] === undefined ? {} : parseYaml(match[1]);
-  const frontmatter = typeof yaml === "object" && yaml !== null ? (yaml as Frontmatter) : {};
-  const links = [...text.matchAll(WIKILINK)].map((link) => (link[1] ?? "").trim());
+  const extension = extname(path);
+  if (extension === ".md") {
+    const match = FRONTMATTER.exec(text);
+    const links = [...text.matchAll(WIKILINK)].map((link) => (link[1] ?? "").trim());
+    return toPage(path, match?.[1] === undefined ? {} : parse(path, "YAML", () => parseYaml(match[1] ?? "")), [...new Set(links)]);
+  }
+  if (extension === ".json") return toPage(path, parse(path, "JSON", () => JSON.parse(text)), []);
+  if (extension === ".yaml" || extension === ".yml") return toPage(path, parse(path, "YAML", () => parseYaml(text)), []);
+  throw new Error(`${path}: unsupported document type, expected one of ${EXTENSIONS.join(", ")}`);
+}
+
+function parse(path: string, format: string, read: () => unknown): unknown {
+  try {
+    return read();
+  } catch (error) {
+    throw new Error(`${path}: invalid ${format}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+function toPage(path: string, fields: unknown, links: readonly string[]): Page {
+  if (fields !== null && fields !== undefined && (typeof fields !== "object" || Array.isArray(fields))) {
+    throw new Error(`${path}: a document must be an object of fields`);
+  }
+  const frontmatter = (fields ?? {}) as Frontmatter;
   const references = ReferencesSchema.safeParse(frontmatter.references);
   if (!references.success) {
     throw new Error(`${path}: invalid references: ${z.prettifyError(references.error)}`);
   }
-  return { name: basename(path, ".md"), path, frontmatter, links: [...new Set(links)], references: references.data };
+  const id = frontmatter.id;
+  if (id !== undefined && (typeof id !== "string" || id === "")) throw new Error(`${path}: id must be a non-empty string`);
+  const name = id ?? basename(path, extname(path));
+  return { name, path, frontmatter, links, references: references.data };
 }
 
 export function parseScope(value: string): Scope {
@@ -103,7 +131,7 @@ export function toGraph(pages: readonly Page[], options: DocumentOptions): { nod
 }
 
 export async function readDocuments(dir: string, options: DocumentOptions): Promise<{ nodes: Node[]; edges: Edge[] }> {
-  const files = (await readdir(dir, { recursive: true })).filter((file) => file.endsWith(".md")).sort();
+  const files = (await readdir(dir, { recursive: true })).filter((file) => EXTENSIONS.some((extension) => file.endsWith(extension))).sort();
   const pages = await Promise.all(
     files.map(async (file) => parsePage(relative(dir, join(dir, file)), await readFile(join(dir, file), "utf8"))),
   );
