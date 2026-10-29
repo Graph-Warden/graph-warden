@@ -15,6 +15,8 @@ The words below are used with this meaning in code, proposals, issues and review
 | Traversal | Walking edges from a node. Scopes are checked on every hop, not only on the result. |
 | Erasure | Removal of a source and of everything derived from it (`gwarden forget`). |
 | Audit entry | A record of a read made on behalf of a user. |
-| Port | An interface declared in `core` (`GraphStore`, `LLMProvider`). |
+| Audit log | The append-only port (`AuditLog`) holding audit entries in write order. Itself sensitive: it says who saw what. |
+| Reader | The only way to read the graph on behalf of a principal (`createReader`): applies the scopes, then writes the audit entry before returning the result. |
+| Port | An interface declared in `core` (`GraphStore`, `AuditLog`, `LLMProvider`). |
 | Adapter | A package that implements a port for a concrete technology. |
 | Graph store | The port (`GraphStore`) that persists nodes and edges. Stores never filter by scope; the domain does. |

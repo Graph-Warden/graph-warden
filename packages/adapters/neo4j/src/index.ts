@@ -1,7 +1,9 @@
 import {
+  AuditEntrySchema,
   createGraph,
   EdgeSchema,
   NodeSchema,
+  type AuditLog,
   type Edge,
   type GraphStore,
   type Node,
@@ -17,6 +19,8 @@ export async function ensureConstraints(driver: Driver): Promise<void> {
   // Community edition: uniqueness only. Existence of scope and provenance is enforced by the
   // schema validation below (property existence constraints need Enterprise).
   await driver.executeQuery("CREATE CONSTRAINT node_id IF NOT EXISTS FOR (n:Node) REQUIRE n.id IS UNIQUE");
+  await driver.executeQuery("CREATE CONSTRAINT audit_counter IF NOT EXISTS FOR (c:AuditCounter) REQUIRE c.id IS UNIQUE");
+  await driver.executeQuery("CREATE CONSTRAINT audit_seq IF NOT EXISTS FOR (e:AuditEntry) REQUIRE e.seq IS UNIQUE");
 }
 
 export function createNeo4jStore(driver: Driver): GraphStore {
@@ -64,6 +68,41 @@ export function createNeo4jStore(driver: Driver): GraphStore {
         nodes.records.map(fromRecord),
         edges.records.map((r): Edge => EdgeSchema.parse({ type: r.get("type"), from: r.get("from"), to: r.get("to") })),
       );
+    },
+  };
+}
+
+// Audit entries are (:AuditEntry) nodes, outside the :Node label, so no traversal or snapshot ever
+// sees them. A single counter node hands out a monotonic sequence within the writing transaction,
+// which orders entries written in the same millisecond. Nothing here updates or deletes an entry.
+export function createNeo4jAuditLog(driver: Driver): AuditLog {
+  return {
+    async append(entry) {
+      const { at, principal, action, start, options, returned } = AuditEntrySchema.parse(entry);
+      await driver.executeQuery(
+        `MERGE (c:AuditCounter {id: 'audit'}) SET c.seq = coalesce(c.seq, 0) + 1
+         CREATE (:AuditEntry {seq: c.seq, at: $at, user: $user, teams: $teams, action: $action,
+                              start: $start, options: $options, returned: $returned})`,
+        { at, user: principal.user, teams: principal.teams, action, start, options: JSON.stringify(options), returned },
+      );
+    },
+
+    async entries(filter = {}) {
+      const { records } = await driver.executeQuery(
+        "MATCH (e:AuditEntry) WHERE $user IS NULL OR e.user = $user RETURN e ORDER BY e.seq",
+        { user: filter.user ?? null },
+      );
+      return records.map((record) => {
+        const e = record.get("e").properties as Record<string, unknown>;
+        return AuditEntrySchema.parse({
+          at: e.at,
+          principal: { user: e.user, teams: e.teams },
+          action: e.action,
+          start: e.start,
+          options: JSON.parse(String(e.options)),
+          returned: e.returned,
+        });
+      });
     },
   };
 }
