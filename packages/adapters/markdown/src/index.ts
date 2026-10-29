@@ -3,7 +3,7 @@ import { basename, join, relative } from "node:path";
 import { NodeSchema, ScopeSchema, type Edge, type Node, type NodeType, type Scope } from "@graph-warden/core";
 import { parse as parseYaml } from "yaml";
 
-// A Markdown or Obsidian vault as nodes and REFERENCES edges. A page is a node named after its
+// A folder of Markdown documents as nodes and REFERENCES edges. A page is a node named after its
 // file; a [[wikilink]] to another page read in the same pass is an edge. Links to pages that were
 // not read (filtered out, or missing) are dropped, so the result never holds a dangling edge.
 
@@ -16,8 +16,8 @@ export interface Page {
   readonly links: readonly string[];
 }
 
-export interface VaultOptions {
-  // Provenance source, for example `obsidian:my-vault`.
+export interface DocumentOptions {
+  // Provenance source, for example `docs:my-team`.
   readonly source: string;
   // Pages to keep; all by default.
   readonly include?: (page: Page) => boolean;
@@ -42,7 +42,7 @@ export function parseScope(value: string): Scope {
   return ScopeSchema.parse(scope);
 }
 
-export function toGraph(pages: readonly Page[], options: VaultOptions): { nodes: Node[]; edges: Edge[] } {
+export function toGraph(pages: readonly Page[], options: DocumentOptions): { nodes: Node[]; edges: Edge[] } {
   const kept = pages.filter(options.include ?? (() => true));
   const names = new Set(kept.map((page) => page.name));
   const nodes = kept.map((page) =>
@@ -63,7 +63,7 @@ export function toGraph(pages: readonly Page[], options: VaultOptions): { nodes:
   return { nodes, edges };
 }
 
-export async function readVault(dir: string, options: VaultOptions): Promise<{ nodes: Node[]; edges: Edge[] }> {
+export async function readDocuments(dir: string, options: DocumentOptions): Promise<{ nodes: Node[]; edges: Edge[] }> {
   const files = (await readdir(dir, { recursive: true })).filter((file) => file.endsWith(".md")).sort();
   const pages = await Promise.all(
     files.map(async (file) => parsePage(relative(dir, join(dir, file)), await readFile(join(dir, file), "utf8"))),

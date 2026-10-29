@@ -1,7 +1,7 @@
 {
   "name": "@graph-warden/markdown",
   "version": "0.0.0",
-  "description": "Reads a Markdown or Obsidian vault as Graph-Warden nodes and REFERENCES edges.",
+  "description": "Reads a folder of Markdown documents as Graph-Warden nodes and REFERENCES edges.",
   "license": "Apache-2.0",
   "type": "module",
   "exports": {

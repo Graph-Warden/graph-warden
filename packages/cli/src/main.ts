@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { traverse } from "@graph-warden/core";
-import { readVault } from "@graph-warden/markdown";
+import { readDocuments } from "@graph-warden/markdown";
 import { createNeo4jStore, ensureConstraints } from "@graph-warden/neo4j";
 import neo4j from "neo4j-driver";
 import { parseCommand, type Command } from "./args.js";
@@ -15,7 +15,7 @@ async function run(command: Command): Promise<void> {
     switch (command.name) {
       case "ingest-markdown": {
         await ensureConstraints(driver);
-        const { nodes, edges } = await readVault(command.dir, command);
+        const { nodes, edges } = await readDocuments(command.dir, command);
         await store.upsertNodes(nodes);
         await store.upsertEdges(edges);
         console.log(`Ingested ${nodes.length} nodes and ${edges.length} edges from ${command.source}.`);

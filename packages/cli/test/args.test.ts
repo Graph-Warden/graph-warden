@@ -3,10 +3,10 @@ import { parsePage } from "@graph-warden/markdown";
 import { parseCommand } from "../src/args.js";
 
 describe("ingest-markdown", () => {
-  const command = parseCommand(["ingest-markdown", "./vault", "--source", "obsidian:x", "--where", "theme=dev", "--where", "tags=mcp"]);
+  const command = parseCommand(["ingest-markdown", "./docs", "--source", "docs:x", "--where", "theme=dev", "--where", "tags=mcp"]);
 
   it("reads the directory, source and default scope", () => {
-    expect(command).toMatchObject({ name: "ingest-markdown", dir: "./vault", source: "obsidian:x", defaultScope: { kind: "shared" } });
+    expect(command).toMatchObject({ name: "ingest-markdown", dir: "./docs", source: "docs:x", defaultScope: { kind: "shared" } });
   });
 
   it("keeps pages matching every --where, on plain or list fields", () => {
@@ -17,8 +17,8 @@ describe("ingest-markdown", () => {
   });
 
   it("requires a source and well-formed filters", () => {
-    expect(() => parseCommand(["ingest-markdown", "./vault"])).toThrow(/--source/);
-    expect(() => parseCommand(["ingest-markdown", "./vault", "--source", "x", "--where", "theme"])).toThrow(/key=value/);
+    expect(() => parseCommand(["ingest-markdown", "./docs"])).toThrow(/--source/);
+    expect(() => parseCommand(["ingest-markdown", "./docs", "--source", "x", "--where", "theme"])).toThrow(/key=value/);
   });
 });
 

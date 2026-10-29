@@ -27,8 +27,8 @@ Each line is a GitHub issue under the matching milestone. Labels in brackets.
 - [ ] `gwarden forget <source>` with propagation [core, security]
 
 ## M3 — Opening up
-- [ ] Source adapters: Obsidian / Markdown, GitLab, Confluence, Jira [adapter, good first issue]
-- [ ] Exports: Obsidian vault, JSON-LD, GraphML [adapter, good first issue]
+- [ ] Source adapters: Markdown documents, GitLab, Confluence, Jira [adapter, good first issue]
+- [ ] Exports: Markdown documents, JSON-LD, GraphML [adapter, good first issue]
 - [ ] RDF `GraphStore` (SPARQL) [adapter]
 - [ ] Helm chart; deployment guides for GCP (GKE, Neo4j Aura, Vertex) then Azure [deploy]
 - [ ] Agent-session capture with promotion and redaction [worker, security]
