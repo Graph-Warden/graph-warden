@@ -6,6 +6,7 @@ The words below are used with this meaning in code, proposals, issues and review
 |---|---|
 | Node | A unit of knowledge in the graph (file, endpoint, decision, note). Has exactly one scope and a provenance. |
 | Edge | A typed relation between two nodes (`IMPORTS`, `CONSUMES`, `DERIVED_FROM`…). |
+| Ontology | The closed set of node types (`Source`, `Decision`, `Concept`…) and edge types a graph accepts. Extensible by configuration, never by writing an unknown type. |
 | Scope | Who may see a node: `shared`, `team:<x>` or `private:<user>`. |
 | Principal | The identity a read is made for: a user and their teams. |
 | Grant | A right held by a principal that covers a scope. |
