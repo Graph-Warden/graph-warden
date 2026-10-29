@@ -17,3 +17,4 @@ The words below are used with this meaning in code, proposals, issues and review
 | Audit entry | A record of a read made on behalf of a user. |
 | Port | An interface declared in `core` (`GraphStore`, `LLMProvider`). |
 | Adapter | A package that implements a port for a concrete technology. |
+| Graph store | The port (`GraphStore`) that persists nodes and edges. Stores never filter by scope; the domain does. |
