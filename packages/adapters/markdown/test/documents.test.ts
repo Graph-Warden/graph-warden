@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { parsePage, parseScope, readVault, toGraph } from "../src/index.js";
+import { parsePage, parseScope, readDocuments, toGraph } from "../src/index.js";
 
 describe("parsePage", () => {
   it("reads the frontmatter and the wikilinks, without aliases, headings or duplicates", () => {
@@ -42,13 +42,13 @@ describe("toGraph", () => {
     parsePage("b.md", "---\ntheme: dev\ntype: source\nscope: team:bff\n---\n[[a]]"),
     parsePage("c.md", "---\ntheme: perso\n---\n[[a]]"),
   ];
-  const options = { source: "obsidian:test", include: (page: { frontmatter: Record<string, unknown> }) => page.frontmatter.theme === "dev" };
+  const options = { source: "docs:test", include: (page: { frontmatter: Record<string, unknown> }) => page.frontmatter.theme === "dev" };
 
   it("keeps only the included pages, with their type, scope and provenance", () => {
     const { nodes } = toGraph(pages, options);
     expect(nodes).toEqual([
-      { id: "a", type: "Concept", scope: { kind: "shared" }, provenance: { source: "obsidian:test", path: "a.md" } },
-      { id: "b", type: "Source", scope: { kind: "team", team: "bff" }, provenance: { source: "obsidian:test", path: "b.md" } },
+      { id: "a", type: "Concept", scope: { kind: "shared" }, provenance: { source: "docs:test", path: "a.md" } },
+      { id: "b", type: "Source", scope: { kind: "team", team: "bff" }, provenance: { source: "docs:test", path: "b.md" } },
     ]);
   });
 
@@ -60,19 +60,19 @@ describe("toGraph", () => {
   });
 
   it("uses the default scope for pages without one", () => {
-    const { nodes } = toGraph(pages.slice(0, 1), { source: "obsidian:test", defaultScope: { kind: "private", user: "me" } });
+    const { nodes } = toGraph(pages.slice(0, 1), { source: "docs:test", defaultScope: { kind: "private", user: "me" } });
     expect(nodes[0]?.scope).toEqual({ kind: "private", user: "me" });
   });
 });
 
-describe("readVault", () => {
+describe("readDocuments", () => {
   it("reads every Markdown file under the directory, recursively", async () => {
-    const dir = await mkdtemp(join(tmpdir(), "vault-"));
+    const dir = await mkdtemp(join(tmpdir(), "docs-"));
     await mkdir(join(dir, "concepts"));
     await writeFile(join(dir, "index.md"), "[[scopes]]");
     await writeFile(join(dir, "concepts", "scopes.md"), "[[index]]");
     await writeFile(join(dir, "image.png"), "");
-    const { nodes, edges } = await readVault(dir, { source: "obsidian:test" });
+    const { nodes, edges } = await readDocuments(dir, { source: "docs:test" });
     expect(nodes.map((n) => n.provenance.path)).toEqual(["concepts/scopes.md", "index.md"]);
     expect(edges).toHaveLength(2);
   });

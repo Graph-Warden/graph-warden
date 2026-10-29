@@ -31,7 +31,7 @@ Graph databases already have role-based access, and agent-memory libraries alrea
  merge on main ──webhook──▶ ┌──────────────┐    ┌───────────────────┐ ──MCP──▶ Claude Code, Cursor,
  GitHub Action ──push─────▶ │ ingestion    │──▶ │ access rules      │          LibreChat, Open WebUI
  git polling ─────────────▶ │ queue        │    │ (scope per hop,   │ ──REST─▶ your tools
- Obsidian / docs ─────────▶ │ (ordered,    │    │  provenance,      │ ──SSE──▶ web graph view
+ docs (md/json/yaml) ─────▶ │ (ordered,    │    │  provenance,      │ ──SSE──▶ web graph view
                             │  idempotent) │    │  audit)           │ ◀─pull── gwarden CLI + local cache
                             └──────┬───────┘    └─────────┬─────────┘
                                    ▼                      ▼
@@ -40,6 +40,7 @@ Graph databases already have role-based access, and agent-memory libraries alrea
                       compatible / local model)
 ```
 
+- **The graph is the source of truth**, never the files it was built from. It lives in a server: Neo4j running locally (`pnpm db:up`), or a hosted deployment (GCP, Azure…) from which `gwarden pull` fetches only what the user's scopes allow.
 - **Targeted ingestion**, like `jest --findRelatedTests`: a merge only revalidates the knowledge reachable from the files it changed.
 - **No inbound port on developer machines**: clients pull or subscribe over SSE, so it works behind corporate proxies without tunnels.
 - **Bring your own model and your own client**: one `LLMProvider` interface, any MCP client.
@@ -73,12 +74,12 @@ NEO4J_TEST_URI=bolt://localhost:7688 pnpm test
 
 ### Run it locally
 
-Load a Markdown or Obsidian vault into Neo4j, then walk it as different principals:
+Ingest a folder of Markdown documents into the local Neo4j, then walk the graph as different principals:
 
 ```sh
 cp .env.example .env
 pnpm db:up && pnpm build
-pnpm gwarden ingest-markdown ~/my-vault --source obsidian:my-vault --where theme=dev --default-scope team:dev
+pnpm gwarden ingest-markdown ~/docs --source docs:my-team --where theme=dev --default-scope team:dev
 pnpm gwarden traverse some-page --user alice --team dev --direction both   # sees the team's pages
 pnpm gwarden traverse some-page --user bob --direction both                # sees nothing
 ```
