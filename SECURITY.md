@@ -9,7 +9,7 @@ Graph-Warden's job is to keep people and agents from reading what they should no
 
 ## Reporting
 
-**Do not open a public issue.** Use GitHub's private reporting: [Report a vulnerability](https://github.com/simoncoding95-ctrl/graph-warden/security/advisories/new).
+**Do not open a public issue.** Use GitHub's private reporting: [Report a vulnerability](https://github.com/Graph-Warden/graph-warden/security/advisories/new).
 
 You can expect an acknowledgement within 5 working days. We will agree on a disclosure date with you and credit you unless you prefer otherwise.
 
