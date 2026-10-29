@@ -1,15 +1,17 @@
 import {
   AuditEntrySchema,
   createGraph,
+  GraphEventSchema,
   EdgeSchema,
   NodeSchema,
   type AuditLog,
   type Edge,
+  type EventLog,
   type GraphStore,
   type Node,
   type Scope,
 } from "@graph-warden/core";
-import type { Driver, Record as Neo4jRecord } from "neo4j-driver";
+import neo4j, { type Driver, type Record as Neo4jRecord } from "neo4j-driver";
 
 // Every node is stored as (:Node:<type>) with flat properties; every edge as a relationship named
 // after its type. Values are validated against the ontology on the way in and on the way out, so
@@ -19,8 +21,10 @@ export async function ensureConstraints(driver: Driver): Promise<void> {
   // Community edition: uniqueness only. Existence of scope and provenance is enforced by the
   // schema validation below (property existence constraints need Enterprise).
   await driver.executeQuery("CREATE CONSTRAINT node_id IF NOT EXISTS FOR (n:Node) REQUIRE n.id IS UNIQUE");
-  await driver.executeQuery("CREATE CONSTRAINT audit_counter IF NOT EXISTS FOR (c:AuditCounter) REQUIRE c.id IS UNIQUE");
+  await driver.executeQuery("CREATE CONSTRAINT counter_id IF NOT EXISTS FOR (c:Counter) REQUIRE c.id IS UNIQUE");
   await driver.executeQuery("CREATE CONSTRAINT audit_seq IF NOT EXISTS FOR (e:AuditEntry) REQUIRE e.seq IS UNIQUE");
+  await driver.executeQuery("CREATE CONSTRAINT event_seq IF NOT EXISTS FOR (e:Event) REQUIRE e.seq IS UNIQUE");
+  await driver.executeQuery("CREATE INDEX event_node IF NOT EXISTS FOR (e:Event) ON (e.node)");
 }
 
 export function createNeo4jStore(driver: Driver): GraphStore {
@@ -72,18 +76,26 @@ export function createNeo4jStore(driver: Driver): GraphStore {
   };
 }
 
+// Hands out `count` sequence numbers from a counter node and binds the first one to `first`. The
+// first SET takes the write lock on the counter before its value is read, so concurrent writers
+// queue up instead of reading the same value.
+const nextSeq = (counter: string, count: string) => `
+  MERGE (c:Counter {id: '${counter}'}) SET c.locked = true
+  WITH c, coalesce(c.seq, 0) + 1 AS first SET c.seq = first + ${count} - 1
+  WITH first`;
+
 // Audit entries are (:AuditEntry) nodes, outside the :Node label, so no traversal or snapshot ever
-// sees them. A single counter node hands out a monotonic sequence within the writing transaction,
-// which orders entries written in the same millisecond. Nothing here updates or deletes an entry.
+// sees them. What an entry asked for (start and options, cursor, filter) is kept as JSON in
+// `request`. Nothing here updates or deletes an entry.
 export function createNeo4jAuditLog(driver: Driver): AuditLog {
   return {
     async append(entry) {
-      const { at, principal, action, start, options, returned } = AuditEntrySchema.parse(entry);
+      const { at, principal, action, returned, ...request } = AuditEntrySchema.parse(entry);
       await driver.executeQuery(
-        `MERGE (c:AuditCounter {id: 'audit'}) SET c.seq = coalesce(c.seq, 0) + 1
-         CREATE (:AuditEntry {seq: c.seq, at: $at, user: $user, teams: $teams, action: $action,
-                              start: $start, options: $options, returned: $returned})`,
-        { at, user: principal.user, teams: principal.teams, action, start, options: JSON.stringify(options), returned },
+        `${nextSeq("audit", "1")}
+         CREATE (:AuditEntry {seq: first, at: $at, user: $user, teams: $teams, action: $action,
+                              request: $request, returned: $returned})`,
+        { at, user: principal.user, teams: principal.teams, action, request: JSON.stringify(request), returned },
       );
     },
 
@@ -95,15 +107,50 @@ export function createNeo4jAuditLog(driver: Driver): AuditLog {
       return records.map((record) => {
         const e = record.get("e").properties as Record<string, unknown>;
         return AuditEntrySchema.parse({
+          ...(JSON.parse(String(e.request)) as object),
           at: e.at,
           principal: { user: e.user, teams: e.teams },
           action: e.action,
-          start: e.start,
-          options: JSON.parse(String(e.options)),
           returned: e.returned,
         });
       });
     },
+  };
+}
+
+// Graph events are (:Event) nodes, outside the :Node label, numbered like audit entries. A batch of
+// events gets consecutive numbers in one transaction.
+export function createNeo4jEventLog(driver: Driver): EventLog {
+  const read = async (query: string, params: Record<string, unknown>) => {
+    const { records } = await driver.executeQuery(query, params);
+    return records.map((record) => {
+      const e = record.get("e").properties as Record<string, unknown>;
+      return GraphEventSchema.parse({ ...(JSON.parse(String(e.payload)) as object), seq: neo4j.integer.toNumber(e.seq as number) });
+    });
+  };
+  return {
+    async append(events) {
+      if (events.length === 0) return;
+      const rows = events.map((event) => ({
+        payload: JSON.stringify(event),
+        node: event.kind === "edge-upserted" ? null : event.id,
+        from: event.kind === "edge-upserted" ? event.edge.from : null,
+        to: event.kind === "edge-upserted" ? event.edge.to : null,
+      }));
+      await driver.executeQuery(
+        `${nextSeq("events", "size($rows)")}
+         UNWIND range(0, size($rows) - 1) AS i
+         WITH first + i AS seq, $rows[i] AS row
+         CREATE (:Event {seq: seq, payload: row.payload, node: row.node, from: row.from, to: row.to})`,
+        { rows },
+      );
+    },
+    since: (after) => read("MATCH (e:Event) WHERE e.seq > $after RETURN e ORDER BY e.seq", { after: neo4j.int(after) }),
+    history: (id, upTo) =>
+      read(
+        "MATCH (e:Event) WHERE e.seq <= $upTo AND (e.node = $id OR e.from = $id OR e.to = $id) RETURN e ORDER BY e.seq",
+        { id, upTo: neo4j.int(upTo) },
+      ),
   };
 }
 

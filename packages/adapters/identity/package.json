@@ -1,0 +1,26 @@
+{
+  "name": "@graph-warden/identity",
+  "version": "0.0.0",
+  "description": "IdentityProvider implementations for Graph-Warden: OIDC, Google with Cloud Identity groups, demo tokens.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@graph-warden/core": "workspace:*",
+    "google-auth-library": "^10.9.1",
+    "jose": "^6.2.14",
+    "zod": "^4.6.7"
+  }
+}

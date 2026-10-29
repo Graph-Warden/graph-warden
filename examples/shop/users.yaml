@@ -1,0 +1,18 @@
+# Demo identities for GWARDEN_IDENTITY=demo. The groups are what a directory (LDAP, Entra ID, Cloud
+# Identity) would report with nested groups resolved: `dev-leads` is a member of every team group,
+# so Lea is in all of them. Anyone holding a token is that user: never expose this API.
+- token: demo-lea-1b7f3c9e2a4d
+  user: lea
+  teams: [dev, dev-leads, bff, front-a, front-b, front-c]
+- token: demo-bob-5e8a1d6c0f2b
+  user: bob
+  teams: [dev, bff]
+- token: demo-alice-9c2e7b4a1f3d
+  user: alice
+  teams: [dev, front-a]
+- token: demo-carla-3a6f0d8e2c1b
+  user: carla
+  teams: [dev, front-c]
+- token: demo-dpo-7d1b4e9a3c6f
+  user: dpo
+  teams: [auditors]

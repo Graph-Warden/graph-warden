@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import { parsePage } from "@graph-warden/documents";
 import { parseCommand } from "../src/args.js";
 
+// parseCommand reads these from the environment; a developer's own must not change the results.
+delete process.env.GWARDEN_API;
+delete process.env.GWARDEN_TOKEN;
+
 describe("ingest", () => {
   const command = parseCommand(["ingest", "./docs", "--source", "docs:x", "--user", "alice", "--where", "theme=dev", "--where", "tags=mcp"]);
 
@@ -45,6 +49,7 @@ describe("traverse", () => {
       name: "traverse",
       start: "graph-warden",
       principal: { user: "alice", teams: ["bff", "front-a"] },
+      through: { kind: "neo4j" },
       options: { direction: "both", maxDepth: 2, edgeTypes: ["REFERENCES"] },
     });
   });
@@ -62,8 +67,38 @@ describe("traverse", () => {
 
 describe("audit", () => {
   it("lists every entry, or one user's", () => {
-    expect(parseCommand(["audit"])).toEqual({ name: "audit" });
-    expect(parseCommand(["audit", "--user", "bob"])).toEqual({ name: "audit", user: "bob" });
+    expect(parseCommand(["audit"])).toEqual({ name: "audit", through: { kind: "neo4j" } });
+    expect(parseCommand(["audit", "--user", "bob"])).toEqual({ name: "audit", user: "bob", through: { kind: "neo4j" } });
+  });
+
+  it("goes through the API when given one", () => {
+    expect(parseCommand(["audit", "--api", "https://gw.example.com/", "--token", "t"])).toEqual({
+      name: "audit",
+      through: { kind: "api", api: "https://gw.example.com", token: "t" },
+    });
+    expect(() => parseCommand(["audit", "--api", "https://gw.example.com"])).toThrow(/--token/);
+  });
+});
+
+describe("traverse through the API", () => {
+  it("needs no --user: the token says who it is", () => {
+    expect(parseCommand(["traverse", "app", "--api", "https://gw.example.com", "--token", "t"])).toMatchObject({
+      name: "traverse",
+      through: { kind: "api", api: "https://gw.example.com", token: "t" },
+    });
+    expect(() => parseCommand(["traverse", "app"])).toThrow(/--user/);
+  });
+});
+
+describe("pull", () => {
+  it("needs an API and a token", () => {
+    expect(parseCommand(["pull", "--api", "https://gw.example.com", "--token", "t", "--cache", "/tmp/c.db"])).toEqual({
+      name: "pull",
+      api: "https://gw.example.com",
+      token: "t",
+      cache: "/tmp/c.db",
+    });
+    expect(() => parseCommand(["pull", "--token", "t"])).toThrow(/--api/);
   });
 });
 

@@ -16,6 +16,10 @@ The words below are used with this meaning in code, proposals, issues and review
 | Traversal | Walking edges from a node. Scopes are checked on every hop, not only on the result. |
 | Erasure | Removal of a source and of everything derived from it (`gwarden forget`). |
 | Audit entry | A record of a read made on behalf of a user. |
+| Event log | The append-only port (`EventLog`) recording every write to the graph with a sequence number. Pulls read it to know what changed since a cursor. |
+| Writer | The only way to write the graph (`createWriter`): every write lands in the store and then in the event log. |
+| Delta | What a pull returns: the nodes and edges readable now among those touched since the cursor, and the ids to drop. Computed from the current graph, never by replaying history. |
+| Identity provider | The port (`IdentityProvider`) turning a bearer token into a principal with its groups: OIDC, Google with Cloud Identity, or demo tokens. |
 | Audit log | The append-only port (`AuditLog`) holding audit entries in write order. Itself sensitive: it says who saw what. |
 | Reader | The only way to read the graph on behalf of a principal (`createReader`): applies the scopes, then writes the audit entry before returning the result. |
 | Port | An interface declared in `core` (`GraphStore`, `AuditLog`, `LLMProvider`). |

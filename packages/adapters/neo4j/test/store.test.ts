@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import neo4j, { type Driver } from "neo4j-driver";
 import type { AuditEntry, Node } from "@graph-warden/core";
-import { createNeo4jAuditLog, createNeo4jStore, ensureConstraints } from "../src/index.js";
+import { createNeo4jAuditLog, createNeo4jEventLog, createNeo4jStore, ensureConstraints } from "../src/index.js";
 
 // Runs against a throwaway database: every test wipes it. Never point NEO4J_TEST_URI at a
 // database you care about. `docker compose --profile test up -d --wait neo4j-test` starts one on
@@ -123,6 +123,16 @@ describe.skipIf(uri === undefined)("Neo4j adapter", () => {
       expect(await log().entries()).toHaveLength(20);
     });
 
+    it("keeps what each kind of read asked for", async () => {
+      const at = "2026-10-29T15:00:00.000Z";
+      const principal = { user: "dpo", teams: ["auditors"] };
+      const pull: AuditEntry = { at, principal, action: "pull", after: 12, returned: ["a"] };
+      const trail: AuditEntry = { at, principal, action: "audit", user: "bob", returned: [] };
+      await log().append(pull);
+      await log().append(trail);
+      expect(await log().entries({ user: "dpo" })).toEqual([pull, trail]);
+    });
+
     it("filters by user", async () => {
       await log().append(entry("alice", "app", []));
       await log().append(entry("bob", "app", ["secret"]));
@@ -138,6 +148,51 @@ describe.skipIf(uri === undefined)("Neo4j adapter", () => {
 
     it("rejects an invalid entry", async () => {
       await expect(log().append({ ...entry("alice", "app", []), at: "yesterday" })).rejects.toThrow();
+    });
+  });
+
+  describe("EventLog", () => {
+    const events = () => createNeo4jEventLog(driver);
+
+    it("numbers events in order, across batches", async () => {
+      await events().append([
+        { kind: "node-upserted", id: "a", scope: { kind: "shared" } },
+        { kind: "node-upserted", id: "b", scope: { kind: "teams", teams: ["bff", "front"] } },
+      ]);
+      await events().append([{ kind: "edge-upserted", edge: { type: "IMPORTS", from: "a", to: "b" } }]);
+      await events().append([{ kind: "node-deleted", id: "a" }]);
+      expect(await events().since(0)).toEqual([
+        { seq: 1, kind: "node-upserted", id: "a", scope: { kind: "shared" } },
+        { seq: 2, kind: "node-upserted", id: "b", scope: { kind: "teams", teams: ["bff", "front"] } },
+        { seq: 3, kind: "edge-upserted", edge: { type: "IMPORTS", from: "a", to: "b" } },
+        { seq: 4, kind: "node-deleted", id: "a" },
+      ]);
+      expect((await events().since(2)).map((e) => e.seq)).toEqual([3, 4]);
+    });
+
+    it("gives a node's history up to a cursor", async () => {
+      await events().append([{ kind: "node-upserted", id: "a", scope: { kind: "shared" } }]);
+      await events().append([{ kind: "node-upserted", id: "b", scope: { kind: "shared" } }]);
+      await events().append([{ kind: "edge-upserted", edge: { type: "IMPORTS", from: "b", to: "a" } }]);
+      await events().append([{ kind: "node-deleted", id: "a" }]);
+      expect((await events().history("a", 3)).map((e) => e.seq)).toEqual([1, 3]);
+    });
+
+    it("loses no event to concurrent batches", async () => {
+      await Promise.all(
+        Array.from({ length: 10 }, (_, i) =>
+          events().append([
+            { kind: "node-upserted", id: `n${i}`, scope: { kind: "shared" } },
+            { kind: "node-deleted", id: `n${i}` },
+          ]),
+        ),
+      );
+      expect((await events().since(0)).map((e) => e.seq)).toEqual(Array.from({ length: 20 }, (_, i) => i + 1));
+    });
+
+    it("keeps events out of the graph", async () => {
+      await events().append([{ kind: "node-deleted", id: "a" }]);
+      expect((await store().snapshot()).nodes.size).toBe(0);
     });
   });
 });

@@ -1,0 +1,130 @@
+import { z } from "zod";
+import { EdgeSchema, NodeSchema, type Edge, type Node } from "./ontology.js";
+import { canRead, ScopeSchema, type Principal } from "./scope.js";
+import type { GraphStore } from "./store.js";
+import type { Graph } from "./traversal.js";
+
+// The event log (proposal 0006): every write to the graph appends an event with a monotonic
+// sequence number. It is the basis of `gwarden pull`, which fetches what changed since a cursor.
+//
+// A delta is computed from the graph as it is now, never by replaying old events: a node that was
+// shared once and is confidential now must not reach a reader through its history. The log only
+// says which nodes were touched after the cursor, and what scope each node had at the cursor, so
+// that a removal is sent only to a reader who could see the node then. A client therefore never
+// receives the id of a node it may not see, deletions included.
+
+const SeqSchema = z.number().int().positive();
+
+export const GraphEventSchema = z.discriminatedUnion("kind", [
+  z.object({ seq: SeqSchema, kind: z.literal("node-upserted"), id: z.string().min(1), scope: ScopeSchema }).readonly(),
+  z.object({ seq: SeqSchema, kind: z.literal("node-deleted"), id: z.string().min(1) }).readonly(),
+  z.object({ seq: SeqSchema, kind: z.literal("edge-upserted"), edge: EdgeSchema }).readonly(),
+]);
+
+export type GraphEvent = z.infer<typeof GraphEventSchema>;
+
+type Unsequenced<T> = T extends unknown ? Omit<T, "seq"> : never;
+export type NewGraphEvent = Unsequenced<GraphEvent>;
+
+// Port for the event log. Append-only; `append` numbers the events in order, after every event
+// already in the log.
+export interface EventLog {
+  append(events: readonly NewGraphEvent[]): Promise<void>;
+  // Events with a sequence number above `after`, oldest first.
+  since(after: number): Promise<readonly GraphEvent[]>;
+  // Events up to and including `upTo`, for one node: what the log knew of it at that cursor.
+  history(id: string, upTo: number): Promise<readonly GraphEvent[]>;
+}
+
+// Writes go through here so that the graph and the log never disagree on what happened. The log is
+// written after the store: a crash in between leaves a write without an event, which the next write
+// to the same node repairs, rather than an event for a write that never happened.
+export interface Writer {
+  upsertNodes(nodes: readonly Node[]): Promise<void>;
+  upsertEdges(edges: readonly Edge[]): Promise<void>;
+  deleteNode(id: string): Promise<void>;
+}
+
+export function createWriter(store: GraphStore, log: EventLog): Writer {
+  return {
+    async upsertNodes(nodes) {
+      const parsed = nodes.map((node) => NodeSchema.parse(node));
+      await store.upsertNodes(parsed);
+      await log.append(parsed.map((node) => ({ kind: "node-upserted", id: node.id, scope: node.scope })));
+    },
+    async upsertEdges(edges) {
+      const parsed = edges.map((edge) => EdgeSchema.parse(edge));
+      await store.upsertEdges(parsed);
+      await log.append(parsed.map((edge) => ({ kind: "edge-upserted", edge })));
+    },
+    async deleteNode(id) {
+      await store.deleteNode(id);
+      await log.append([{ kind: "node-deleted", id }]);
+    },
+  };
+}
+
+export const DeltaSchema = z
+  .object({
+    // The cursor to send next time.
+    cursor: z.number().int().nonnegative(),
+    nodes: z.array(NodeSchema).readonly(),
+    edges: z.array(EdgeSchema).readonly(),
+    // Nodes the client may have and must drop: deleted, or no longer readable.
+    removed: z.array(z.string().min(1)).readonly(),
+  })
+  .readonly();
+
+export type Delta = z.infer<typeof DeltaSchema>;
+
+// What the API answers to a pull: the delta, and the principal it was computed for, so that a
+// client can tell when its groups changed and its cache must start over.
+export const PullResponseSchema = z
+  .object({
+    principal: z.object({ user: z.string().min(1), teams: z.array(z.string().min(1)).readonly() }).readonly(),
+    delta: DeltaSchema,
+  })
+  .readonly();
+
+export type PullResponse = z.infer<typeof PullResponseSchema>;
+
+// What a principal must apply to a cache that is up to date at `after` to be up to date now.
+export async function computeDelta(graph: Graph, log: EventLog, principal: Principal, after: number): Promise<Delta> {
+  const events = await log.since(after);
+  const touched = new Set<string>();
+  for (const event of events) {
+    if (event.kind === "edge-upserted") {
+      touched.add(event.edge.from);
+      touched.add(event.edge.to);
+    } else {
+      touched.add(event.id);
+    }
+  }
+
+  const readable = (id: string): Node | undefined => {
+    const node = graph.nodes.get(id);
+    return node !== undefined && canRead(principal, node.scope) ? node : undefined;
+  };
+
+  const nodes: Node[] = [];
+  const removed: string[] = [];
+  for (const id of touched) {
+    const node = readable(id);
+    if (node !== undefined) nodes.push(node);
+    else if (await readableAt(log, principal, id, after)) removed.push(id);
+  }
+  const sent = new Set(nodes.map((node) => node.id));
+  const edges = graph.edges.filter(
+    (edge) => (sent.has(edge.from) || sent.has(edge.to)) && readable(edge.from) && readable(edge.to),
+  );
+  const last = events.at(-1);
+  return { cursor: last === undefined ? after : last.seq, nodes, edges, removed };
+}
+
+// Whether the node existed and was readable by the principal at the cursor, so that a client up to
+// date at that cursor holds it.
+async function readableAt(log: EventLog, principal: Principal, id: string, cursor: number): Promise<boolean> {
+  if (cursor === 0) return false;
+  const last = (await log.history(id, cursor)).filter((event) => event.kind !== "edge-upserted").at(-1);
+  return last?.kind === "node-upserted" && canRead(principal, last.scope);
+}

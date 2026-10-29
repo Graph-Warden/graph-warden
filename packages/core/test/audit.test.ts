@@ -46,7 +46,7 @@ const at = new Date("2026-10-29T15:00:00.000Z");
 describe("createReader", () => {
   it("records who read what, and which nodes they got", async () => {
     const log = memoryLog();
-    const reader = createReader(storeOf(graph), log, () => at);
+    const reader = createReader(storeOf(graph), log, { now: () => at });
 
     const reached = await reader.traverse(bob, "app", { direction: "out", maxDepth: 2 });
 
@@ -65,20 +65,20 @@ describe("createReader", () => {
 
   it("records only what the principal could read", async () => {
     const log = memoryLog();
-    await createReader(storeOf(graph), log, () => at).traverse(alice, "app");
+    await createReader(storeOf(graph), log, { now: () => at }).traverse(alice, "app");
     expect(log.written[0]?.returned).toEqual([]);
   });
 
   it("records a read that returned nothing", async () => {
     const log = memoryLog();
-    await createReader(storeOf(graph), log, () => at).traverse(alice, "secret");
+    await createReader(storeOf(graph), log, { now: () => at }).traverse(alice, "secret");
     expect(log.written).toHaveLength(1);
     expect(log.written[0]).toMatchObject({ start: "secret", returned: [] });
   });
 
   it("records an unbounded depth as no depth", async () => {
     const log = memoryLog();
-    await createReader(storeOf(graph), log, () => at).traverse(bob, "app", { maxDepth: Infinity });
+    await createReader(storeOf(graph), log, { now: () => at }).traverse(bob, "app", { maxDepth: Infinity });
     expect(log.written[0]?.options.maxDepth).toBeUndefined();
   });
 
