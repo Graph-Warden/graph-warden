@@ -19,6 +19,19 @@ jobs:
   check:
     name: typecheck, lint, test
     runs-on: ubuntu-latest
+    # Throwaway database for the GraphStore adapter tests.
+    services:
+      neo4j:
+        image: neo4j:5.26-community
+        ports:
+          - 7688:7687
+        env:
+          NEO4J_AUTH: neo4j/graph-warden
+        options: >-
+          --health-cmd "wget -q --spider http://127.0.0.1:7474 || exit 1"
+          --health-interval 5s --health-timeout 3s --health-retries 30
+    env:
+      NEO4J_TEST_URI: bolt://localhost:7688
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4

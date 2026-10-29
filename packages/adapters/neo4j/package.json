@@ -1,0 +1,24 @@
+{
+  "name": "@graph-warden/neo4j",
+  "version": "0.0.0",
+  "description": "Neo4j implementation of the Graph-Warden GraphStore port.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@graph-warden/core": "workspace:*",
+    "neo4j-driver": "^6.2.0"
+  }
+}
