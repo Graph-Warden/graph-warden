@@ -1,6 +1,6 @@
 # 0001 — TypeScript strict, Zod as the single source of types
 
-Status: Accepted
+Stage: in progress
 
 ## Context
 The graph is typed: node and edge types carry required properties, including `scope` and `provenance`. Types cross many boundaries: REST, MCP tool schemas, LLM structured output, configuration.

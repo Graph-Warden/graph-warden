@@ -1,6 +1,6 @@
 name: Bug
 description: Something does not behave as documented.
-labels: [bug]
+labels: [bug, "stage: to be reviewed"]
 body:
   - type: textarea
     id: what

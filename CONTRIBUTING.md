@@ -6,7 +6,7 @@ Thanks for helping. This project is about access control, so one rule comes befo
 
 - Issues labelled `good first issue` are scoped to a few hours and have a clear definition of done.
 - Adapters (`adapter` label) are self-contained: implement the interface, pass the shared conformance suite, done.
-- For anything larger, comment on the issue or open one first, so we agree on the approach before you write code. Architectural changes need an ADR in `docs/adr`.
+- For anything larger, comment on the issue or open one first, so we agree on the approach before you write code. Architectural changes need a proposal in `docs/proposals` (see its README for the stages).
 
 ## Setup
 
@@ -28,7 +28,7 @@ pnpm typecheck && pnpm lint && pnpm test
 
 ## Design: domain-driven, preferred
 
-We favour domain-driven design ([ADR 0009](docs/adr/0009-domain-driven-design.md)):
+We favour domain-driven design ([proposal 0009](docs/proposals/0009-domain-driven-design.md)):
 
 - Domain rules live in `core` as pure functions over readonly types: no I/O, no database, no HTTP.
 - Invariants are enforced where values are built, not checked by each caller.

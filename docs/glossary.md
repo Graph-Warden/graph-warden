@@ -1,6 +1,6 @@
 # Glossary
 
-The words below are used with this meaning in code, ADRs, issues and reviews (see [ADR 0009](adr/0009-domain-driven-design.md)). Add a term in the same pull request that introduces it.
+The words below are used with this meaning in code, proposals, issues and reviews (see [proposal 0009](proposals/0009-domain-driven-design.md)). Add a term in the same pull request that introduces it.
 
 | Term | Meaning |
 |---|---|
