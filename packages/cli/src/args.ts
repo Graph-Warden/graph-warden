@@ -7,9 +7,11 @@ export const USAGE = `Usage:
                  [--default-scope <scope>]
   gwarden traverse <node-id> --user <user> [--team <team>]... [--direction out|in|both]
                    [--depth <n>] [--edge <TYPE>]...
+  gwarden audit [--user <user>]
 
 Scopes: shared, team:<name>, private:<user>. A document without a scope: field is private to the
-ingesting --user unless --default-scope says otherwise. Neo4j settings come from NEO4J_URI, NEO4J_USER and
+ingesting --user unless --default-scope says otherwise. Every traverse is recorded in the audit log, which
+audit prints oldest first. Neo4j settings come from NEO4J_URI, NEO4J_USER and
 NEO4J_PASSWORD (see .env.example).`;
 
 export type Command =
@@ -25,6 +27,10 @@ export type Command =
       readonly start: string;
       readonly principal: Principal;
       readonly options: TraversalOptions;
+    }
+  | {
+      readonly name: "audit";
+      readonly user?: string;
     };
 
 export function parseCommand(argv: readonly string[]): Command {
@@ -43,6 +49,8 @@ export function parseCommand(argv: readonly string[]): Command {
       edge: { type: "string", multiple: true },
     },
   });
+  if (name === "audit") return values.user === undefined ? { name } : { name, user: values.user };
+
   const [target] = positionals;
   if (target === undefined) throw new Error(USAGE);
 

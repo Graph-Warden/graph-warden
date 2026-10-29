@@ -53,6 +53,13 @@ describe("traverse", () => {
   });
 });
 
+describe("audit", () => {
+  it("lists every entry, or one user's", () => {
+    expect(parseCommand(["audit"])).toEqual({ name: "audit" });
+    expect(parseCommand(["audit", "--user", "bob"])).toEqual({ name: "audit", user: "bob" });
+  });
+});
+
 it("prints usage for an unknown command", () => {
   expect(() => parseCommand(["frobnicate", "x"])).toThrow(/Usage/);
 });
