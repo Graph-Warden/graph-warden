@@ -16,6 +16,7 @@
     "@graph-warden/core": "workspace:*",
     "@graph-warden/documents": "workspace:*",
     "@graph-warden/neo4j": "workspace:*",
-    "neo4j-driver": "^6.2.0"
+    "neo4j-driver": "^6.2.0",
+    "zod": "^4.6.7"
   }
 }

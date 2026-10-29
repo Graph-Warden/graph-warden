@@ -33,5 +33,64 @@ services:
       timeout: 3s
       retries: 30
 
+  # Demo (issue #3): `docker compose --profile demo up -d --build --wait`, then
+  # `examples/shop/demo.sh`. Its own database in memory, seeded with examples/shop, and the API with
+  # demo tokens, bound to localhost only: anyone holding a demo token is that user.
+  neo4j-demo:
+    image: neo4j:5.26-community
+    profiles: [demo]
+    ports:
+      - "127.0.0.1:7475:7474"
+      - "127.0.0.1:7689:7687"
+    environment:
+      NEO4J_AUTH: neo4j/graph-warden
+    tmpfs:
+      - /data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:7474 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  # Ingests examples/shop as Lea, a lead whose groups cover every team (see examples/shop/users.yaml).
+  seed:
+    image: graph-warden:local
+    build: .
+    profiles: [demo]
+    depends_on:
+      neo4j-demo:
+        condition: service_healthy
+    environment:
+      NEO4J_URI: bolt://neo4j-demo:7687
+      NEO4J_PASSWORD: graph-warden
+    volumes:
+      - ./examples/shop:/demo:ro
+    command: >-
+      gwarden ingest /demo/docs --source docs:shop --user lea
+      --team dev --team dev-leads --team bff --team front-a --team front-b --team front-c
+
+  api:
+    image: graph-warden:local
+    profiles: [demo]
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      NEO4J_URI: bolt://neo4j-demo:7687
+      NEO4J_PASSWORD: graph-warden
+      GWARDEN_IDENTITY: demo
+      GWARDEN_DEMO: i-understand-anyone-with-a-token-is-that-user
+      GWARDEN_DEMO_USERS: /demo/users.yaml
+      GWARDEN_AUDITORS: auditors
+    volumes:
+      - ./examples/shop:/demo:ro
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/healthz').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
 volumes:
   neo4j-data:

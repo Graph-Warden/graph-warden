@@ -13,7 +13,16 @@ Federated means many teams feed one graph without stepping on each other. Each n
 
 > Status: **pre-alpha**, milestone M0. Nothing here is ready for production. The design is settled in [`docs/proposals`](docs/proposals); the work is tracked in [issues](https://github.com/Graph-Warden/graph-warden/issues) and the [roadmap](docs/ROADMAP.md).
 >
-> **Works today:** the typed ontology (Zod), traversal with scopes checked on every hop, derived documents restricted to the readers of all their sources, an audit entry for every read, a Neo4j graph store, ingestion of Markdown, JSON and YAML documents with typed references (private by default), and a CLI to ingest and to walk the graph as a given user. **Not yet:** revalidating derived scopes when a source changes, identities from LDAP / OIDC / Cloud Identity, erasure, the API, MCP, sync and the web view.
+> **Works today:**
+> - the typed ontology (Zod) and a Neo4j graph store;
+> - ingestion of Markdown, JSON and YAML documents with typed references, private by default;
+> - traversal with scopes checked on every hop; derived documents readable only by those who read all their sources;
+> - a REST API whose identities and groups come from an OIDC provider or Google with Cloud Identity;
+> - an audit entry for every read;
+> - `gwarden pull` into a local SQLite cache holding only what the user may see;
+> - a `docker compose` demo and a Cloud Run deployment.
+>
+> **Not yet:** revalidating derived scopes when a source or a group changes, erasure, MCP, the live SSE stream and the web view.
 
 ## Why
 
@@ -67,11 +76,13 @@ A large organisation does not lack knowledge. What it lacks is a safe way to han
 
 | Package | Role | State |
 |---|---|---|
-| `packages/core` | Ontology, scopes, derived scopes, per-hop traversal, audited reads, `GraphStore` and `AuditLog` ports | M0, in progress |
-| `packages/adapters/neo4j` | `GraphStore` and append-only `AuditLog` on Neo4j | M0, done |
+| `packages/core` | Ontology, scopes, derived scopes, per-hop traversal, audited reads, event log and pull deltas; `GraphStore`, `AuditLog`, `EventLog` and `IdentityProvider` ports | M0 done, M2 in progress |
+| `packages/adapters/neo4j` | `GraphStore`, append-only `AuditLog` and `EventLog` on Neo4j | done |
+| `packages/adapters/identity` | `IdentityProvider` for OIDC (Entra ID, Keycloak, Okta…), Google with Cloud Identity groups, and demo tokens | M2, first slice |
+| `packages/adapters/memory` | In-memory ports for tests and demos | done |
 | `packages/adapters/documents` | Markdown, JSON and YAML documents as nodes and typed edges | M1, first slice |
-| `packages/cli` | `gwarden ingest`, `gwarden traverse`, `gwarden audit`; later `pull`, `forget`, PR impact | M0–M2 |
-| `packages/api` | REST + webhooks, the only access-enforcement point | M2, planned |
+| `packages/cli` | `gwarden ingest`, `traverse`, `audit`, `pull`, `cache`; later `forget`, PR impact | M0–M2 |
+| `packages/api` | REST with OpenAPI, the only place readers reach the graph; webhooks later | M2, first slice |
 | `packages/mcp` | MCP server | M2, planned |
 | `packages/worker` | Ingestion queue consumer, LLM calls | M1, planned |
 | `packages/web` | Graph view (Sigma.js), live over SSE | M2, planned |
@@ -91,6 +102,27 @@ The Neo4j adapter tests run when `NEO4J_TEST_URI` points at a throwaway database
 docker compose --profile test up -d --wait neo4j-test
 NEO4J_TEST_URI=bolt://localhost:7688 pnpm test
 ```
+
+### The demo
+
+One graph, four people, four views: a BFF team, three front-end teams and a lead, on a sample shop where the BFF is about to change the pagination of `GET /orders` (issue #3).
+
+```sh
+docker compose --profile demo up -d --build --wait
+examples/shop/demo.sh
+```
+
+The script runs `gwarden` against the demo API as each user and shows four things:
+- what each person sees around `GET /orders`;
+- the leads' impact summary, narrowed to `teams:bff,front-a,front-b` because it is derived from those teams' documents;
+- Alice pulling only her part of the graph into a local cache;
+- the audit log, which only an auditor may read.
+
+The API uses fixed demo tokens (`examples/shop/users.yaml`) and listens on localhost only. Stop it with `docker compose --profile demo down`.
+
+### Deploy on Google Cloud
+
+[`deploy/gcp`](deploy/gcp/README.md): the API on Cloud Run, the graph on Neo4j Aura, identities from Google sign-in restricted to your domain, groups from Cloud Identity.
 
 ### Run it locally
 
@@ -116,6 +148,8 @@ A document with `DERIVED_FROM` references (a summary of other pages) is narrowed
 Neo4j Browser at <http://localhost:7474> (user `neo4j`, password from `.env`) shows the raw graph, for example `MATCH p=(:Node)-[:REFERENCES]->(:Node) RETURN p`. It is an administrator's view: it bypasses the scopes, which only `gwarden` and the API apply.
 
 Every `traverse` writes an audit entry before printing anything: who asked (user and teams), from which node, with which options, and the ids they got back. If the entry cannot be written, the read fails. Entries are `:AuditEntry` nodes, outside the graph that traversals walk, numbered in write order and never updated or deleted.
+
+Readers go through the API rather than Neo4j: `pnpm --filter @graph-warden/api start` with the settings of [`packages/api/src/config.ts`](packages/api/src/config.ts), then `gwarden traverse`, `pull`, `cache` and `audit` with `--api` and `--token` (or `GWARDEN_API` and `GWARDEN_TOKEN`). The API documents itself at `/openapi.json`.
 
 ## Contributing
 

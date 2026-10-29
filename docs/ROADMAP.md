@@ -4,9 +4,9 @@ Each line is a GitHub issue under the matching milestone. Labels in brackets.
 
 ## M0 — Foundation
 - [x] Repository, pnpm monorepo, strict TypeScript, CI, license, contribution and security docs
-- [ ] Ontology in Zod, Neo4j constraints, Neo4j `GraphStore` [core]
-- [ ] Rule engine: scopes, per-hop checks, inheritance through `DERIVED_FROM`, audit log [core, security]
-- [ ] `docker compose` demo with a sample repository (one BFF, three front-ends) [demo]
+- [x] Ontology in Zod, Neo4j constraints, Neo4j `GraphStore` [core]
+- [x] Rule engine: scopes, per-hop checks, inheritance through `DERIVED_FROM`, audit log [core, security]
+- [x] `docker compose` demo with a sample repository (one BFF, three front-ends) [demo]
 
 ## M1 — Git ingestion
 - [ ] Ingestion queue serialised per repository, idempotent writes on `(repo, path, sha)` [worker]

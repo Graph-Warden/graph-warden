@@ -1,6 +1,6 @@
 # 0006 — Pull and SSE, not WebSocket, no inbound ports
 
-Stage: accepted
+Stage: in progress
 
 ## Context
 Large organisations forbid tunnels such as ngrok and many proxies break WebSocket upgrades.
