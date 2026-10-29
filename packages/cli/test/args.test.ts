@@ -21,6 +21,11 @@ describe("ingest", () => {
     expect(shared).toMatchObject({ defaultScope: { kind: "team", team: "dev" } });
   });
 
+  it("reads the author's teams and the organisation file", () => {
+    const command = parseCommand(["ingest", "./docs", "--source", "x", "--user", "alice", "--team", "front-a", "--org", "org.yaml"]);
+    expect(command).toMatchObject({ user: "alice", teams: ["front-a"], org: "org.yaml" });
+  });
+
   it("requires a source, a user and well-formed filters", () => {
     expect(() => parseCommand(["ingest", "./docs"])).toThrow(/--source/);
     expect(() => parseCommand(["ingest", "./docs", "--source", "x"])).toThrow(/--user/);
@@ -37,7 +42,8 @@ describe("traverse", () => {
     expect(command).toEqual({
       name: "traverse",
       start: "graph-warden",
-      principal: { user: "alice", teams: ["bff", "front-a"] },
+      user: "alice",
+      teams: ["bff", "front-a"],
       options: { direction: "both", maxDepth: 2, edgeTypes: ["REFERENCES"] },
     });
   });

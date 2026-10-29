@@ -10,8 +10,10 @@ The words below are used with this meaning in code, proposals, issues and review
 | Scope | Who may see a node: `shared`, `team:<x>` or `private:<user>`. |
 | Principal | The identity a read is made for: a user and their teams. |
 | Grant | A right held by a principal that covers a scope. |
+| Organisation | The tree of teams (each team and its parent). A team reads its own nodes and those of every team below it. |
 | Provenance | Where a node comes from: source, path, commit sha. |
-| Derived node | A node produced from others, typically by an LLM. Linked with `DERIVED_FROM`; takes the most restrictive scope of its sources. |
+| Derived node | A node produced from others, typically by an LLM. Linked with `DERIVED_FROM`; takes the narrowest scope readable by every reader of its sources: the nearest common team, or the author's private scope (proposal 0010). |
+| Author | The principal a node is derived for. Must be able to read every source. |
 | Traversal | Walking edges from a node. Scopes are checked on every hop, not only on the result. |
 | Erasure | Removal of a source and of everything derived from it (`gwarden forget`). |
 | Audit entry | A record of a read made on behalf of a user. |

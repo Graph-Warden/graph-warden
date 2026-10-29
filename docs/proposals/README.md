@@ -23,3 +23,4 @@ A proposal normally goes `to be reviewed` → `accepted` → `in progress` → `
 | [0007](0007-pluggable-llm-and-clients.md) | Pluggable LLM provider and MCP clients | accepted |
 | [0008](0008-apache-2.md) | Apache-2.0 license | done |
 | [0009](0009-domain-driven-design.md) | Domain-driven design, preferred not mandated | done |
+| [0010](0010-team-hierarchy-and-derived-scopes.md) | Teams form a tree; derived nodes take the nearest common team | to be reviewed |
