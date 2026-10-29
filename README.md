@@ -1,6 +1,15 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/banner-dark.png">
+    <img src="docs/assets/banner-light.png" alt="Graph-Warden: governed knowledge graph for AI agents" width="720">
+  </picture>
+</p>
+
 # Graph-Warden
 
-**A governed knowledge graph for AI agents.** Graph-Warden turns your repositories, docs and agent sessions into a typed knowledge graph, and serves it to any agent over MCP or REST — with access rules enforced on every hop, provenance on every node, and an audit trail of what each agent read for whom.
+**An open-source, federated knowledge graph for AI agents.** Graph-Warden captures knowledge where teams already produce it (repositories, API specs, docs, agent sessions), compiles it into a typed graph, and exposes it to any consumer over MCP, REST or a live event stream.
+
+Federated means many teams feed one graph without stepping on each other. Each node has a scope (shared, team or private) and a provenance. Shared knowledge has a single writer, and ingestion is ordered and idempotent. Governance is built in, not bolted on: see [Why](#why).
 
 > Status: **pre-alpha**, milestone M0. Nothing here is ready for production. The design is settled in [`docs/adr`](docs/adr); the work is tracked in [issues](https://github.com/simoncoding95-ctrl/graph-warden/issues) and the [roadmap](docs/ROADMAP.md).
 
