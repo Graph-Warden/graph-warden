@@ -17,7 +17,8 @@
     "commitlint": "commitlint",
     "prepare": "simple-git-hooks",
     "db:up": "docker compose up -d --wait neo4j",
-    "db:down": "docker compose down"
+    "db:down": "docker compose down",
+    "gwarden": "node --env-file-if-exists=.env packages/cli/dist/main.js"
   },
   "devDependencies": {
     "@changesets/cli": "^2.31.1",

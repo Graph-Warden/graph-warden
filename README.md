@@ -64,6 +64,29 @@ pnpm install
 pnpm typecheck && pnpm lint && pnpm test
 ```
 
+The Neo4j adapter tests run when `NEO4J_TEST_URI` points at a throwaway database, which they wipe:
+
+```sh
+docker compose --profile test up -d --wait neo4j-test
+NEO4J_TEST_URI=bolt://localhost:7688 pnpm test
+```
+
+### Run it locally
+
+Load a Markdown or Obsidian vault into Neo4j, then walk it as different principals:
+
+```sh
+cp .env.example .env
+pnpm db:up && pnpm build
+pnpm gwarden ingest-markdown ~/my-vault --source obsidian:my-vault --where theme=dev --default-scope team:dev
+pnpm gwarden traverse some-page --user alice --team dev --direction both   # sees the team's pages
+pnpm gwarden traverse some-page --user bob --direction both                # sees nothing
+```
+
+`--where key=value` keeps pages whose frontmatter field equals the value or, for a list, contains it. A page's own `scope:` field (`shared`, `team:<x>`, `private:<user>`) wins over `--default-scope`.
+
+Neo4j Browser at <http://localhost:7474> (user `neo4j`, password from `.env`) shows the raw graph, for example `MATCH p=(:Node)-[:REFERENCES]->(:Node) RETURN p`. It is an administrator's view: it bypasses the scopes, which only `gwarden` and the API apply.
+
 ## Contributing
 
 Adapters are the easiest way in: each kind has a typed interface and a shared conformance suite. Read [CONTRIBUTING.md](CONTRIBUTING.md), then pick an issue labelled [`good first issue`](https://github.com/Graph-Warden/graph-warden/labels/good%20first%20issue).

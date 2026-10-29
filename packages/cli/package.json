@@ -1,0 +1,21 @@
+{
+  "name": "@graph-warden/cli",
+  "version": "0.0.0",
+  "description": "gwarden: ingest sources into a Graph-Warden graph and query it as a given principal.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "gwarden": "./dist/main.js"
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@graph-warden/core": "workspace:*",
+    "@graph-warden/markdown": "workspace:*",
+    "@graph-warden/neo4j": "workspace:*",
+    "neo4j-driver": "^6.2.0"
+  }
+}
