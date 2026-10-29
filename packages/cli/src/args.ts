@@ -3,11 +3,13 @@ import { EdgeTypeSchema, type Principal, type Scope, type TraversalOptions } fro
 import { parseScope, type Page } from "@graph-warden/markdown";
 
 export const USAGE = `Usage:
-  gwarden ingest-markdown <dir> --source <name> [--where key=value]... [--default-scope <scope>]
+  gwarden ingest-markdown <dir> --source <name> --user <user> [--where key=value]...
+                          [--default-scope <scope>]
   gwarden traverse <node-id> --user <user> [--team <team>]... [--direction out|in|both]
                    [--depth <n>] [--edge <TYPE>]...
 
-Scopes: shared, team:<name>, private:<user>. Neo4j settings come from NEO4J_URI, NEO4J_USER and
+Scopes: shared, team:<name>, private:<user>. A document without a scope: field is private to the
+ingesting --user unless --default-scope says otherwise. Neo4j settings come from NEO4J_URI, NEO4J_USER and
 NEO4J_PASSWORD (see .env.example).`;
 
 export type Command =
@@ -33,7 +35,7 @@ export function parseCommand(argv: readonly string[]): Command {
     options: {
       source: { type: "string" },
       where: { type: "string", multiple: true, default: [] },
-      "default-scope": { type: "string", default: "shared" },
+      "default-scope": { type: "string" },
       user: { type: "string" },
       team: { type: "string", multiple: true, default: [] },
       direction: { type: "string", default: "out" },
@@ -47,13 +49,14 @@ export function parseCommand(argv: readonly string[]): Command {
   switch (name) {
     case "ingest-markdown": {
       if (values.source === undefined) throw new Error("--source is required");
+      if (values.user === undefined) throw new Error("--user is required");
       const filters = values.where.map(parseFilter);
       return {
         name,
         dir: target,
         source: values.source,
         include: (page) => filters.every(([key, value]) => matches(page.frontmatter[key], value)),
-        defaultScope: parseScope(values["default-scope"]),
+        defaultScope: parseScope(values["default-scope"] ?? `private:${values.user}`),
       };
     }
     case "traverse": {

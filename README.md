@@ -79,12 +79,12 @@ Ingest a folder of Markdown documents into the local Neo4j, then walk the graph 
 ```sh
 cp .env.example .env
 pnpm db:up && pnpm build
-pnpm gwarden ingest-markdown ~/docs --source docs:my-team --where theme=dev --default-scope team:dev
+pnpm gwarden ingest-markdown ~/docs --source docs:my-team --user alice --where theme=dev --default-scope team:dev
 pnpm gwarden traverse some-page --user alice --team dev --direction both   # sees the team's pages
 pnpm gwarden traverse some-page --user bob --direction both                # sees nothing
 ```
 
-`--where key=value` keeps pages whose frontmatter field equals the value or, for a list, contains it. A page's own `scope:` field (`shared`, `team:<x>`, `private:<user>`) wins over `--default-scope`.
+`--where key=value` keeps pages whose frontmatter field equals the value or, for a list, contains it. A page's own `scope:` field (`shared`, `team:<x>`, `private:<user>`) wins over `--default-scope`. Without either, a page is private to the ingesting `--user`: nothing is shared unless someone chose to share it.
 
 Neo4j Browser at <http://localhost:7474> (user `neo4j`, password from `.env`) shows the raw graph, for example `MATCH p=(:Node)-[:REFERENCES]->(:Node) RETURN p`. It is an administrator's view: it bypasses the scopes, which only `gwarden` and the API apply.
 
