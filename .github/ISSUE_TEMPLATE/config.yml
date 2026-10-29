@@ -1,5 +1,5 @@
 blank_issues_enabled: false
 contact_links:
   - name: Security vulnerability
-    url: https://github.com/simoncoding95-ctrl/graph-warden/security/advisories/new
+    url: https://github.com/Graph-Warden/graph-warden/security/advisories/new
     about: Report access-control bypasses and data leaks privately, never in a public issue.

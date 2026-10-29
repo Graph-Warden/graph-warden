@@ -11,7 +11,7 @@
 
 Federated means many teams feed one graph without stepping on each other. Each node has a scope (shared, team or private) and a provenance. Shared knowledge has a single writer, and ingestion is ordered and idempotent. Governance is built in, not bolted on: see [Why](#why).
 
-> Status: **pre-alpha**, milestone M0. Nothing here is ready for production. The design is settled in [`docs/adr`](docs/adr); the work is tracked in [issues](https://github.com/simoncoding95-ctrl/graph-warden/issues) and the [roadmap](docs/ROADMAP.md).
+> Status: **pre-alpha**, milestone M0. Nothing here is ready for production. The design is settled in [`docs/adr`](docs/adr); the work is tracked in [issues](https://github.com/Graph-Warden/graph-warden/issues) and the [roadmap](docs/ROADMAP.md).
 
 ## Why
 
@@ -66,7 +66,7 @@ pnpm typecheck && pnpm lint && pnpm test
 
 ## Contributing
 
-Adapters are the easiest way in: each kind has a typed interface and a shared conformance suite. Read [CONTRIBUTING.md](CONTRIBUTING.md), then pick an issue labelled [`good first issue`](https://github.com/simoncoding95-ctrl/graph-warden/labels/good%20first%20issue).
+Adapters are the easiest way in: each kind has a typed interface and a shared conformance suite. Read [CONTRIBUTING.md](CONTRIBUTING.md), then pick an issue labelled [`good first issue`](https://github.com/Graph-Warden/graph-warden/labels/good%20first%20issue).
 
 Found a way to read something you should not? Report it privately: see [SECURITY.md](SECURITY.md).
 
