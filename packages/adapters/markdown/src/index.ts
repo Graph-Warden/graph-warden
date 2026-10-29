@@ -21,8 +21,10 @@ export interface DocumentOptions {
   readonly source: string;
   // Pages to keep; all by default.
   readonly include?: (page: Page) => boolean;
-  // Scope of a page without a `scope:` frontmatter field (`shared`, `team:<x>`, `private:<user>`).
-  readonly defaultScope?: Scope;
+  // Scope of a page without a `scope:` frontmatter field. Required: there is no implicit default,
+  // so nothing becomes visible to others unless a caller chose it (private by default is the
+  // callers' rule, see the CLI).
+  readonly defaultScope: Scope;
 }
 
 const FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/;
@@ -51,7 +53,7 @@ export function toGraph(pages: readonly Page[], options: DocumentOptions): { nod
       type: nodeType(page.frontmatter),
       scope: typeof page.frontmatter.scope === "string"
         ? parseScope(page.frontmatter.scope)
-        : (options.defaultScope ?? { kind: "shared" }),
+        : options.defaultScope,
       provenance: { source: options.source, path: page.path },
     }),
   );

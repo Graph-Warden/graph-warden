@@ -42,12 +42,12 @@ describe("toGraph", () => {
     parsePage("b.md", "---\ntheme: dev\ntype: source\nscope: team:bff\n---\n[[a]]"),
     parsePage("c.md", "---\ntheme: perso\n---\n[[a]]"),
   ];
-  const options = { source: "docs:test", include: (page: { frontmatter: Record<string, unknown> }) => page.frontmatter.theme === "dev" };
+  const options = { source: "docs:test", defaultScope: { kind: "private", user: "me" } as const, include: (page: { frontmatter: Record<string, unknown> }) => page.frontmatter.theme === "dev" };
 
   it("keeps only the included pages, with their type, scope and provenance", () => {
     const { nodes } = toGraph(pages, options);
     expect(nodes).toEqual([
-      { id: "a", type: "Concept", scope: { kind: "shared" }, provenance: { source: "docs:test", path: "a.md" } },
+      { id: "a", type: "Concept", scope: { kind: "private", user: "me" }, provenance: { source: "docs:test", path: "a.md" } },
       { id: "b", type: "Source", scope: { kind: "team", team: "bff" }, provenance: { source: "docs:test", path: "b.md" } },
     ]);
   });
@@ -72,7 +72,7 @@ describe("readDocuments", () => {
     await writeFile(join(dir, "index.md"), "[[scopes]]");
     await writeFile(join(dir, "concepts", "scopes.md"), "[[index]]");
     await writeFile(join(dir, "image.png"), "");
-    const { nodes, edges } = await readDocuments(dir, { source: "docs:test" });
+    const { nodes, edges } = await readDocuments(dir, { source: "docs:test", defaultScope: { kind: "shared" } });
     expect(nodes.map((n) => n.provenance.path)).toEqual(["concepts/scopes.md", "index.md"]);
     expect(edges).toHaveLength(2);
   });

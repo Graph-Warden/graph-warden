@@ -3,10 +3,10 @@ import { parsePage } from "@graph-warden/markdown";
 import { parseCommand } from "../src/args.js";
 
 describe("ingest-markdown", () => {
-  const command = parseCommand(["ingest-markdown", "./docs", "--source", "docs:x", "--where", "theme=dev", "--where", "tags=mcp"]);
+  const command = parseCommand(["ingest-markdown", "./docs", "--source", "docs:x", "--user", "alice", "--where", "theme=dev", "--where", "tags=mcp"]);
 
   it("reads the directory, source and default scope", () => {
-    expect(command).toMatchObject({ name: "ingest-markdown", dir: "./docs", source: "docs:x", defaultScope: { kind: "shared" } });
+    expect(command).toMatchObject({ name: "ingest-markdown", dir: "./docs", source: "docs:x", defaultScope: { kind: "private", user: "alice" } });
   });
 
   it("keeps pages matching every --where, on plain or list fields", () => {
@@ -16,9 +16,15 @@ describe("ingest-markdown", () => {
     expect(command.include(parsePage("c.md", "no frontmatter"))).toBe(false);
   });
 
-  it("requires a source and well-formed filters", () => {
+  it("widens the default scope only when asked", () => {
+    const shared = parseCommand(["ingest-markdown", "./docs", "--source", "x", "--user", "alice", "--default-scope", "team:dev"]);
+    expect(shared).toMatchObject({ defaultScope: { kind: "team", team: "dev" } });
+  });
+
+  it("requires a source, a user and well-formed filters", () => {
     expect(() => parseCommand(["ingest-markdown", "./docs"])).toThrow(/--source/);
-    expect(() => parseCommand(["ingest-markdown", "./docs", "--source", "x", "--where", "theme"])).toThrow(/key=value/);
+    expect(() => parseCommand(["ingest-markdown", "./docs", "--source", "x"])).toThrow(/--user/);
+    expect(() => parseCommand(["ingest-markdown", "./docs", "--source", "x", "--user", "a", "--where", "theme"])).toThrow(/key=value/);
   });
 });
 
