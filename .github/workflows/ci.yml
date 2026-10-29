@@ -4,12 +4,20 @@ on:
   push:
     branches: [main]
   pull_request:
+    # `edited` re-runs the title check when the title is fixed.
+    types: [opened, synchronize, reopened, edited]
 
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  # Required status check on main: a pull request cannot merge unless typecheck, lint and tests pass.
   check:
+    name: typecheck, lint, test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,6 +30,29 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
+
+  conventional-commits:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Every commit follows Conventional Commits
+        run: |
+          pnpm exec commitlint --verbose \
+            --from "${{ github.event.pull_request.base.sha }}" \
+            --to "${{ github.event.pull_request.head.sha }}"
+      - name: The pull request title follows Conventional Commits
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: printf '%s\n' "$TITLE" | pnpm exec commitlint --verbose
 
   dco:
     if: github.event_name == 'pull_request'

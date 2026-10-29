@@ -12,3 +12,4 @@ One file per decision, numbered. Status is `Accepted`, `Superseded by NNNN` or `
 | [0006](0006-pull-and-sse.md) | Pull and SSE, not WebSocket, no inbound ports |
 | [0007](0007-pluggable-llm-and-clients.md) | Pluggable LLM provider and MCP clients |
 | [0008](0008-apache-2.md) | Apache-2.0 license |
+| [0009](0009-domain-driven-design.md) | Domain-driven design, preferred not mandated |
