@@ -8,7 +8,7 @@ export default defineConfig({
     // Tests run against the sources of workspace packages, not their build output.
     alias: {
       "@graph-warden/core": source("packages/core/src/index.ts"),
-      "@graph-warden/markdown": source("packages/adapters/markdown/src/index.ts"),
+      "@graph-warden/documents": source("packages/adapters/documents/src/index.ts"),
       "@graph-warden/neo4j": source("packages/adapters/neo4j/src/index.ts"),
     },
   },

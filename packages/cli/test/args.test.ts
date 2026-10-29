@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parsePage } from "@graph-warden/markdown";
+import { parsePage } from "@graph-warden/documents";
 import { parseCommand } from "../src/args.js";
 
 describe("ingest-markdown", () => {

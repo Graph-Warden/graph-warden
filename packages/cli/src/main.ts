@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { traverse } from "@graph-warden/core";
-import { readDocuments } from "@graph-warden/markdown";
+import { readDocuments } from "@graph-warden/documents";
 import { createNeo4jStore, ensureConstraints } from "@graph-warden/neo4j";
 import neo4j from "neo4j-driver";
 import { parseCommand, type Command } from "./args.js";

@@ -1,7 +1,7 @@
 {
-  "name": "@graph-warden/markdown",
+  "name": "@graph-warden/documents",
   "version": "0.0.0",
-  "description": "Reads a folder of Markdown documents as Graph-Warden nodes and REFERENCES edges.",
+  "description": "Reads a folder of Markdown, JSON and YAML documents as Graph-Warden nodes and typed edges.",
   "license": "Apache-2.0",
   "type": "module",
   "exports": {
