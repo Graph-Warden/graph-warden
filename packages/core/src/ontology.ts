@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { ScopeSchema } from "./scope.js";
 
-// The closed default ontology (ADR 0001). Extension by configuration comes later; until then a
+// The closed default ontology (proposal 0001). Extension by configuration comes later; until then a
 // node or edge of an unknown type is rejected.
 
 export const NodeTypeSchema = z.enum([
