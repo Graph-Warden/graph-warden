@@ -111,7 +111,9 @@ interface Row {
   id: string;
   type: string;
   scopeKind: Scope["kind"];
+  // The team or user the scope belongs to; the teams of a `teams` scope are in scopeTeams.
   scopeOwner: string | null;
+  scopeTeams: string[] | null;
   provenanceSource: string;
   provenancePath: string;
   provenanceSha: string | null;
@@ -124,6 +126,7 @@ function toRow(node: Node): Row {
     type: node.type,
     scopeKind: scope.kind,
     scopeOwner: scope.kind === "team" ? scope.team : scope.kind === "private" ? scope.user : null,
+    scopeTeams: scope.kind === "teams" ? [...scope.teams] : null,
     provenanceSource: provenance.source,
     provenancePath: provenance.path,
     provenanceSha: provenance.sha ?? null,
@@ -135,9 +138,11 @@ function fromRecord(record: Neo4jRecord): Node {
   const scope =
     row.scopeKind === "team"
       ? { kind: "team", team: row.scopeOwner }
-      : row.scopeKind === "private"
-        ? { kind: "private", user: row.scopeOwner }
-        : { kind: row.scopeKind };
+      : row.scopeKind === "teams"
+        ? { kind: "teams", teams: row.scopeTeams }
+        : row.scopeKind === "private"
+          ? { kind: "private", user: row.scopeOwner }
+          : { kind: row.scopeKind };
   const provenance = {
     source: row.provenanceSource,
     path: row.provenancePath,

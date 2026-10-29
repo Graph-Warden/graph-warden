@@ -1,28 +1,9 @@
 #!/usr/bin/env node
-import { readFile } from "node:fs/promises";
-import {
-  createGraph,
-  createOrganisation,
-  createReader,
-  deriveScopes,
-  resolvePrincipal,
-  type Organisation,
-} from "@graph-warden/core";
+import { createGraph, createReader, deriveScopes, formatScope } from "@graph-warden/core";
 import { readDocuments } from "@graph-warden/documents";
 import { createNeo4jAuditLog, createNeo4jStore, ensureConstraints } from "@graph-warden/neo4j";
 import neo4j from "neo4j-driver";
-import { parse as parseYaml } from "yaml";
 import { parseCommand, type Command } from "./args.js";
-
-// The organisation chart from a YAML file mapping each team to its parent; without one, teams are flat.
-async function loadOrganisation(path: string | undefined): Promise<Organisation> {
-  if (path === undefined) return createOrganisation();
-  try {
-    return createOrganisation((parseYaml(await readFile(path, "utf8")) as Record<string, string | null> | null) ?? {});
-  } catch (error) {
-    throw new Error(`${path}: ${error instanceof Error ? error.message : String(error)}`);
-  }
-}
 
 async function run(command: Command): Promise<void> {
   const driver = neo4j.driver(
@@ -35,16 +16,15 @@ async function run(command: Command): Promise<void> {
     switch (command.name) {
       case "ingest": {
         await ensureConstraints(driver);
-        const org = await loadOrganisation(command.org);
-        const author = resolvePrincipal(org, command.user, command.teams);
         const read = await readDocuments(command.dir, command);
-        // A document derived from others never stays wider than its sources.
-        const nodes = deriveScopes(createGraph(read.nodes, read.edges), org, author, read.nodes.map((node) => node.id));
-        const narrowed = nodes.filter((node, i) => JSON.stringify(node.scope) !== JSON.stringify(read.nodes[i]?.scope));
+        // A document derived from others is never readable by someone who cannot read its sources.
+        const ids = read.nodes.map((node) => node.id);
+        const nodes = deriveScopes(createGraph(read.nodes, read.edges), command.author, ids);
+        const narrowed = nodes.filter((node, i) => formatScope(node.scope) !== formatScope(read.nodes[i]?.scope ?? node.scope));
         await store.upsertNodes(nodes);
         await store.upsertEdges(read.edges);
         console.log(`Ingested ${nodes.length} nodes and ${read.edges.length} edges from ${command.source}.`);
-        if (narrowed.length > 0) console.log(`Narrowed to their sources' scope: ${narrowed.map((node) => node.id).join(", ")}.`);
+        for (const node of narrowed) console.log(`Narrowed ${node.id} to ${formatScope(node.scope)}, the readers of all its sources.`);
         break;
       }
       case "traverse": {
@@ -52,14 +32,11 @@ async function run(command: Command): Promise<void> {
         // the read in the audit log before returning it.
         await ensureConstraints(driver);
         const reader = createReader(store, audit);
-        const principal = resolvePrincipal(await loadOrganisation(command.org), command.user, command.teams);
-        const reached = await reader.traverse(principal, command.start, command.options);
+        const reached = await reader.traverse(command.principal, command.start, command.options);
         for (const node of reached) {
-          const { scope } = node;
-          const owner = scope.kind === "team" ? `:${scope.team}` : scope.kind === "private" ? `:${scope.user}` : "";
-          console.log(`${node.type.padEnd(9)} ${node.id}  [${scope.kind}${owner}]`);
+          console.log(`${node.type.padEnd(9)} ${node.id}  [${formatScope(node.scope)}]`);
         }
-        console.log(`${reached.length} nodes reachable as ${principal.user}.`);
+        console.log(`${reached.length} nodes reachable as ${command.principal.user}.`);
         break;
       }
       case "audit": {

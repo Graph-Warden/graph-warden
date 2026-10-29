@@ -13,7 +13,7 @@ Federated means many teams feed one graph without stepping on each other. Each n
 
 > Status: **pre-alpha**, milestone M0. Nothing here is ready for production. The design is settled in [`docs/proposals`](docs/proposals); the work is tracked in [issues](https://github.com/Graph-Warden/graph-warden/issues) and the [roadmap](docs/ROADMAP.md).
 >
-> **Works today:** the typed ontology (Zod), traversal with scopes checked on every hop, teams organised as a tree, derived documents narrowed to their sources' scope, an audit entry for every read, a Neo4j graph store, ingestion of Markdown, JSON and YAML documents with typed references (private by default), and a CLI to ingest and to walk the graph as a given user. **Not yet:** revalidating derived scopes when a source changes, erasure, the API, MCP, sync and the web view.
+> **Works today:** the typed ontology (Zod), traversal with scopes checked on every hop, derived documents restricted to the readers of all their sources, an audit entry for every read, a Neo4j graph store, ingestion of Markdown, JSON and YAML documents with typed references (private by default), and a CLI to ingest and to walk the graph as a given user. **Not yet:** revalidating derived scopes when a source changes, identities from LDAP / OIDC / Cloud Identity, erasure, the API, MCP, sync and the web view.
 
 ## Why
 
@@ -67,7 +67,7 @@ A large organisation does not lack knowledge. What it lacks is a safe way to han
 
 | Package | Role | State |
 |---|---|---|
-| `packages/core` | Ontology, scopes, team hierarchy, derived scopes, per-hop traversal, audited reads, `GraphStore` and `AuditLog` ports | M0, in progress |
+| `packages/core` | Ontology, scopes, derived scopes, per-hop traversal, audited reads, `GraphStore` and `AuditLog` ports | M0, in progress |
 | `packages/adapters/neo4j` | `GraphStore` and append-only `AuditLog` on Neo4j | M0, done |
 | `packages/adapters/documents` | Markdown, JSON and YAML documents as nodes and typed edges | M1, first slice |
 | `packages/cli` | `gwarden ingest`, `gwarden traverse`, `gwarden audit`; later `pull`, `forget`, PR impact | M0–M2 |
@@ -104,16 +104,14 @@ pnpm gwarden traverse some-page --user carol --team dev --direction both   # see
 pnpm gwarden traverse some-page --user bob --direction both                # sees nothing
 pnpm gwarden audit --user carol                                            # what carol read, and when
 
-pnpm gwarden traverse some-page --user dana --team dev --org org.yaml      # dev reads bff and front too
-
 pnpm gwarden ingest ~/notes --source docs:alice --user alice       # no scope given: private to alice
 ```
 
 A document's fields are the frontmatter of a Markdown page, or the whole object of a JSON or YAML file. `references` lists its edges, typed or not: `- { type: DECIDES, to: bff-api }` or `- glossary` (a `REFERENCES` edge, like a Markdown `[[glossary]]` link). `id` defaults to the file name, `type` to `Concept`.
 
-`--where key=value` keeps documents whose field equals the value or, for a list, contains it. A document's own `scope` field (`shared`, `team:<x>`, `private:<user>`) wins over `--default-scope`. Without either, a document is private to the ingesting `--user`: nothing is shared unless someone chose to share it.
+`--where key=value` keeps documents whose field equals the value or, for a list, contains it. A document's own `scope` field (`shared`, `team:<x>`, `teams:<x>,<y>`, `private:<user>`) wins over `--default-scope`. Without either, a document is private to the ingesting `--user`: nothing is shared unless someone chose to share it.
 
-Teams form a tree, given by `--org` (or `GWARDEN_ORG`): a YAML file mapping each team to its parent, e.g. `dev:`, `bff: dev`, `front: dev`. A team reads its own documents and those of every team below it. A document with `DERIVED_FROM` references (a summary of other pages) is narrowed to the nearest team that reads all its sources (`team:dev` for a `bff` page and a `front` page), or to the author's private scope; the ingesting `--user` and `--team` must be able to read every source. See [proposal 0010](docs/proposals/0010-team-hierarchy-and-derived-scopes.md).
+A document with `DERIVED_FROM` references (a summary of other pages) is narrowed so that only readers of all its sources read it: a `bff` page and a `front` page give `teams:bff,front`, read by whoever is in both groups. `--team` stands for the groups an identity provider (LDAP, OIDC, Cloud Identity) will report; oversight belongs there, e.g. a `dev-leads` group added to every team group. See [proposal 0010](docs/proposals/0010-identity-groups-and-derived-scopes.md).
 
 Neo4j Browser at <http://localhost:7474> (user `neo4j`, password from `.env`) shows the raw graph, for example `MATCH p=(:Node)-[:REFERENCES]->(:Node) RETURN p`. It is an administrator's view: it bypasses the scopes, which only `gwarden` and the API apply.
 

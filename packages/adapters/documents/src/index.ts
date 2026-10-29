@@ -4,7 +4,7 @@ import {
   EdgeTypeSchema,
   NodeSchema,
   NodeTypeSchema,
-  ScopeSchema,
+  parseScope,
   type Edge,
   type EdgeType,
   type Node,
@@ -96,12 +96,6 @@ function toPage(path: string, fields: unknown, links: readonly string[]): Page {
   if (id !== undefined && (typeof id !== "string" || id === "")) throw new Error(`${path}: id must be a non-empty string`);
   const name = id ?? basename(path, extname(path));
   return { name, path, frontmatter, links, references: references.data };
-}
-
-export function parseScope(value: string): Scope {
-  const [kind, owner] = value.split(":", 2);
-  const scope = kind === "team" ? { kind, team: owner } : kind === "private" ? { kind, user: owner } : { kind };
-  return ScopeSchema.parse(scope);
 }
 
 export function toGraph(pages: readonly Page[], options: DocumentOptions): { nodes: Node[]; edges: Edge[] } {
