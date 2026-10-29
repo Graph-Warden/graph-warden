@@ -15,7 +15,9 @@
     "test": "vitest run",
     "changeset": "changeset",
     "commitlint": "commitlint",
-    "prepare": "simple-git-hooks"
+    "prepare": "simple-git-hooks",
+    "db:up": "docker compose up -d --wait neo4j",
+    "db:down": "docker compose down"
   },
   "devDependencies": {
     "@changesets/cli": "^2.31.1",
