@@ -25,6 +25,22 @@ Graph databases already have role-based access, and agent-memory libraries alrea
 - **Cross-team impact.** When the BFF team merges a change to an endpoint, the three front-end teams that consume it are told — before or after the merge.
 - **Private by default.** Agent sessions stay private to their author until explicitly promoted to a team, after redaction.
 
+## In a large organisation
+
+A large organisation does not lack knowledge. What it lacks is a safe way to hand that knowledge to AI agents. Today it has two options. It can open everything, and one team's agent reads what is none of its business: HR, security, M&A, customer data. Or it can wall every team off, and each team ends up with its own silo, which loses everything that crosses teams. Graph-Warden is the third option: one graph, with rights checked on every read.
+
+- **For security teams: agents that do not leak.** Rights are checked on every hop of a traversal, not only on the result. A front-end team's agent cannot even infer that a confidential project exists because a path happens to run through it.
+- **For engineering teams: cross-team impact before the merge.** When the BFF team changes an endpoint, the front-end teams that consume it are told in the pull request, before it breaks in production.
+- **For data protection and audit: compliance built in.**
+  - An erasure request also reaches everything an LLM derived from the erased source.
+  - Every read an agent makes on behalf of a user is recorded.
+- **For infrastructure teams: it fits a large group's constraints.**
+  - Self-hosted, on GCP, Azure or on premises.
+  - Developer machines open no inbound port: they pull the part of the graph their user may see.
+  - No tunnel, and SSE rather than WebSocket, so corporate proxies let it through.
+  - Apache-2.0, which legal teams accept where they often block the AGPL.
+  - Any model, including a local one for sensitive sources.
+
 ## How it works
 
 ```
