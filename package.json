@@ -14,7 +14,8 @@
     "lint": "eslint .",
     "test": "vitest run",
     "changeset": "changeset",
-    "commitlint": "commitlint"
+    "commitlint": "commitlint",
+    "prepare": "simple-git-hooks"
   },
   "devDependencies": {
     "@changesets/cli": "^2.31.1",
@@ -22,6 +23,8 @@
     "@commitlint/config-conventional": "^21.2.4",
     "@eslint/js": "^9.39.5",
     "eslint": "^9.39.5",
+    "lint-staged": "^17.6.0",
+    "simple-git-hooks": "^2.14.0",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.72.1",
     "vitest": "^3.2.7"
@@ -30,5 +33,12 @@
     "onlyBuiltDependencies": [
       "esbuild"
     ]
+  },
+  "simple-git-hooks": {
+    "pre-commit": "pnpm exec lint-staged",
+    "commit-msg": "pnpm exec commitlint --edit \"$1\" && { grep -q '^Signed-off-by: ' \"$1\" || { echo 'Missing Signed-off-by: commit with git commit -s (see CONTRIBUTING.md#sign-your-commits)'; exit 1; }; }"
+  },
+  "lint-staged": {
+    "*.{ts,js}": "eslint --max-warnings=0"
   }
 }
