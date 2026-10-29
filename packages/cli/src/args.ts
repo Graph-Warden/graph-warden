@@ -3,8 +3,8 @@ import { EdgeTypeSchema, type Principal, type Scope, type TraversalOptions } fro
 import { parseScope, type Page } from "@graph-warden/documents";
 
 export const USAGE = `Usage:
-  gwarden ingest-markdown <dir> --source <name> --user <user> [--where key=value]...
-                          [--default-scope <scope>]
+  gwarden ingest <dir> --source <name> --user <user> [--where key=value]...
+                 [--default-scope <scope>]
   gwarden traverse <node-id> --user <user> [--team <team>]... [--direction out|in|both]
                    [--depth <n>] [--edge <TYPE>]...
 
@@ -14,7 +14,7 @@ NEO4J_PASSWORD (see .env.example).`;
 
 export type Command =
   | {
-      readonly name: "ingest-markdown";
+      readonly name: "ingest";
       readonly dir: string;
       readonly source: string;
       readonly include: (page: Page) => boolean;
@@ -47,7 +47,7 @@ export function parseCommand(argv: readonly string[]): Command {
   if (target === undefined) throw new Error(USAGE);
 
   switch (name) {
-    case "ingest-markdown": {
+    case "ingest": {
       if (values.source === undefined) throw new Error("--source is required");
       if (values.user === undefined) throw new Error("--user is required");
       const filters = values.where.map(parseFilter);

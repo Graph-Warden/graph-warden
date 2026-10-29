@@ -13,7 +13,7 @@ async function run(command: Command): Promise<void> {
   try {
     const store = createNeo4jStore(driver);
     switch (command.name) {
-      case "ingest-markdown": {
+      case "ingest": {
         await ensureConstraints(driver);
         const { nodes, edges } = await readDocuments(command.dir, command);
         await store.upsertNodes(nodes);

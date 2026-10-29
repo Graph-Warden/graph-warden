@@ -54,7 +54,7 @@ Graph databases already have role-based access, and agent-memory libraries alrea
 | `packages/core` | Ontology, scopes, per-hop traversal, `GraphStore` port | M0, in progress |
 | `packages/adapters/neo4j` | `GraphStore` on Neo4j | M0, done |
 | `packages/adapters/documents` | Markdown, JSON and YAML documents as nodes and typed edges | M1, first slice |
-| `packages/cli` | `gwarden ingest-markdown`, `gwarden traverse`; later `pull`, `forget`, PR impact | M0–M2 |
+| `packages/cli` | `gwarden ingest`, `gwarden traverse`; later `pull`, `forget`, PR impact | M0–M2 |
 | `packages/api` | REST + webhooks, the only access-enforcement point | M2, planned |
 | `packages/mcp` | MCP server | M2, planned |
 | `packages/worker` | Ingestion queue consumer, LLM calls | M1, planned |
@@ -83,11 +83,11 @@ Ingest a folder of Markdown, JSON or YAML documents into the local Neo4j, then w
 ```sh
 cp .env.example .env
 pnpm db:up && pnpm build
-pnpm gwarden ingest-markdown ~/docs --source docs:my-team --user alice --where theme=dev --default-scope team:dev
+pnpm gwarden ingest ~/docs --source docs:my-team --user alice --where theme=dev --default-scope team:dev
 pnpm gwarden traverse some-page --user carol --team dev --direction both   # sees the team's pages
 pnpm gwarden traverse some-page --user bob --direction both                # sees nothing
 
-pnpm gwarden ingest-markdown ~/notes --source docs:alice --user alice       # no scope given: private to alice
+pnpm gwarden ingest ~/notes --source docs:alice --user alice       # no scope given: private to alice
 ```
 
 A document's fields are the frontmatter of a Markdown page, or the whole object of a JSON or YAML file. `references` lists its edges, typed or not: `- { type: DECIDES, to: bff-api }` or `- glossary` (a `REFERENCES` edge, like a Markdown `[[glossary]]` link). `id` defaults to the file name, `type` to `Concept`.
