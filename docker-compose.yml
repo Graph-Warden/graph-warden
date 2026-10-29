@@ -1,0 +1,20 @@
+# Local development database. `pnpm db:up` starts it, `pnpm db:down` stops it (data is kept in
+# the `neo4j-data` volume). Browser on http://localhost:7474, Bolt on bolt://localhost:7687.
+services:
+  neo4j:
+    image: neo4j:5.26-community
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-graph-warden}
+    volumes:
+      - neo4j-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:7474 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  neo4j-data:
