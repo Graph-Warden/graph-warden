@@ -30,6 +30,9 @@ export const EdgeTypeSchema = z.enum([
   "CAUSES",
   "FIXES",
   "CONTRADICTS",
+  // A document that links to another (a wikilink, a URL to a known page) without a stronger
+  // relation being known.
+  "REFERENCES",
 ]);
 
 export type EdgeType = z.infer<typeof EdgeTypeSchema>;
