@@ -1,6 +1,6 @@
 # 0007 — Pluggable LLM provider and MCP clients
 
-Status: Accepted
+Stage: accepted
 
 ## Decision
 - One `LLMProvider` interface with two first implementations: Anthropic, and OpenAI-compatible (covers Ollama, vLLM, LM Studio, Mistral, Azure OpenAI, OpenAI). Chosen by configuration (`provider`, `model`, `baseUrl`).

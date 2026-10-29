@@ -1,6 +1,6 @@
 name: Feature
 description: Propose a capability or a change in behaviour.
-labels: [enhancement]
+labels: [enhancement, "stage: to be reviewed"]
 body:
   - type: textarea
     id: problem

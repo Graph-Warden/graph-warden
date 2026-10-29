@@ -11,7 +11,7 @@
 
 Federated means many teams feed one graph without stepping on each other. Each node has a scope (shared, team or private) and a provenance. Shared knowledge has a single writer, and ingestion is ordered and idempotent. Governance is built in, not bolted on: see [Why](#why).
 
-> Status: **pre-alpha**, milestone M0. Nothing here is ready for production. The design is settled in [`docs/adr`](docs/adr); the work is tracked in [issues](https://github.com/Graph-Warden/graph-warden/issues) and the [roadmap](docs/ROADMAP.md).
+> Status: **pre-alpha**, milestone M0. Nothing here is ready for production. The design is settled in [`docs/proposals`](docs/proposals); the work is tracked in [issues](https://github.com/Graph-Warden/graph-warden/issues) and the [roadmap](docs/ROADMAP.md).
 
 ## Why
 

@@ -1,6 +1,6 @@
 # 0005 — Targeted ingestion, like `jest --findRelatedTests`
 
-Status: Accepted
+Stage: accepted
 
 ## Decision
 1. Changed files: `git diff --name-status <last ingested sha>..<sha>`, including renames and deletions. Starting from the last ingested sha makes recovery automatic, like `--changedSince`.

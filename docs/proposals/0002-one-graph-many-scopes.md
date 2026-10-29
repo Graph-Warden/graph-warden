@@ -1,6 +1,6 @@
 # 0002 — One graph, scoped views per team
 
-Status: Accepted
+Stage: in progress
 
 ## Context
 Example: four teams (one BFF, three front-ends) share one repository and also have their own docs and agent sessions.

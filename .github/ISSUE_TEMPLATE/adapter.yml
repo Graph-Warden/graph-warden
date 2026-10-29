@@ -1,6 +1,6 @@
 name: Adapter
 description: Propose a new source, LLM provider, graph store, queue or language analyzer.
-labels: [adapter]
+labels: [adapter, "stage: to be reviewed"]
 body:
   - type: dropdown
     id: kind

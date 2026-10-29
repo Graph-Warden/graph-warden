@@ -1,6 +1,6 @@
 # 0004 — One writer for shared nodes, ordered idempotent ingestion
 
-Status: Accepted
+Stage: accepted
 
 ## Context
 Four teams merge into the same `main`. Concurrent ingestion must not corrupt or duplicate shared knowledge.
