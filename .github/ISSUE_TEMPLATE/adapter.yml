@@ -1,0 +1,29 @@
+name: Adapter
+description: Propose a new source, LLM provider, graph store, queue or language analyzer.
+labels: [adapter]
+body:
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind
+      options: [Source, LLM provider, Graph store, Queue, Language analyzer]
+    validations:
+      required: true
+  - type: input
+    id: target
+    attributes:
+      label: Target system
+      placeholder: Confluence, Memgraph, Pub/Sub, Python (tree-sitter)…
+    validations:
+      required: true
+  - type: textarea
+    id: permissions
+    attributes:
+      label: How are permissions read from the source?
+      description: For sources only. Without a permission model, content is ingested as private to the ingesting user.
+  - type: checkboxes
+    id: commit
+    attributes:
+      label: Commitment
+      options:
+        - label: I plan to implement it and make it pass the shared conformance suite.
