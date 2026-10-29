@@ -60,6 +60,21 @@ importers:
         specifier: ^6.2.0
         version: 6.2.0
 
+  packages/cli:
+    dependencies:
+      '@graph-warden/core':
+        specifier: workspace:*
+        version: link:../core
+      '@graph-warden/markdown':
+        specifier: workspace:*
+        version: link:../adapters/markdown
+      '@graph-warden/neo4j':
+        specifier: workspace:*
+        version: link:../adapters/neo4j
+      neo4j-driver:
+        specifier: ^6.2.0
+        version: 6.2.0
+
   packages/core:
     dependencies:
       zod:

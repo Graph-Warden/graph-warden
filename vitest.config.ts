@@ -1,10 +1,16 @@
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
+const source = (path: string) => fileURLToPath(new URL(path, import.meta.url));
+
 export default defineConfig({
   resolve: {
-    // Tests run against the sources of `core`, not its build output.
-    alias: { "@graph-warden/core": fileURLToPath(new URL("packages/core/src/index.ts", import.meta.url)) },
+    // Tests run against the sources of workspace packages, not their build output.
+    alias: {
+      "@graph-warden/core": source("packages/core/src/index.ts"),
+      "@graph-warden/markdown": source("packages/adapters/markdown/src/index.ts"),
+      "@graph-warden/neo4j": source("packages/adapters/neo4j/src/index.ts"),
+    },
   },
   test: {
     include: ["packages/**/test/**/*.test.ts"],

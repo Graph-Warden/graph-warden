@@ -15,7 +15,8 @@
     "test": "vitest run",
     "changeset": "changeset",
     "commitlint": "commitlint",
-    "prepare": "simple-git-hooks"
+    "prepare": "simple-git-hooks",
+    "gwarden": "node --env-file-if-exists=.env packages/cli/dist/main.js"
   },
   "devDependencies": {
     "@changesets/cli": "^2.31.1",
