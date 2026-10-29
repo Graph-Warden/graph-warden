@@ -18,6 +18,8 @@ pnpm install
 pnpm typecheck && pnpm lint && pnpm test
 ```
 
+`pnpm install` also installs two git hooks: `pre-commit` lints the staged files, `commit-msg` checks Conventional Commits and the sign-off. CI runs the same checks, so `--no-verify` only delays the failure.
+
 ## Rules for code
 
 - TypeScript strict, no `any`, no non-null assertions. Zod schemas are the single source of truth for types that cross a boundary (API, MCP tools, LLM output, config).
@@ -37,7 +39,7 @@ It is a preference, not a ritual: no aggregate or repository where no invariant 
 
 ## Commits and pull requests
 
-- **[Conventional Commits](https://www.conventionalcommits.org/) are mandatory**, for every commit and for the PR title (it becomes the commit message on squash merge): `feat(core): …`, `fix(worker): …`, `docs: …`. Types: `feat`, `fix`, `docs`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`, `style`. A breaking change takes `!` (`feat(api)!: …`) or a `BREAKING CHANGE:` footer. CI rejects the PR otherwise; check locally with `git log -1 --format=%B | pnpm commitlint`.
+- **[Conventional Commits](https://www.conventionalcommits.org/) are mandatory**, for every commit and for the PR title (it becomes the commit message on squash merge): `feat(core): …`, `fix(worker): …`, `docs: …`. Types: `feat`, `fix`, `docs`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`, `style`. A breaking change takes `!` (`feat(api)!: …`) or a `BREAKING CHANGE:` footer. CI rejects the PR otherwise; the `commit-msg` hook catches it before you push.
 - **Tests run on every PR** (typecheck, lint, test) and must pass before merge. A behaviour change comes with a test; a bug fix comes with the test that reproduced it.
 - If a published package changes, add a changeset: `pnpm changeset`.
 - Small PRs get reviewed faster than large ones.
