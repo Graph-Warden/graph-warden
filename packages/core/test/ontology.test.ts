@@ -54,3 +54,9 @@ describe("EdgeSchema", () => {
     expect(EdgeSchema.safeParse({ type: "LIKES", from: "a", to: "b" }).success).toBe(false);
   });
 });
+
+describe("REFERENCES", () => {
+  it("links two documents without a stronger relation", () => {
+    expect(EdgeSchema.safeParse({ type: "REFERENCES", from: "note-a", to: "note-b" }).success).toBe(true);
+  });
+});
