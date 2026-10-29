@@ -12,6 +12,8 @@
 Federated means many teams feed one graph without stepping on each other. Each node has a scope (shared, team or private) and a provenance. Shared knowledge has a single writer, and ingestion is ordered and idempotent. Governance is built in, not bolted on: see [Why](#why).
 
 > Status: **pre-alpha**, milestone M0. Nothing here is ready for production. The design is settled in [`docs/proposals`](docs/proposals); the work is tracked in [issues](https://github.com/Graph-Warden/graph-warden/issues) and the [roadmap](docs/ROADMAP.md).
+>
+> **Works today:** the typed ontology (Zod), traversal with scopes checked on every hop, a Neo4j graph store, ingestion of Markdown documents (private by default), and a CLI to ingest and to walk the graph as a given user. **Not yet:** derived-scope inheritance, audit, erasure, the API, MCP, sync and the web view.
 
 ## Why
 
@@ -47,15 +49,17 @@ Graph databases already have role-based access, and agent-memory libraries alrea
 
 ## Repository layout
 
-| Package | Role | Milestone |
+| Package | Role | State |
 |---|---|---|
-| `packages/core` | Ontology, scopes, access rules | M0 |
-| `packages/api` | REST + webhooks, the only access-enforcement point | M2 |
-| `packages/mcp` | MCP server | M2 |
-| `packages/worker` | Ingestion queue consumer, LLM calls | M1 |
-| `packages/cli` | `gwarden pull`, `gwarden forget`, PR impact | M2 |
-| `packages/web` | Graph view (Sigma.js), live over SSE | M2 |
-| `packages/adapters/*` | Sources, LLM providers, stores, queues, analyzers | M1+ |
+| `packages/core` | Ontology, scopes, per-hop traversal, `GraphStore` port | M0, in progress |
+| `packages/adapters/neo4j` | `GraphStore` on Neo4j | M0, done |
+| `packages/adapters/markdown` | Markdown documents as nodes and `REFERENCES` edges | M1, first slice |
+| `packages/cli` | `gwarden ingest-markdown`, `gwarden traverse`; later `pull`, `forget`, PR impact | M0–M2 |
+| `packages/api` | REST + webhooks, the only access-enforcement point | M2, planned |
+| `packages/mcp` | MCP server | M2, planned |
+| `packages/worker` | Ingestion queue consumer, LLM calls | M1, planned |
+| `packages/web` | Graph view (Sigma.js), live over SSE | M2, planned |
+| `packages/adapters/*` | More sources, LLM providers, stores, queues, analyzers | M1+ |
 
 ## Development
 
@@ -80,8 +84,10 @@ Ingest a folder of Markdown documents into the local Neo4j, then walk the graph 
 cp .env.example .env
 pnpm db:up && pnpm build
 pnpm gwarden ingest-markdown ~/docs --source docs:my-team --user alice --where theme=dev --default-scope team:dev
-pnpm gwarden traverse some-page --user alice --team dev --direction both   # sees the team's pages
+pnpm gwarden traverse some-page --user carol --team dev --direction both   # sees the team's pages
 pnpm gwarden traverse some-page --user bob --direction both                # sees nothing
+
+pnpm gwarden ingest-markdown ~/notes --source docs:alice --user alice       # no scope given: private to alice
 ```
 
 `--where key=value` keeps pages whose frontmatter field equals the value or, for a list, contains it. A page's own `scope:` field (`shared`, `team:<x>`, `private:<user>`) wins over `--default-scope`. Without either, a page is private to the ingesting `--user`: nothing is shared unless someone chose to share it.
@@ -90,7 +96,7 @@ Neo4j Browser at <http://localhost:7474> (user `neo4j`, password from `.env`) sh
 
 ## Contributing
 
-Adapters are the easiest way in: each kind has a typed interface and a shared conformance suite. Read [CONTRIBUTING.md](CONTRIBUTING.md), then pick an issue labelled [`good first issue`](https://github.com/Graph-Warden/graph-warden/labels/good%20first%20issue).
+Adapters are the easiest way in: each kind has a typed interface in `core` (a shared conformance suite per kind is planned). Read [CONTRIBUTING.md](CONTRIBUTING.md), then pick an issue labelled [`good first issue`](https://github.com/Graph-Warden/graph-warden/labels/good%20first%20issue).
 
 Found a way to read something you should not? Report it privately: see [SECURITY.md](SECURITY.md).
 
