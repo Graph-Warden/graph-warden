@@ -21,6 +21,17 @@ describe("Claude provider", () => {
     expect(requests).toMatchObject([{ model: "claude-opus-5-5", system: "sys", messages: [{ role: "user", content: "q" }], fallbacks: "default" }]);
   });
 
+  it("asks Vertex AI, which has no server-side fallback, without one", async () => {
+    const response = { model: "claude-opus-5-5", stop_reason: "end_turn", content: [{ type: "text", text: "ok" }] };
+    const vertex = fake(response);
+    await createClaudeProvider({ platform: "vertex", client: vertex.client }).complete({ system: "", prompt: "q" });
+    expect(vertex.requests[0]).not.toHaveProperty("fallbacks");
+    expect(vertex.requests[0]).not.toHaveProperty("betas");
+    const google = fake(response);
+    await createClaudeProvider({ platform: "google-cloud", client: google.client }).complete({ system: "", prompt: "q" });
+    expect(google.requests[0]).toMatchObject({ fallbacks: "default" });
+  });
+
   it("fails when the model declines instead of returning an empty answer", async () => {
     const { client } = fake({ model: "claude-opus-5-5", stop_reason: "refusal", content: [] });
     await expect(createClaudeProvider({ client }).complete({ system: "", prompt: "q" })).rejects.toThrow(Declined);

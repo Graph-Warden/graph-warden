@@ -65,6 +65,8 @@ services:
       NEO4J_PASSWORD: graph-warden
     volumes:
       - ./examples/shop:/demo:ro
+      # Uncomment for vertex or google-cloud, after `gcloud auth application-default login`.
+      # - ~/.config/gcloud:/home/node/.config/gcloud:ro
     command: >-
       gwarden ingest /demo/docs --source docs:shop --user lea
       --team dev --team dev-leads --team bff --team front-a --team front-b --team front-c
@@ -87,9 +89,14 @@ services:
       GWARDEN_WRITERS: dev-leads
       # The web app at http://localhost:8080, signed in with a demo token. Demo value only.
       GWARDEN_WEB_SECRET: demo-only-web-session-secret-change-me
-      # Set to claude, with ANTHROPIC_API_KEY, for gwarden ask.
+      # Set to claude for questions: with ANTHROPIC_API_KEY, or on a Google platform (vertex,
+      # google-cloud) with your Google credentials mounted, see the volume below.
       GWARDEN_LLM: ${GWARDEN_LLM:-none}
+      GWARDEN_LLM_PLATFORM: ${GWARDEN_LLM_PLATFORM:-anthropic}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      CLOUD_ML_REGION: ${CLOUD_ML_REGION:-}
+      ANTHROPIC_GOOGLE_CLOUD_WORKSPACE_ID: ${ANTHROPIC_GOOGLE_CLOUD_WORKSPACE_ID:-}
+      GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT:-}
     volumes:
       - ./examples/shop:/demo:ro
     healthcheck:

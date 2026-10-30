@@ -19,6 +19,12 @@ const list = z
   .optional()
   .transform((value) => (value ?? "").split(",").map((item) => item.trim()).filter((item) => item !== ""));
 
+// docker compose passes an unset variable as an empty one.
+const setting = z
+  .string()
+  .optional()
+  .transform((value) => (value === "" ? undefined : value));
+
 const EnvSchema = z.discriminatedUnion("GWARDEN_IDENTITY", [
   z.object({
     GWARDEN_IDENTITY: z.literal("oidc"),
@@ -56,10 +62,16 @@ const CommonSchema = z.object({
   GWARDEN_AUDITORS: list,
   // Groups whose members may delete nodes and file answers. None by default: nobody writes.
   GWARDEN_WRITERS: list,
-  // The model behind /v1/ask: none (the route answers 501) or claude, with the Anthropic
-  // credentials of the environment.
+  // The model behind /v1/ask: none (the route answers 501) or claude, on the platform below with
+  // its credentials from the environment: anthropic (ANTHROPIC_API_KEY or an `ant auth login`
+  // profile), google-cloud (Claude on Google Cloud run by Anthropic) or vertex (Google's Vertex
+  // AI). Both Google platforms use Google credentials, never an API key.
   GWARDEN_LLM: z.enum(["none", "claude"]).default("none"),
+  GWARDEN_LLM_PLATFORM: z.enum(["anthropic", "google-cloud", "vertex"]).default("anthropic"),
   GWARDEN_LLM_MODEL: z.string().min(1).optional(),
+  ANTHROPIC_GOOGLE_CLOUD_WORKSPACE_ID: setting,
+  ANTHROPIC_GOOGLE_CLOUD_BASE_URL: setting,
+  CLOUD_ML_REGION: setting,
   // The web app (proposal 0012): on when a session secret is set. Browsers sign in with the
   // identity provider (OIDC authorization code; Google for google), or with a demo token.
   GWARDEN_WEB_SECRET: z.string().min(32).optional(),
@@ -79,6 +91,15 @@ export type Config = z.infer<typeof CommonSchema> & {
 
 export async function loadConfig(env: NodeJS.ProcessEnv): Promise<Config> {
   const common = CommonSchema.parse(env);
+  // Checked here because the clients only fail on the first question without them.
+  if (common.GWARDEN_LLM === "claude" && common.GWARDEN_LLM_PLATFORM === "google-cloud") {
+    if (common.ANTHROPIC_GOOGLE_CLOUD_WORKSPACE_ID === undefined && common.ANTHROPIC_GOOGLE_CLOUD_BASE_URL === undefined) {
+      throw new Error("GWARDEN_LLM_PLATFORM=google-cloud needs ANTHROPIC_GOOGLE_CLOUD_WORKSPACE_ID (wrkspc_…, in the Claude Console)");
+    }
+  }
+  if (common.GWARDEN_LLM === "claude" && common.GWARDEN_LLM_PLATFORM === "vertex" && common.CLOUD_ML_REGION === undefined) {
+    throw new Error("GWARDEN_LLM_PLATFORM=vertex needs CLOUD_ML_REGION (global, or a region where the model is enabled)");
+  }
   const settings = EnvSchema.parse(env);
   const web = common.GWARDEN_WEB_SECRET === undefined ? undefined : webFrom(common, settings, common.GWARDEN_WEB_SECRET);
   return { ...common, identity: await identityFrom(settings), identityKind: settings.GWARDEN_IDENTITY, ...(web === undefined ? {} : { web }) };

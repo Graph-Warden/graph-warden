@@ -11,12 +11,33 @@
 # GOOGLE_CLIENT_ID (the OAuth client the ID tokens are issued for).
 # IDENTITY=demo needs no domain: it serves the users of DEMO_USERS (examples/shop/users.yaml) with
 # fresh random tokens, kept in Secret Manager. Anyone holding a token is that user: demo data only.
+#
+# LLM (none by default) picks the model behind /v1/ask, reached with the service account, never an
+# API key: vertex (Claude on Vertex AI, in LLM_REGION, global by default) or google-cloud (Claude on
+# Google Cloud run by Anthropic, needs ANTHROPIC_GOOGLE_CLOUD_WORKSPACE_ID). Either must be enabled
+# on the project first: see README.md.
 set -eu
 : "${PROJECT_ID:?}" "${BILLING_ACCOUNT:?}" "${NEO4J_URI:?}"
 REGION=${REGION:-europe-west1}
 IDENTITY=${IDENTITY:-google}
 GWARDEN_AUDITORS=${GWARDEN_AUDITORS:-auditors}
+LLM=${LLM:-none}
 cd "$(dirname "$0")/../.."
+
+case "$LLM" in
+  none) LLM_ENV="GWARDEN_LLM=none" LLM_APIS="" LLM_ROLE="" ;;
+  vertex)
+    LLM_ENV="GWARDEN_LLM=claude|GWARDEN_LLM_PLATFORM=vertex|CLOUD_ML_REGION=${LLM_REGION:-global}"
+    LLM_APIS=aiplatform.googleapis.com LLM_ROLE=roles/aiplatform.user
+    ;;
+  google-cloud)
+    : "${ANTHROPIC_GOOGLE_CLOUD_WORKSPACE_ID:?google-cloud needs the workspace id (wrkspc_…)}"
+    LLM_ENV="GWARDEN_LLM=claude|GWARDEN_LLM_PLATFORM=google-cloud|ANTHROPIC_GOOGLE_CLOUD_WORKSPACE_ID=$ANTHROPIC_GOOGLE_CLOUD_WORKSPACE_ID"
+    LLM_APIS=claude.googleapis.com LLM_ROLE=roles/claude.user
+    ;;
+  *) echo "LLM must be none, vertex or google-cloud, not $LLM" >&2; exit 1 ;;
+esac
+[ -z "${GWARDEN_LLM_MODEL:-}" ] || LLM_ENV="$LLM_ENV|GWARDEN_LLM_MODEL=$GWARDEN_LLM_MODEL"
 
 case "$IDENTITY" in
   google)
@@ -48,10 +69,10 @@ step "Project $PROJECT_ID"
 gcloud projects describe "$PROJECT_ID" >/dev/null 2>&1 || gcloud projects create "$PROJECT_ID"
 gcloud billing projects link "$PROJECT_ID" --billing-account "$BILLING_ACCOUNT" >/dev/null
 gcloud config set project "$PROJECT_ID" >/dev/null
-# $IDENTITY_APIS is empty or one word.
+# $IDENTITY_APIS and $LLM_APIS are empty or one word.
 # shellcheck disable=SC2086
 gcloud services enable run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com \
-  secretmanager.googleapis.com $IDENTITY_APIS
+  secretmanager.googleapis.com $IDENTITY_APIS $LLM_APIS
 
 step "Image $IMAGE"
 gcloud artifacts repositories describe "$REPO" --location "$REGION" >/dev/null 2>&1 ||
@@ -71,6 +92,10 @@ gcloud iam service-accounts describe "$SA" >/dev/null 2>&1 ||
   gcloud iam service-accounts create graph-warden-api --display-name "Graph-Warden API"
 gcloud secrets add-iam-policy-binding neo4j-password --member "serviceAccount:$SA" \
   --role roles/secretmanager.secretAccessor >/dev/null
+if [ -n "$LLM_ROLE" ]; then
+  gcloud projects add-iam-policy-binding "$PROJECT_ID" --member "serviceAccount:$SA" --role "$LLM_ROLE" \
+    --condition None >/dev/null
+fi
 
 if [ "$IDENTITY" = demo ]; then
   step "Demo users in Secret Manager"
@@ -95,7 +120,7 @@ step "Cloud Run service"
 # GWARDEN_AUDITORS holds commas.
 gcloud run deploy graph-warden-api --image "$IMAGE" --region "$REGION" --service-account "$SA" \
   --allow-unauthenticated --min-instances 0 --max-instances 3 \
-  --set-env-vars "^|^$IDENTITY_ENV|NEO4J_URI=$NEO4J_URI|NEO4J_USER=neo4j|GWARDEN_AUDITORS=$GWARDEN_AUDITORS" \
+  --set-env-vars "^|^$IDENTITY_ENV|$LLM_ENV|NEO4J_URI=$NEO4J_URI|NEO4J_USER=neo4j|GWARDEN_AUDITORS=$GWARDEN_AUDITORS" \
   --set-secrets "NEO4J_PASSWORD=neo4j-password:latest$IDENTITY_SECRETS"
 
 URL=$(gcloud run services describe graph-warden-api --region "$REGION" --format 'value(status.url)')
