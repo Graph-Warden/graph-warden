@@ -1,0 +1,65 @@
+# Comments the impact of a pull request on it: endpoints touched, front-ends consuming them,
+# decisions and documents to check. Runs `gwarden impact` on a runner that reaches the graph's
+# Neo4j (a self-hosted runner inside the network); nothing is written to the graph.
+#
+#   on: pull_request
+#   permissions: { contents: read, pull-requests: write }
+#   jobs:
+#     impact:
+#       runs-on: [self-hosted]
+#       steps:
+#         - uses: actions/checkout@v4
+#           with: { fetch-depth: 0 }
+#         - uses: Graph-Warden/graph-warden/action/impact@main
+#           with:
+#             neo4j-uri: bolt://neo4j.internal:7687
+#             neo4j-password: ${{ secrets.NEO4J_PASSWORD }}
+#
+# Only what readers of the pull request may read is listed: shared nodes, plus those of `teams`.
+name: Graph-Warden impact
+description: Comment the impact of this pull request on the knowledge graph.
+inputs:
+  neo4j-uri:
+    required: true
+  neo4j-user:
+    default: neo4j
+  neo4j-password:
+    required: true
+  source:
+    description: The repository's name in the graph.
+    default: github:${{ github.repository }}
+  scope:
+    description: The repository's scope.
+    default: shared
+  teams:
+    description: Space-separated teams whose nodes the comment may list, besides shared ones.
+    default: ""
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+    # gwarden is built from the sources of the action's own ref.
+    - shell: bash
+      working-directory: ${{ github.action_path }}/../..
+      run: corepack enable && pnpm install --frozen-lockfile --ignore-scripts && pnpm -r build
+    - shell: bash
+      env:
+        NEO4J_URI: ${{ inputs.neo4j-uri }}
+        NEO4J_USER: ${{ inputs.neo4j-user }}
+        NEO4J_PASSWORD: ${{ inputs.neo4j-password }}
+        GITHUB_TOKEN: ${{ github.token }}
+        SOURCE: ${{ inputs.source }}
+        SCOPE: ${{ inputs.scope }}
+        TEAMS: ${{ inputs.teams }}
+        CLI: ${{ github.action_path }}/../../packages/cli/dist/main.js
+        BASE: ${{ github.event.pull_request.base.sha }}
+        HEAD: ${{ github.event.pull_request.head.sha }}
+        PULL: ${{ github.repository }}#${{ github.event.pull_request.number }}
+      run: |
+        base=$(git merge-base "$BASE" "$HEAD")
+        teams=()
+        for team in $TEAMS; do teams+=(--team "$team"); done
+        node "$CLI" impact "$GITHUB_WORKSPACE" --source "$SOURCE" --scope "$SCOPE" --base "$base" --head "$HEAD" \
+          "${teams[@]}" --comment "$PULL"

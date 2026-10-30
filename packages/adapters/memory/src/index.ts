@@ -15,9 +15,11 @@ import {
 
 // In-memory ports, for tests and demos: nothing survives the process.
 
-export function createMemoryStore(): GraphStore {
-  const nodes = new Map<string, Node>();
-  let edges: Edge[] = [];
+// Starts from `initial` when given: a copy, so that writes never reach the graph it came from (a
+// dry run over a snapshot of the real store).
+export function createMemoryStore(initial?: { readonly nodes: ReadonlyMap<string, Node>; readonly edges: readonly Edge[] }): GraphStore {
+  const nodes = new Map<string, Node>(initial?.nodes ?? []);
+  let edges: Edge[] = [...(initial?.edges ?? [])];
   const key = (e: Edge) => `${e.type} ${e.from} ${e.to}`;
   return {
     upsertNodes: async (list) => void list.forEach((node) => nodes.set(node.id, node)),
