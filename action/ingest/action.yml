@@ -1,0 +1,45 @@
+# Tells a Graph-Warden worker that the repository reached a commit, from a runner that can reach
+# the worker (a self-hosted runner inside the network): no webhook, no tunnel to the worker.
+#
+#   on: { push: { branches: [main] } }
+#   jobs:
+#     graph-warden:
+#       runs-on: [self-hosted]
+#       steps:
+#         - uses: Graph-Warden/graph-warden/action/ingest@main
+#           with:
+#             worker-url: http://gwarden-worker.internal:8081
+#             token: ${{ secrets.GWARDEN_PUSH_TOKEN }}
+#
+# The worker ingests only the branch it watches, from the last commit it ingested: a run that is
+# skipped or repeated loses or duplicates nothing.
+name: Graph-Warden ingest
+description: Queue this commit for ingestion by a Graph-Warden worker.
+inputs:
+  worker-url:
+    description: Base URL of the worker.
+    required: true
+  token:
+    description: The worker's GWARDEN_PUSH_TOKEN.
+    required: true
+  repository:
+    description: The repository's name in the worker's configuration.
+    default: github:${{ github.repository }}
+  sha:
+    description: The commit to ingest.
+    default: ${{ github.sha }}
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        WORKER_URL: ${{ inputs.worker-url }}
+        TOKEN: ${{ inputs.token }}
+        REPO: ${{ inputs.repository }}
+        SHA: ${{ inputs.sha }}
+        REF: ${{ github.ref }}
+      run: |
+        body=$(jq -n --arg repo "$REPO" --arg sha "$SHA" --arg ref "$REF" '{repo: $repo, sha: $sha, ref: $ref}')
+        curl --fail-with-body --silent --show-error --retry 3 \
+          -H "authorization: Bearer $TOKEN" -H "content-type: application/json" \
+          --data "$body" "${WORKER_URL%/}/v1/jobs"

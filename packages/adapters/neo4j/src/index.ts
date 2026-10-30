@@ -9,6 +9,7 @@ import {
   type EventLog,
   type GraphStore,
   type IngestionState,
+  type StaleMarks,
   type Node,
   type Scope,
 } from "@graph-warden/core";
@@ -20,7 +21,7 @@ import neo4j, { type Driver, type Record as Neo4jRecord } from "neo4j-driver";
 
 // Labels of the adapter's own nodes. A node type of the same name would put a graph node among
 // them, in the audit log or the event log: the ontology may extend the types, not these.
-export const RESERVED_LABELS = ["Node", "Counter", "AuditEntry", "Event", "Ingestion"] as const;
+export const RESERVED_LABELS = ["Node", "Counter", "AuditEntry", "Event", "Ingestion", "Stale"] as const;
 
 export async function ensureConstraints(driver: Driver): Promise<void> {
   // Community edition: uniqueness only. Existence of scope and provenance is enforced by the
@@ -31,6 +32,7 @@ export async function ensureConstraints(driver: Driver): Promise<void> {
   await driver.executeQuery("CREATE CONSTRAINT event_seq IF NOT EXISTS FOR (e:Event) REQUIRE e.seq IS UNIQUE");
   await driver.executeQuery("CREATE INDEX event_node IF NOT EXISTS FOR (e:Event) ON (e.node)");
   await driver.executeQuery("CREATE CONSTRAINT ingestion_repo IF NOT EXISTS FOR (i:Ingestion) REQUIRE i.repo IS UNIQUE");
+  await driver.executeQuery("CREATE CONSTRAINT stale_id IF NOT EXISTS FOR (s:Stale) REQUIRE s.id IS UNIQUE");
 }
 
 export function createNeo4jStore(driver: Driver): GraphStore {
@@ -181,6 +183,34 @@ export function createNeo4jIngestionState(driver: Driver): IngestionState {
     },
     async record(repo, sha) {
       await driver.executeQuery("MERGE (i:Ingestion {repo: $repo}) SET i.sha = $sha", { repo, sha });
+    },
+    async forget(repo) {
+      await driver.executeQuery("MATCH (i:Ingestion {repo: $repo}) DELETE i", { repo });
+    },
+  };
+}
+
+// Nodes waiting for revalidation, as (:Stale) outside the :Node label: the evidence they hold is
+// code, read by the model only. A later mark replaces an earlier one.
+export function createNeo4jStaleMarks(driver: Driver): StaleMarks {
+  return {
+    async mark(marks) {
+      if (marks.length === 0) return;
+      await driver.executeQuery(
+        "UNWIND $marks AS m MERGE (s:Stale {id: m.id}) SET s.change = m.change, s.evidence = m.evidence, s.user = m.user, s.teams = m.teams",
+        { marks: marks.map((m) => ({ id: m.id, change: m.change, evidence: m.evidence, user: m.author.user, teams: [...m.author.teams] })) },
+      );
+    },
+    async get(id) {
+      const { records } = await driver.executeQuery("MATCH (s:Stale {id: $id}) RETURN s", { id });
+      const s = records[0]?.get("s").properties as { id: string; change: string; evidence: string; user: string; teams: string[] } | undefined;
+      return s === undefined ? undefined : { id: s.id, change: s.change, evidence: s.evidence, author: { user: s.user, teams: s.teams } };
+    },
+    async clear(id) {
+      await driver.executeQuery("MATCH (s:Stale {id: $id}) DELETE s", { id });
+    },
+    async clearSource(source) {
+      await driver.executeQuery("MATCH (s:Stale) WHERE s.change STARTS WITH $prefix DELETE s", { prefix: `${source}@` });
     },
   };
 }

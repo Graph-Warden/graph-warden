@@ -5,7 +5,8 @@ import { NotFound } from "./deletion.js";
 import { computeDelta, type Delta, type EventLog } from "./events.js";
 import { retrieve, type RetrieveOptions } from "./search.js";
 import type { GraphStore } from "./store.js";
-import { traverse, type TraversalOptions } from "./traversal.js";
+import { findRelated } from "./revalidation.js";
+import { createGraph, traverse, type TraversalOptions } from "./traversal.js";
 
 // Audit of reads made on behalf of a user (proposal 0003). Every read goes through a `Reader`
 // (traversal, pull, the audit log itself), which records who asked for what and which nodes they
@@ -43,6 +44,31 @@ export const AuditEntrySchema = z.discriminatedUnion("action", [
   // One node read by id: `returned` is empty when it is unknown or unreadable.
   z.object({ ...common, action: z.literal("read"), target: z.string().min(1) }).readonly(),
   z.object({ ...common, action: z.literal("search"), query: z.string().min(1) }).readonly(),
+  // The erasure of a source (issue #17): `returned` lists the nodes deleted, `recompiled` the
+  // derived nodes written again without it. `planned` marks a preview.
+  z
+    .object({
+      ...common,
+      action: z.literal("forget"),
+      source: z.string().min(1),
+      recompiled: z.array(z.string().min(1)).readonly(),
+      planned: z.literal(true).optional(),
+    })
+    .readonly(),
+  // Where a request to a model went (issue #28): `sources` are the provenance sources of its
+  // content, `confidential` those that kept it local. `denied` when no model could take it.
+  z
+    .object({
+      ...common,
+      action: z.literal("route"),
+      model: z.enum(["local", "remote"]),
+      sources: z.array(z.string().min(1)).readonly(),
+      confidential: z.array(z.string().min(1)).readonly(),
+      denied: z.literal(true).optional(),
+    })
+    .readonly(),
+  // What depends on some nodes (proposal 0005), through readable nodes only.
+  z.object({ ...common, action: z.literal("related"), targets: z.array(z.string().min(1)).min(1).readonly() }).readonly(),
   // Reading the audit log is itself recorded: it says who looked at who saw what. So is a refused
   // attempt, marked `denied`.
   z
@@ -100,6 +126,9 @@ export interface Reader {
   // The readable nodes matching a query, best first.
   search(principal: Principal, query: string, options?: RetrieveOptions): Promise<readonly Node[]>;
   traverse(principal: Principal, start: string, options?: TraversalOptions): Promise<readonly Node[]>;
+  // What depends on these nodes (`findRelated`), nearest first, with the distance of each. Only
+  // readable nodes are crossed, as in a traversal: an unreadable node hides what lies behind it.
+  related(principal: Principal, ids: readonly string[]): Promise<readonly { readonly node: Node; readonly depth: number }[]>;
   // What changed since the cursor, as the principal may see it. Needs an event log.
   pull(principal: Principal, after: number): Promise<Delta>;
   // `pull` for a client that keeps asking (the web app's stream, proposal 0012): undefined while
@@ -114,6 +143,8 @@ export interface ReaderOptions {
   readonly events?: EventLog;
   // Groups whose members may read the audit log. None by default: nobody reads it through the reader.
   readonly auditors?: readonly string[];
+  // Called before a node is read, to revalidate it if it is stale (proposal 0005).
+  readonly refresh?: (id: string) => Promise<unknown>;
   readonly now?: () => Date;
 }
 
@@ -130,11 +161,15 @@ export function recorder(audit: AuditLog, now: () => Date = () => new Date()) {
 }
 
 export function createReader(store: GraphStore, audit: AuditLog, options: ReaderOptions = {}): Reader {
-  const { events, auditors = [], now = () => new Date() } = options;
+  const { events, auditors = [], refresh, now = () => new Date() } = options;
   const record = recorder(audit, now);
 
   return {
     async node(principal, id) {
+      // Only for a node the principal may read, so that a read cannot spend model calls on, or
+      // time how long it takes to answer for, a node it cannot see.
+      const current = await store.getNode(id);
+      if (refresh !== undefined && current !== undefined && canRead(principal, current.scope)) await refresh(id);
       const node = await store.getNode(id);
       const readable = node !== undefined && canRead(principal, node.scope) ? node : undefined;
       await record({ action: "read", target: id, returned: readable === undefined ? [] : [id] }, principal);
@@ -161,6 +196,20 @@ export function createReader(store: GraphStore, audit: AuditLog, options: Reader
         principal,
       );
       return reached;
+    },
+
+    async related(principal, ids) {
+      const graph = await store.snapshot();
+      const readable = [...graph.nodes.values()].filter((node) => canRead(principal, node.scope));
+      const visible = new Set(readable.map((node) => node.id));
+      const subgraph = createGraph(readable, graph.edges.filter((edge) => visible.has(edge.from) && visible.has(edge.to)));
+      const { depth } = findRelated(subgraph, ids.filter((id) => visible.has(id)));
+      const found = [...depth.entries()]
+        .map(([id, d]) => ({ node: subgraph.nodes.get(id), depth: d }))
+        .filter((entry): entry is { node: Node; depth: number } => entry.node !== undefined)
+        .sort((a, b) => a.depth - b.depth || a.node.id.localeCompare(b.node.id));
+      await record({ action: "related", targets: [...ids], returned: found.map((entry) => entry.node.id) }, principal);
+      return found;
     },
 
     async pull(principal, after) {

@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import neo4j, { type Driver } from "neo4j-driver";
 import type { AuditEntry, Node } from "@graph-warden/core";
-import { createNeo4jAuditLog, createNeo4jEventLog, createNeo4jIngestionState, createNeo4jStore, ensureConstraints } from "../src/index.js";
+import { createNeo4jAuditLog, createNeo4jEventLog, createNeo4jIngestionState, createNeo4jStaleMarks, createNeo4jStore, ensureConstraints } from "../src/index.js";
 
 // Runs against a throwaway database: every test wipes it. Never point NEO4J_TEST_URI at a
 // database you care about. `docker compose --profile test up -d --wait neo4j-test` starts one on
@@ -245,6 +245,34 @@ describe.skipIf(uri === undefined)("Neo4j adapter", () => {
       expect(await state.last("github:acme/shop")).toBe("6b1f74f");
       expect(await state.last("github:acme/bff")).toBe("2fdd496");
       expect((await store().snapshot()).nodes.size).toBe(0);
+      await state.forget("github:acme/shop");
+      expect(await state.last("github:acme/shop")).toBeUndefined();
+      expect(await state.last("github:acme/bff")).toBe("2fdd496");
+    });
+  });
+
+  describe("StaleMarks", () => {
+    it("keeps the latest mark per node until cleared, outside the graph", async () => {
+      const marks = createNeo4jStaleMarks(driver);
+      const author = { user: "pipeline", teams: ["bff"] };
+      await marks.mark([{ id: "adr-0002", change: "repo@1", evidence: "one", author }]);
+      await marks.mark([{ id: "adr-0002", change: "repo@2", evidence: "two", author }]);
+      expect(await marks.get("adr-0002")).toEqual({ id: "adr-0002", change: "repo@2", evidence: "two", author });
+      expect((await store().snapshot()).nodes.size).toBe(0);
+      await marks.clear("adr-0002");
+      expect(await marks.get("adr-0002")).toBeUndefined();
+    });
+
+    it("clears the marks of an erased source's changes only", async () => {
+      const marks = createNeo4jStaleMarks(driver);
+      const author = { user: "pipeline", teams: [] };
+      await marks.mark([
+        { id: "a", change: "github:acme/shop@5a03dc8", evidence: "x", author },
+        { id: "b", change: "github:acme/shop-legacy@5a03dc8", evidence: "y", author },
+      ]);
+      await marks.clearSource("github:acme/shop");
+      expect(await marks.get("a")).toBeUndefined();
+      expect(await marks.get("b")).toBeDefined();
     });
   });
 });

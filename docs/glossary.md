@@ -14,7 +14,7 @@ The words below are used with this meaning in code, proposals, issues and review
 | Derived node | A node produced from others, typically by an LLM. Linked with `DERIVED_FROM`; read only by those who read every source (proposal 0010). |
 | Author | The principal a node is derived for. Must be able to read every source. |
 | Traversal | Walking edges from a node. Scopes are checked on every hop, not only on the result. |
-| Erasure | Removal of a source and of everything derived from it (`gwarden forget`). |
+| Erasure | Removal of a source and of everything holding its content (`gwarden forget`): its nodes, the nodes derived only from them, and the nodes derived from them and from others, written again from their other sources by a model, or deleted without one. Ids stay in the event and audit logs; text does not. |
 | Body | A node's text: what `ask` reads and what a filed answer holds. |
 | Deletion plan | What deleting a node would do: the nodes removed (it, and the derived nodes left without a source), the `DERIVED_FROM` edges detached, and a digest. A deletion is made only with the digest of a plan that still matches the graph (proposal 0011). |
 | Detach | Remove a `DERIVED_FROM` edge from a node that keeps other sources. The node keeps its scope. |
@@ -26,6 +26,12 @@ The words below are used with this meaning in code, proposals, issues and review
 | Stream | `GET /v1/stream`: server-sent events, one delta each time what the caller may read changes. |
 | Asker | The use case answering a question (`createAsker`): retrieves readable nodes, audits them, hands them to the model, and files the answer if asked. |
 | LLM provider | The port (`LLMProvider`) for a language model. |
+| Sensitivity | How sensitive a provenance source is: `confidential` or `internal` (`GWARDEN_SENSITIVITY`). Content of a confidential source is sent only to the local model. |
+| Local model | A model run where the graph runs (Ollama, vLLM; `GWARDEN_LOCAL_LLM_MODEL`), as opposed to a remote provider. |
+| Router | The `LLMProvider` sending each request to the local or the remote model from the sources of its content (`createRouter`), auditing each decision as a `route` entry. A request naming no sources stays local. |
+| Export | The graph a user may read, pulled from scratch through the API and written as Markdown, JSON-LD or GraphML (`gwarden export`). |
+| Folder file | A `.gwarden.yaml` in a folder of documents declaring `scope:` for every document in it and below, unless a nearer folder file or the document's own `scope:` says otherwise. |
+| Source conformance suite | What every source adapter guarantees of what it gives (`checkSource`): valid, unique nodes of the ontology; no dangling edge; provenance naming the source and a file; the default scope for content declaring none; the same graph whatever the order files are read in. |
 | Audit entry | A record of a read made on behalf of a user. |
 | Event log | The append-only port (`EventLog`) recording every write to the graph with a sequence number. Pulls read it to know what changed since a cursor. |
 | Writer | The only way to write the graph (`createWriter`): every write lands in the store and then in the event log. |
@@ -43,3 +49,12 @@ The words below are used with this meaning in code, proposals, issues and review
 | Repository | The port (`Repository`) for a git repository: ancestry, first-parent commits, changed files, file contents. |
 | Extractor | Turns the files a commit changed into nodes and edges (documents, TypeScript imports, OpenAPI specs). |
 | Change | The node of one ingested commit. It `MODIFIES` the nodes of the files it touched; its id is `<repo>@<sha>`. |
+| Worker | The ingestion process (`gwarden-worker`): learns about merges by GitHub webhook, by a push from CI (`action/ingest`) or by polling its clones, and ingests them through the queue. |
+| Trigger | One way the worker learns that a repository reached a commit. Every trigger only queues a job; none carries a diff. |
+| Module | The node of one source file, id `<repo>:<path>`. `IMPORTS` edges link modules as the TypeScript compiler resolves them. |
+| Endpoint | The node of one operation of an OpenAPI spec, id `<repo>:<METHOD> <path>`. Modules next to the spec `EXPOSES` it; modules elsewhere that call it, through a generated client or `fetch`, `CONSUMES` it. |
+| Related nodes | What depends on a change (`findRelated`): edges followed towards their dependents (`IMPORTS`, `DERIVED_FROM`, `DECIDES`, `CONSUMES` backwards, `EXPOSES` forwards). |
+| Revalidator | The use case sending the knowledge related to a commit to the model (`createRevalidator`): valid, updated (derived nodes only, narrowed to the code's readers) or contradicted (`CONTRADICTS` from the commit, and an alert). |
+| Stale mark | A node related to a change but beyond the revalidation depth (`StaleMarks`): revalidated on its first read. |
+| Evaluation set | The cases every LLM provider is run against (`packages/eval/cases.yaml`, `gwarden-eval`): the revalidation verdict and the `ask` answer, with the production prompts and validation. |
+| MCP server | `POST /mcp` on the API (Streamable HTTP, stateless): the tools `search`, `get_node`, `neighbourhood`, `impact`, `recent_changes`, each called as the bearer token's user, through the reader. |

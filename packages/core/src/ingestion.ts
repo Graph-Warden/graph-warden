@@ -1,7 +1,7 @@
 import { createGraph, type Graph } from "./traversal.js";
 import { deriveScopes } from "./derivation.js";
 import type { Writer } from "./events.js";
-import type { Edge, Node } from "./ontology.js";
+import type { Edge, EdgeType, Node } from "./ontology.js";
 import type { Principal, Scope } from "./scope.js";
 import type { GraphStore } from "./store.js";
 
@@ -37,12 +37,16 @@ export interface Repository {
   read(sha: string, path: string): Promise<string>;
   // The full commit message.
   message(sha: string): Promise<string>;
+  // The patch from `from` to `to`; without `from`, the patch of the commit `to` on its first parent.
+  diff(from: string | undefined, to: string): Promise<string>;
 }
 
 // Port for the last commit ingested per repository.
 export interface IngestionState {
   last(repo: string): Promise<string | undefined>;
   record(repo: string, sha: string): Promise<void>;
+  // After an erasure: the next ingestion of the repository starts from scratch.
+  forget(repo: string): Promise<void>;
 }
 
 export interface SourceFile {
@@ -56,12 +60,23 @@ export interface Snapshot {
   readonly repo: RepositoryConfig;
   readonly sha: string;
   read(path: string): Promise<string>;
+  // Every file of the commit.
+  files(): Promise<readonly string[]>;
+  // What the commit changed, removals included: a removed configuration file changes how others
+  // extract.
+  readonly changes: readonly FileChange[];
 }
 
 // Turns files into nodes and edges. A node's provenance is filled in by the ingester: the
-// extractor gives the path of the file it came from. Edges may point to nodes of files the commit
-// did not change; edges to nodes that do not exist are dropped.
+// extractor gives the path of the file it came from. It is called when the commit added, modified
+// or removed a file it matches, with those it added or modified. Edges may point to nodes of files the commit
+// did not change; edges to nodes that do not exist are dropped. An extractor may return nodes of
+// files the commit did not change, when a change elsewhere alters them (a tsconfig.json changes how
+// every import resolves): their edges are replaced too.
 export interface Extractor {
+  // The edge types it gives. Edges of these types from the nodes it returns are replaced by what it
+  // returns; other extractors' edges from the same nodes are left alone. All types by default.
+  readonly edgeTypes?: readonly EdgeType[];
   matches(path: string): boolean;
   extract(files: readonly SourceFile[], snapshot: Snapshot): Promise<Extraction>;
 }
@@ -83,6 +98,10 @@ export interface RepositoryConfig {
 
 export interface IngestedCommit {
   readonly sha: string;
+  // The commit's `Change` node.
+  readonly change: string;
+  // Nodes of the files the commit changed, written or removed.
+  readonly changed: readonly string[];
   readonly upserted: number;
   readonly deleted: number;
 }
@@ -106,6 +125,8 @@ export class Diverged extends Error {
 }
 
 export const changeId = (repo: string, sha: string): string => `${repo}@${sha}`;
+// The repository of a `Change` node, from its id.
+export const changeSource = (id: string): string => id.slice(0, id.lastIndexOf("@"));
 
 export function createIngester(options: IngesterOptions): Ingester {
   const { store, writer, state, repositories, extractors } = options;
@@ -134,21 +155,33 @@ export function createIngester(options: IngesterOptions): Ingester {
 
   async function ingestCommit(config: RepositoryConfig, repository: Repository, parent: string | undefined, sha: string) {
     const changes = await repository.changes(parent, sha);
-    const snapshot: Snapshot = { repo: config, sha, read: (path) => repository.read(sha, path) };
+    let files: Promise<readonly string[]> | undefined;
+    const snapshot: Snapshot = {
+      repo: config,
+      sha,
+      changes,
+      read: (path) => repository.read(sha, path),
+      files: () => (files ??= repository.changes(undefined, sha).then((all) => all.map((change) => change.path))),
+    };
     const upserted = changes.filter((change) => change.status === "upserted").map((change) => change.path);
 
-    const nodes: Node[] = [];
+    const extractedNodes = new Map<string, Node>();
     const extracted: Edge[] = [];
+    // Per extractor, the nodes it extracted again and the edge types it owns on them.
+    const owners: { covered: ReadonlySet<string>; types?: ReadonlySet<EdgeType> }[] = [];
     for (const extractor of extractors) {
       const paths = upserted.filter((path) => extractor.matches(path));
-      if (paths.length === 0) continue;
+      if (!changes.some((change) => extractor.matches(change.path))) continue;
       const files = await Promise.all(paths.map(async (path) => ({ path, text: await snapshot.read(path) })));
       const extraction = await extractor.extract(files, snapshot);
       for (const { path, ...node } of extraction.nodes) {
-        nodes.push({ ...node, provenance: { source: config.name, path, sha } });
+        extractedNodes.set(node.id, { ...node, provenance: { source: config.name, path, sha } });
       }
-      extracted.push(...extraction.edges);
+      const covered = new Set(extraction.nodes.map((node) => node.id));
+      extracted.push(...extraction.edges.filter((edge) => covered.has(edge.from) && (extractor.edgeTypes?.includes(edge.type) ?? true)));
+      owners.push({ covered, ...(extractor.edgeTypes === undefined ? {} : { types: new Set(extractor.edgeTypes) }) });
     }
+    const nodes = [...extractedNodes.values()];
 
     const before = await store.snapshot();
     const changed = new Set(changes.map((change) => change.path));
@@ -170,19 +203,22 @@ export function createIngester(options: IngesterOptions): Ingester {
     const exists = (id: string) => kept.has(id) || id === change.id || (before.nodes.has(id) && !gone.has(id));
     const key = (edge: Edge) => `${edge.type} ${edge.from} ${edge.to}`;
     const edges = uniqueEdges([
-      ...extracted.filter((edge) => kept.has(edge.from) && exists(edge.to)),
-      ...nodes.map((node): Edge => ({ type: "MODIFIES", from: change.id, to: node.id })),
+      ...extracted.filter((edge) => exists(edge.to)),
+      ...nodes.filter((node) => changed.has(node.provenance.path)).map((node): Edge => ({ type: "MODIFIES", from: change.id, to: node.id })),
     ]);
-    // The edges a changed file had and no longer has. Edges into its nodes belong to other files.
+    // The edges an extracted node had and no longer has, among those its extractors own. Edges into
+    // it belong to other nodes.
     const fresh = new Set(edges.map(key));
-    const stale = before.edges.filter((edge) => kept.has(edge.from) && !fresh.has(key(edge)));
+    const ownedByExtractor = (edge: Edge) => owners.some((owner) => owner.covered.has(edge.from) && (owner.types?.has(edge.type) ?? true));
+    const stale = before.edges.filter((edge) => ownedByExtractor(edge) && !fresh.has(key(edge)));
 
     const derived = narrow(before, all, edges, gone, stale, config.author);
     await writer.upsertNodes(derived);
     await writer.deleteEdges(stale);
     await writer.upsertEdges(edges);
     for (const id of removed) await writer.deleteNode(id);
-    return { sha, upserted: nodes.length, deleted: removed.length };
+    const touched = nodes.filter((node) => changed.has(node.provenance.path)).map((node) => node.id);
+    return { sha, change: change.id, changed: [...touched, ...removed], upserted: nodes.length, deleted: removed.length };
   }
 }
 

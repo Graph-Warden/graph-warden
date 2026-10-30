@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
 import {
   createGraph,
@@ -12,17 +14,37 @@ import {
   EdgeSchema,
   NodeSchema,
   PullResponseSchema,
+  createEraser,
+  requiredTeams,
+  routeModels,
+  type AuditLog,
   type AuditEntry,
+  type LLMProvider,
   type Node,
 } from "@graph-warden/core";
-import { readDocuments, readOntology } from "@graph-warden/documents";
-import { createNeo4jAuditLog, createNeo4jEventLog, createNeo4jStore, ensureConstraints } from "@graph-warden/neo4j";
+import { createDocumentExtractor, readDocuments, readOntology, readSensitivity } from "@graph-warden/documents";
+import { createGitRepository } from "@graph-warden/git";
+import { createOpenApiExtractor } from "@graph-warden/openapi";
+import { createTypeScriptExtractor } from "@graph-warden/typescript";
+import { createClaudeProvider } from "@graph-warden/anthropic";
+import {
+  createNeo4jAuditLog,
+  createNeo4jEventLog,
+  createNeo4jIngestionState,
+  createNeo4jStaleMarks,
+  createNeo4jStore,
+  ensureConstraints,
+} from "@graph-warden/neo4j";
+import { createOpenAICompatibleProvider, LOCAL_BASE_URL } from "@graph-warden/openai";
 import neo4j from "neo4j-driver";
 import { z } from "zod";
 import { parseCommand, type Command, type Remote } from "./args.js";
+import { toGraphML, toJsonLd, toMarkdown } from "./export.js";
+import { formatImpact, packageNames, postComment, pullRequestImpact } from "./impact.js";
 
 async function run(command: Command): Promise<void> {
   if (command.name === "pull") return pull(command);
+  if (command.name === "export") return exportGraph(command);
   if (command.name === "cache") return listCache(command.cache);
   if (command.name === "ask") return ask(command);
   if (command.name === "show") return show(command);
@@ -70,10 +92,98 @@ async function run(command: Command): Promise<void> {
         printAudit(await audit.entries(command.user === undefined ? {} : { user: command.user }));
         break;
       }
+      case "forget": {
+        const llm = await routedFromEnv(audit);
+        const eraser = createEraser(store, createWriter(store, createNeo4jEventLog(driver)), audit, {
+          ...(llm === undefined ? {} : { llm }),
+          marks: createNeo4jStaleMarks(driver),
+          state: createNeo4jIngestionState(driver),
+        });
+        const plan = await eraser.plan(command.principal, command.source);
+        if (plan.deleted.length === 0) {
+          console.log(`Nothing comes from ${command.source}.`);
+          break;
+        }
+        console.log(`Forgetting ${command.source} deletes:`);
+        for (const node of plan.deleted) console.log(`  ${line(node)}`);
+        if (plan.recompiled.length > 0) {
+          console.log("and writes again from their other sources only:");
+          for (const node of plan.recompiled) console.log(`  ${line(node)}`);
+        }
+        let typed = command.confirm;
+        if (typed === undefined) {
+          if (!process.stdin.isTTY) throw new Error("forget asks for confirmation on a terminal; in a script, pass --confirm <source>");
+          const prompt = createInterface({ input: process.stdin, output: process.stdout });
+          try {
+            typed = (await prompt.question(`\nThis cannot be undone. Type ${command.source} to confirm: `)).trim();
+          } finally {
+            prompt.close();
+          }
+        }
+        if (typed !== command.source) throw new Error(`Not forgotten: "${typed}" is not ${command.source}.`);
+        const done = await eraser.forget(command.principal, command.source, plan.digest);
+        console.log(`Forgot ${command.source}: ${count(done.deleted.length, "node")} deleted, ${done.recompiled.length} recompiled.`);
+        break;
+      }
+      case "impact": {
+        const ontology = process.env.GWARDEN_ONTOLOGY ? await readOntology(process.env.GWARDEN_ONTOLOGY) : CORE_ONTOLOGY;
+        const repository = createGitRepository(command.dir);
+        const [base, head] = [await repository.head(command.base), await repository.head(command.head)];
+        // Read once; every write of the dry run goes to a copy. Nothing is written, so derived
+        // documents are narrowed as a principal in every team would, and the report filtered after.
+        const graph = await store.snapshot();
+        const teams = [...new Set([...graph.nodes.values()].flatMap((node) => requiredTeams(node.scope)))];
+        const impact = await pullRequestImpact({
+          graph,
+          repository,
+          config: { name: command.source, scope: command.scope, author: { user: "impact", teams } },
+          extractors: [createDocumentExtractor({ ontology }), createTypeScriptExtractor(), createOpenApiExtractor()],
+          ontology,
+          base,
+          head,
+          reader: command.reader,
+        });
+        const report = formatImpact(impact, await packageNames(repository, head));
+        console.log(report);
+        if (command.comment !== undefined) {
+          const token = process.env.GITHUB_TOKEN;
+          if (token === undefined || token === "") throw new Error("--comment needs GITHUB_TOKEN");
+          await postComment(command.comment.repo, command.comment.pull, report, token);
+        }
+        break;
+      }
     }
   } finally {
     await driver.close();
   }
+}
+
+// The model named by the environment, with the API's settings; none when GWARDEN_LLM is unset.
+// The model of GWARDEN_LLM, routed by sensitivity as in the API (issue #28).
+async function routedFromEnv(audit: AuditLog): Promise<LLMProvider | undefined> {
+  const { GWARDEN_LOCAL_LLM_MODEL: model, GWARDEN_LOCAL_LLM_BASE_URL: baseUrl, GWARDEN_SENSITIVITY: sensitivity } = process.env;
+  return routeModels({
+    remote: llmFromEnv(),
+    local: model ? createOpenAICompatibleProvider({ model, baseUrl: baseUrl || LOCAL_BASE_URL }) : undefined,
+    ...(sensitivity ? { policy: await readSensitivity(sensitivity) } : {}),
+    audit,
+  });
+}
+
+function llmFromEnv(): LLMProvider | undefined {
+  const { GWARDEN_LLM: kind, GWARDEN_LLM_MODEL: model, GWARDEN_LLM_BASE_URL: baseUrl, OPENAI_API_KEY: apiKey, GWARDEN_LLM_PLATFORM: platform } = process.env;
+  if (kind === undefined || kind === "" || kind === "none") return undefined;
+  if (kind === "claude") {
+    if (platform !== undefined && platform !== "" && platform !== "anthropic" && platform !== "google-cloud" && platform !== "vertex") {
+      throw new Error("GWARDEN_LLM_PLATFORM must be anthropic, google-cloud or vertex");
+    }
+    return createClaudeProvider({ ...(platform ? { platform } : {}), ...(model ? { model } : {}) });
+  }
+  if (kind === "openai") {
+    if (!model) throw new Error("GWARDEN_LLM=openai needs GWARDEN_LLM_MODEL");
+    return createOpenAICompatibleProvider({ model, ...(baseUrl ? { baseUrl } : {}), ...(apiKey ? { apiKey } : {}) });
+  }
+  throw new Error("GWARDEN_LLM must be none, claude or openai");
 }
 
 const line = (node: Node) =>
@@ -139,6 +249,12 @@ function describe(entry: AuditEntry): string {
       return `read ${entry.target}${entry.returned.length === 0 ? " -> nothing" : ""}`;
     case "search":
       return `search "${entry.query}" -> ${count(entry.returned.length, "node")}`;
+    case "forget":
+      return `${entry.planned === true ? "forget preview" : "forget"} ${entry.source} -> ${count(entry.returned.length, "node")} deleted, ${entry.recompiled.length} recompiled`;
+    case "related":
+      return `related ${entry.targets.join(", ")} -> ${count(entry.returned.length, "node")}`;
+    case "route":
+      return `route ${entry.sources.join(", ") || "(unnamed sources)"} -> ${entry.model} model${entry.denied === true ? " DENIED, no local model" : ""}`;
     case "ask": {
       if (entry.denied === true) return `ask "${entry.question}" DENIED`;
       return `ask "${entry.question}" -> ${count(entry.returned.length, "node")} read${entry.saved === undefined ? "" : `, filed as ${entry.saved}`}`;
@@ -152,6 +268,20 @@ function describe(entry: AuditEntry): string {
 const openCache = async (path: string) => (await import("./cache.js")).openCache(path);
 
 async function pull(command: Extract<Command, { name: "pull" }>): Promise<void> {
+  if (command.watch === undefined) return pullOnce(command);
+  // The fallback for clients that cannot hold the stream open (proposal 0006): pull, wait, again,
+  // each pull resuming from the cursor the cache holds.
+  let stopped = false;
+  const stop = () => (stopped = true);
+  process.once("SIGINT", stop);
+  process.once("SIGTERM", stop);
+  while (!stopped) {
+    await pullOnce(command);
+    for (let waited = 0; waited < command.watch * 1000 && !stopped; waited += 100) await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+}
+
+async function pullOnce(command: Extract<Command, { name: "pull" }>): Promise<void> {
   const cache = await openCache(command.cache);
   try {
     let after = cache.cursor(command.api);
@@ -172,6 +302,25 @@ async function pull(command: Extract<Command, { name: "pull" }>): Promise<void> 
   } finally {
     cache.close();
   }
+}
+
+// An export is a pull from scratch: the API scopes and audits it, and it is all the export holds.
+async function exportGraph(command: Extract<Command, { name: "export" }>): Promise<void> {
+  const { principal, delta } = PullResponseSchema.parse(await fetchJson(command, "/v1/pull?after=0"));
+  const { nodes, edges } = delta;
+  const summary = `Exported as ${principal.user}: ${count(nodes.length, "node")}, ${count(edges.length, "edge")}`;
+  if (command.format === "markdown") {
+    const dir = command.out ?? ".";
+    await mkdir(dir, { recursive: true });
+    const files = toMarkdown(nodes, edges);
+    for (const [name, text] of files) await writeFile(join(dir, name), text);
+    console.error(`${summary}, ${count(files.size, "file")} in ${dir}.`);
+    return;
+  }
+  const text = command.format === "jsonld" ? `${JSON.stringify(toJsonLd(nodes, edges), null, 2)}\n` : toGraphML(nodes, edges);
+  if (command.out === undefined) process.stdout.write(text);
+  else await writeFile(command.out, text);
+  console.error(`${summary}${command.out === undefined ? "" : ` to ${command.out}`}.`);
 }
 
 async function fetchJson(command: Remote, path: string, init: { method?: string; body?: object } = {}): Promise<unknown> {

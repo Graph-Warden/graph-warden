@@ -5,6 +5,7 @@ import {
   EdgeSchema,
   EdgeTypeSchema,
   Forbidden,
+  Unroutable,
   Invalid,
   NotFound,
   NodeTypeSchema,
@@ -27,6 +28,8 @@ import {
 } from "@graph-warden/core";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import { z } from "zod";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { createMcpServer } from "./mcp.js";
 import { CrossSite, registerWeb, type Sessions, type WebOptions } from "./web.js";
 
 // The API (proposal 0003): the one place readers reach the graph. Every route below `/v1` takes a
@@ -135,6 +138,8 @@ export function buildApi(options: ApiOptions): FastifyInstance {
     if (error instanceof NotFound) return reply.code(404).send({ error: "not found" });
     if (error instanceof Conflict) return reply.code(409).send({ error: "conflict", detail: error.message });
     if (error instanceof NotConfigured) return reply.code(501).send({ error: "not configured", detail: error.message });
+    // Confidential content and no local model to send it to (issue #28): the question needs one.
+    if (error instanceof Unroutable) return reply.code(501).send({ error: "not configured", detail: error.message });
     if (error instanceof BadRequest || error instanceof Invalid || error instanceof OutsideOntology) return reply.code(400).send({ error: "bad request", detail: error.message });
     if (error instanceof Stale) return reply.code(412).send({ error: "precondition failed", detail: error.message });
     if (error instanceof PreconditionRequired) {
@@ -243,6 +248,27 @@ export function buildApi(options: ApiOptions): FastifyInstance {
     }
     out.end();
   });
+
+  // MCP over Streamable HTTP, stateless: each request carries its bearer token, gets its own
+  // server bound to that principal, and the server is gone with the response.
+  app.post("/mcp", async (request, reply) => {
+    const principal = await principalOf(request);
+    const server = createMcpServer(options.reader, principal);
+    // No session id generator: stateless.
+    const transport = new StreamableHTTPServerTransport({ enableJsonResponse: true });
+    reply.hijack();
+    reply.raw.on("close", () => {
+      void transport.close();
+      void server.close();
+    });
+    // The SDK's optional callbacks are typed without exactOptionalPropertyTypes.
+    await server.connect(transport as Parameters<typeof server.connect>[0]);
+    await transport.handleRequest(request.raw, reply.raw, request.body);
+  });
+  // Without sessions there is no stream to open or session to end.
+  for (const method of ["GET", "DELETE"] as const) {
+    app.route({ method, url: "/mcp", handler: async (_request, reply) => reply.code(405).header("allow", "POST").send({ error: "method not allowed" }) });
+  }
 
   app.get("/v1/audit", async (request) => {
     const principal = await principalOf(request);

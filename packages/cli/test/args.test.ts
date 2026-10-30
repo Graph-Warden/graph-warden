@@ -149,3 +149,45 @@ describe("delete", () => {
 it("prints usage for an unknown command", () => {
   expect(() => parseCommand(["frobnicate", "x"])).toThrow(/Usage/);
 });
+
+it("parses impact, shared-only by default", () => {
+  expect(parseCommand(["impact", "/repo", "--source", "github:acme/shop", "--base", "main"])).toMatchObject({
+    name: "impact",
+    dir: "/repo",
+    base: "main",
+    head: "HEAD",
+    scope: { kind: "shared" },
+    reader: { teams: [] },
+  });
+  expect(parseCommand(["impact", "/repo", "--source", "s", "--base", "b", "--comment", "acme/shop#12"])).toMatchObject({ comment: { repo: "acme/shop", pull: 12 } });
+  expect(() => parseCommand(["impact", "/repo", "--source", "s", "--base", "b", "--comment", "12"])).toThrow(/owner\/repo#number/);
+  expect(() => parseCommand(["impact", "/repo", "--source", "s"])).toThrow(/--base/);
+});
+
+it("parses pull --watch", () => {
+  const remote = ["--api", "https://gw.example.com", "--token", "t"];
+  expect(parseCommand(["pull", ...remote])).not.toHaveProperty("watch");
+  expect(parseCommand(["pull", ...remote, "--watch"])).toMatchObject({ watch: 5 });
+  expect(parseCommand(["pull", ...remote, "--watch", "--interval", "30"])).toMatchObject({ watch: 30 });
+  expect(() => parseCommand(["pull", ...remote, "--interval", "30"])).toThrow(/--watch/);
+  expect(() => parseCommand(["pull", ...remote, "--watch", "--interval", "0"])).toThrow(/positive/);
+});
+
+it("parses forget, audited as someone", () => {
+  expect(parseCommand(["forget", "docs:crm", "--user", "dpo", "--team", "auditors", "--confirm", "docs:crm"])).toEqual({
+    name: "forget",
+    source: "docs:crm",
+    principal: { user: "dpo", teams: ["auditors"] },
+    confirm: "docs:crm",
+  });
+  expect(() => parseCommand(["forget", "docs:crm"])).toThrow(/--user/);
+});
+
+it("parses export, with a directory for markdown", () => {
+  const remote = ["--api", "https://gw.example.com", "--token", "t"];
+  expect(parseCommand(["export", "--format", "graphml", ...remote])).toEqual({ name: "export", format: "graphml", api: "https://gw.example.com", token: "t" });
+  expect(parseCommand(["export", "--format", "markdown", "--out", "vault", ...remote])).toMatchObject({ format: "markdown", out: "vault" });
+  expect(() => parseCommand(["export", "--format", "markdown", ...remote])).toThrow(/--out/);
+  expect(() => parseCommand(["export", "--format", "csv", ...remote])).toThrow(/--format/);
+  expect(() => parseCommand(["export", "--format", "jsonld"])).toThrow(/--api/);
+});

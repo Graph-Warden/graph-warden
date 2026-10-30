@@ -12,3 +12,8 @@ export * from "./ask.js";
 export * from "./search.js";
 export * from "./pages.js";
 export * from "./ingestion.js";
+export * from "./revalidation.js";
+export * from "./impact.js";
+export * from "./erasure.js";
+export * from "./routing.js";
+export * from "./conformance.js";

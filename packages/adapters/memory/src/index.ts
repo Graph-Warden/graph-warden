@@ -9,13 +9,17 @@ import {
   type IngestionQueue,
   type IngestionState,
   type Node,
+  type StaleMark,
+  type StaleMarks,
 } from "@graph-warden/core";
 
 // In-memory ports, for tests and demos: nothing survives the process.
 
-export function createMemoryStore(): GraphStore {
-  const nodes = new Map<string, Node>();
-  let edges: Edge[] = [];
+// Starts from `initial` when given: a copy, so that writes never reach the graph it came from (a
+// dry run over a snapshot of the real store).
+export function createMemoryStore(initial?: { readonly nodes: ReadonlyMap<string, Node>; readonly edges: readonly Edge[] }): GraphStore {
+  const nodes = new Map<string, Node>(initial?.nodes ?? []);
+  let edges: Edge[] = [...(initial?.edges ?? [])];
   const key = (e: Edge) => `${e.type} ${e.from} ${e.to}`;
   return {
     upsertNodes: async (list) => void list.forEach((node) => nodes.set(node.id, node)),
@@ -64,6 +68,7 @@ export function createMemoryIngestionState(): IngestionState {
   return {
     last: async (repo) => last.get(repo),
     record: async (repo, sha) => void last.set(repo, sha),
+    forget: async (repo) => void last.delete(repo),
   };
 }
 
@@ -114,6 +119,18 @@ export function createMemoryQueue(): IngestionQueue {
           await Promise.all(running.values());
         },
       };
+    },
+  };
+}
+
+export function createMemoryStaleMarks(): StaleMarks {
+  const marks = new Map<string, StaleMark>();
+  return {
+    mark: async (list) => void list.forEach((mark) => marks.set(mark.id, mark)),
+    get: async (id) => marks.get(id),
+    clear: async (id) => void marks.delete(id),
+    clearSource: async (source) => {
+      for (const [id, mark] of marks) if (mark.change.startsWith(`${source}@`)) marks.delete(id);
     },
   };
 }
