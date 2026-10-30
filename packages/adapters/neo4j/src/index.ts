@@ -174,6 +174,7 @@ interface Row {
   provenanceSource: string;
   provenancePath: string;
   provenanceSha: string | null;
+  title: string | null;
   body: string | null;
 }
 
@@ -188,6 +189,7 @@ function toRow(node: Node): Row {
     provenanceSource: provenance.source,
     provenancePath: provenance.path,
     provenanceSha: provenance.sha ?? null,
+    title: node.title ?? null,
     body: node.body ?? null,
   };
 }
@@ -207,8 +209,9 @@ function fromRecord(record: Neo4jRecord): Node {
     path: row.provenancePath,
     ...(row.provenanceSha === null || row.provenanceSha === undefined ? {} : { sha: row.provenanceSha }),
   };
+  const title = row.title === null || row.title === undefined ? {} : { title: row.title };
   const body = row.body === null || row.body === undefined ? {} : { body: row.body };
-  return NodeSchema.parse({ id: row.id, type: row.type, scope, provenance, ...body });
+  return NodeSchema.parse({ id: row.id, type: row.type, scope, provenance, ...title, ...body });
 }
 
 function groupBy<T, K>(items: readonly T[], key: (item: T) => K): Map<K, T[]> {

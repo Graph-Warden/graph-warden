@@ -9,3 +9,4 @@ export * from "./identity.js";
 export * from "./deletion.js";
 export * from "./editor.js";
 export * from "./ask.js";
+export * from "./search.js";

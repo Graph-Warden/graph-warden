@@ -54,11 +54,12 @@ describe("API", () => {
     expect(Object.keys(spec.paths)).toEqual([
       "/healthz",
       "/v1/me",
+      "/v1/nodes/{id}",
+      "/v1/search",
       "/v1/nodes/{id}/neighbours",
       "/v1/pull",
       "/v1/audit",
       "/v1/nodes/{id}/deletion",
-      "/v1/nodes/{id}",
       "/v1/ask",
     ]);
   });
@@ -70,6 +71,22 @@ describe("API", () => {
     expect(await ids(tokens.lea)).toEqual(["app", "summary"]);
     expect(await ids(tokens.bob)).toEqual(["app"]);
     expect(await ids(tokens.dpo)).toEqual([]);
+  });
+
+  it("serves one readable node, and the same 404 for an unknown or unreadable one", async () => {
+    const { get } = await setup();
+    expect((await get("/v1/nodes/contract", tokens.bob)).json()).toMatchObject({ id: "contract" });
+    const hidden = await get("/v1/nodes/summary", tokens.bob);
+    const unknown = await get("/v1/nodes/nothing", tokens.bob);
+    expect([hidden.statusCode, unknown.statusCode]).toEqual([404, 404]);
+    expect(hidden.body).toBe(unknown.body);
+  });
+
+  it("searches what the caller may read", async () => {
+    const { get } = await setup();
+    expect(((await get("/v1/search?q=summary", tokens.lea)).json().nodes as Node[]).map((n) => n.id)).toEqual(["summary"]);
+    expect((await get("/v1/search?q=summary", tokens.bob)).json().nodes).toEqual([]);
+    expect((await get("/v1/search", tokens.bob)).statusCode).toBe(400);
   });
 
   it("filters by edge type and depth", async () => {

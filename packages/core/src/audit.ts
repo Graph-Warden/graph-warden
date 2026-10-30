@@ -1,7 +1,9 @@
 import { z } from "zod";
 import { EdgeTypeSchema, type Node } from "./ontology.js";
-import type { Principal } from "./scope.js";
+import { canRead, type Principal } from "./scope.js";
+import { NotFound } from "./deletion.js";
 import { computeDelta, type Delta, type EventLog } from "./events.js";
+import { retrieve, type RetrieveOptions } from "./search.js";
 import type { GraphStore } from "./store.js";
 import { traverse, type TraversalOptions } from "./traversal.js";
 
@@ -38,6 +40,9 @@ export const AuditEntrySchema = z.discriminatedUnion("action", [
     })
     .readonly(),
   z.object({ ...common, action: z.literal("pull"), after: z.number().int().nonnegative() }).readonly(),
+  // One node read by id: `returned` is empty when it is unknown or unreadable.
+  z.object({ ...common, action: z.literal("read"), target: z.string().min(1) }).readonly(),
+  z.object({ ...common, action: z.literal("search"), query: z.string().min(1) }).readonly(),
   // Reading the audit log is itself recorded: it says who looked at who saw what. So is a refused
   // attempt, marked `denied`.
   z
@@ -79,6 +84,10 @@ export interface AuditLog {
 }
 
 export interface Reader {
+  // One node; rejects with `NotFound` when it is unknown or unreadable, which look alike.
+  node(principal: Principal, id: string): Promise<Node>;
+  // The readable nodes matching a query, best first.
+  search(principal: Principal, query: string, options?: RetrieveOptions): Promise<readonly Node[]>;
   traverse(principal: Principal, start: string, options?: TraversalOptions): Promise<readonly Node[]>;
   // What changed since the cursor, as the principal may see it. Needs an event log.
   pull(principal: Principal, after: number): Promise<Delta>;
@@ -110,6 +119,20 @@ export function createReader(store: GraphStore, audit: AuditLog, options: Reader
   const record = recorder(audit, now);
 
   return {
+    async node(principal, id) {
+      const node = await store.getNode(id);
+      const readable = node !== undefined && canRead(principal, node.scope) ? node : undefined;
+      await record({ action: "read", target: id, returned: readable === undefined ? [] : [id] }, principal);
+      if (readable === undefined) throw new NotFound(`No node ${id}`);
+      return readable;
+    },
+
+    async search(principal, query, options = {}) {
+      const found = retrieve(await store.snapshot(), principal, query, options);
+      await record({ action: "search", query, returned: found.map((node) => node.id) }, principal);
+      return found;
+    },
+
     async traverse(principal, start, traversal = {}) {
       const reached = traverse(await store.snapshot(), principal, start, traversal);
       await record(

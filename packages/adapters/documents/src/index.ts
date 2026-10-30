@@ -31,6 +31,8 @@ export interface Page {
   readonly references: readonly Reference[];
   // The text: a Markdown page below its frontmatter, the `body` field of a JSON or YAML document.
   readonly body?: string;
+  // The `title` field, else the first `# ` heading of the text.
+  readonly title?: string;
 }
 
 export interface Reference {
@@ -99,7 +101,17 @@ function toPage(path: string, fields: unknown, links: readonly string[], text?: 
   if (id !== undefined && (typeof id !== "string" || id === "")) throw new Error(`${path}: id must be a non-empty string`);
   const name = id ?? basename(path, extname(path));
   const body = (text ?? (typeof frontmatter.body === "string" ? frontmatter.body : "")).trim();
-  return { name, path, frontmatter, links, references: references.data, ...(body === "" ? {} : { body }) };
+  const heading = /^#[ \t]+(.+?)[ \t#]*$/m.exec(body)?.[1]?.trim();
+  const title = typeof frontmatter.title === "string" && frontmatter.title.trim() !== "" ? frontmatter.title.trim() : heading;
+  return {
+    name,
+    path,
+    frontmatter,
+    links,
+    references: references.data,
+    ...(body === "" ? {} : { body }),
+    ...(title === undefined || title === "" ? {} : { title }),
+  };
 }
 
 export function toGraph(pages: readonly Page[], options: DocumentOptions): { nodes: Node[]; edges: Edge[] } {
@@ -113,6 +125,7 @@ export function toGraph(pages: readonly Page[], options: DocumentOptions): { nod
         ? parseScope(page.frontmatter.scope)
         : options.defaultScope,
       provenance: { source: options.source, path: page.path },
+      ...(page.title === undefined ? {} : { title: page.title }),
       ...(page.body === undefined ? {} : { body: page.body }),
     }),
   );

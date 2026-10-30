@@ -12,6 +12,8 @@ export const USAGE = `Usage:
   gwarden audit [--api <url> --token <token>] [--user <user>]
   gwarden pull --api <url> --token <token> [--cache <file>]
   gwarden cache [--cache <file>]
+  gwarden show <node-id> --api <url> --token <token>
+  gwarden search <words>... --api <url> --token <token> [--limit <n>]
   gwarden ask "<question>" --api <url> --token <token> [--from <node-id>] [--save [--scope <scope>]]
   gwarden delete <node-id> --api <url> --token <token> [--confirm <node-id>]
 
@@ -73,6 +75,8 @@ export type Command =
       readonly name: "cache";
       readonly cache: string;
     }
+  | ({ readonly name: "show"; readonly id: string } & Remote)
+  | ({ readonly name: "search"; readonly query: string; readonly limit?: number } & Remote)
   | ({
       readonly name: "ask";
       readonly question: string;
@@ -108,6 +112,7 @@ export function parseCommand(argv: readonly string[]): Command {
       save: { type: "boolean", default: false },
       scope: { type: "string" },
       confirm: { type: "string" },
+      limit: { type: "string" },
     },
   });
   const cache = values.cache ?? join(homedir(), ".graph-warden", "cache.db");
@@ -127,6 +132,13 @@ export function parseCommand(argv: readonly string[]): Command {
   if (target === undefined) throw new Error(USAGE);
 
   switch (name) {
+    case "show":
+      return { name, id: target, ...remote() };
+    case "search": {
+      const limit = values.limit === undefined ? undefined : Number(values.limit);
+      if (limit !== undefined && !(Number.isInteger(limit) && limit > 0)) throw new Error("--limit must be a positive integer");
+      return { name, query: positionals.join(" "), ...(limit === undefined ? {} : { limit }), ...remote() };
+    }
     case "ask": {
       if (values.scope !== undefined && !values.save) throw new Error("--scope needs --save");
       if (values.scope !== undefined) parseScope(values.scope);

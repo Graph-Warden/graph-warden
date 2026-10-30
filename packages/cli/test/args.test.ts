@@ -102,6 +102,16 @@ describe("pull", () => {
   });
 });
 
+describe("show and search", () => {
+  const api = ["--api", "https://gw.example.com", "--token", "t"];
+
+  it("reads a node, or searches words through the API", () => {
+    expect(parseCommand(["show", "adr-7", ...api])).toEqual({ name: "show", id: "adr-7", api: "https://gw.example.com", token: "t" });
+    expect(parseCommand(["search", "cursor", "pagination", "--limit", "5", ...api])).toMatchObject({ name: "search", query: "cursor pagination", limit: 5 });
+    expect(() => parseCommand(["search", "x", "--limit", "0", ...api])).toThrow(/--limit/);
+  });
+});
+
 describe("ask", () => {
   const api = ["--api", "https://gw.example.com", "--token", "t"];
 

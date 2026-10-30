@@ -48,6 +48,7 @@ const TraverseQuery = z.object({
 const PullQuery = z.object({ after: z.coerce.number().int().nonnegative().default(0) });
 const AuditQuery = z.object({ user: z.string().min(1).optional() });
 const DeleteQuery = z.object({ confirm: z.string().min(1) });
+const SearchQuery = z.object({ q: z.string().min(1).max(500), limit: z.coerce.number().int().min(1).max(50).default(20) });
 const AskBody = z.object({
   question: z.string().min(1).max(4000),
   from: z.string().min(1).optional(),
@@ -110,6 +111,17 @@ export function buildApi(options: ApiOptions): FastifyInstance {
   app.get("/openapi.json", async () => openApi);
 
   app.get("/v1/me", async (request) => PrincipalResponse.parse(await principalOf(request)));
+
+  app.get<{ Params: { id: string } }>("/v1/nodes/:id", async (request) => {
+    const principal = await principalOf(request);
+    return NodeSchema.parse(await options.reader.node(principal, request.params.id));
+  });
+
+  app.get("/v1/search", async (request) => {
+    const principal = await principalOf(request);
+    const { q, limit } = parse(SearchQuery, request.query);
+    return { nodes: await options.reader.search(principal, q, { limit }) };
+  });
 
   app.get<{ Params: { id: string } }>("/v1/nodes/:id/neighbours", async (request) => {
     const principal = await principalOf(request);
@@ -174,6 +186,21 @@ const errors = {
   "401": { description: "Missing, invalid or expired token" },
 };
 
+const DELETE_NODE = {
+  summary: "Delete a node as shown by its deletion plan",
+  parameters: [
+    { name: "id", in: "path", required: true, schema: { type: "string" } },
+    { name: "confirm", in: "query", required: true, schema: { type: "string" }, description: "The digest of the plan shown" },
+  ],
+  responses: {
+    "200": { description: "What was deleted", content: json(DeletionResponse) },
+    ...errors,
+    "403": { description: "Not a writer, or the deletion would change nodes the caller may not read" },
+    "404": { description: "Unknown or unreadable node" },
+    "409": { description: "The graph changed since the plan was shown" },
+  },
+};
+
 export const openApi = {
   openapi: "3.1.0",
   info: {
@@ -187,6 +214,24 @@ export const openApi = {
   paths: {
     "/healthz": { get: { summary: "Liveness", security: [], responses: { "200": { description: "Up" } } } },
     "/v1/me": { get: { summary: "The principal the token stands for", responses: { "200": { description: "Principal", content: json(PrincipalResponse) }, ...errors } } },
+    "/v1/nodes/{id}": {
+      get: {
+        summary: "One node, title and text included",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        responses: { "200": { description: "The node", content: json(NodeSchema) }, ...errors, "404": { description: "Unknown or unreadable node" } },
+      },
+      delete: DELETE_NODE,
+    },
+    "/v1/search": {
+      get: {
+        summary: "Readable nodes matching words, best first: id and title weigh more than text",
+        parameters: [
+          { name: "q", in: "query", required: true, schema: { type: "string" } },
+          { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 50, default: 20 } },
+        ],
+        responses: { "200": { description: "Matching nodes", content: json(NodesResponse) }, ...errors },
+      },
+    },
     "/v1/nodes/{id}/neighbours": {
       get: {
         summary: "Nodes reachable from a node, as the caller may see them",
@@ -222,22 +267,6 @@ export const openApi = {
           ...errors,
           "403": { description: "Not a writer, or the deletion would change nodes the caller may not read" },
           "404": { description: "Unknown or unreadable node" },
-        },
-      },
-    },
-    "/v1/nodes/{id}": {
-      delete: {
-        summary: "Delete a node as shown by its deletion plan",
-        parameters: [
-          { name: "id", in: "path", required: true, schema: { type: "string" } },
-          { name: "confirm", in: "query", required: true, schema: { type: "string" }, description: "The digest of the plan shown" },
-        ],
-        responses: {
-          "200": { description: "What was deleted", content: json(DeletionResponse) },
-          ...errors,
-          "403": { description: "Not a writer, or the deletion would change nodes the caller may not read" },
-          "404": { description: "Unknown or unreadable node" },
-          "409": { description: "The graph changed since the plan was shown" },
         },
       },
     },

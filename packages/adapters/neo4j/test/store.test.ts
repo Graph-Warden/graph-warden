@@ -109,9 +109,9 @@ describe.skipIf(uri === undefined)("Neo4j adapter", () => {
       expect(graph.edges).toEqual([{ type: "DECIDES", from: "adr-0002", to: "app" }]);
     });
 
-    it("keeps a node's body", async () => {
-      await store().upsertNodes([{ ...concept, body: "# Scopes\n\nChecked on every hop." }]);
-      expect((await store().getNode("scopes"))?.body).toBe("# Scopes\n\nChecked on every hop.");
+    it("keeps a node's title and body", async () => {
+      await store().upsertNodes([{ ...concept, title: "Scopes", body: "# Scopes\n\nChecked on every hop." }]);
+      expect(await store().getNode("scopes")).toMatchObject({ title: "Scopes", body: "# Scopes\n\nChecked on every hop." });
       await store().upsertNodes([concept]);
       expect(await store().getNode("scopes")).toEqual(concept);
     });

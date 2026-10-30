@@ -23,6 +23,8 @@ async function run(command: Command): Promise<void> {
   if (command.name === "pull") return pull(command);
   if (command.name === "cache") return listCache(command.cache);
   if (command.name === "ask") return ask(command);
+  if (command.name === "show") return show(command);
+  if (command.name === "search") return search(command);
   if (command.name === "delete") return deleteNode(command);
   if (command.name === "traverse" && command.through.kind === "api") return traverseRemote(command, command.through);
   if (command.name === "audit" && command.through.kind === "api") return auditRemote(command, command.through);
@@ -68,7 +70,9 @@ async function run(command: Command): Promise<void> {
   }
 }
 
-const line = (node: Node) => `${node.type.padEnd(9)} ${node.id}  [${formatScope(node.scope)}]`;
+const line = (node: Node) =>
+  `${node.type.padEnd(9)} ${node.id}${node.title === undefined ? "" : `  "${node.title}"`}  [${formatScope(node.scope)}]`;
+const named = (node: Node) => (node.title === undefined ? node.id : `"${node.title}" (${node.id})`);
 
 function printNodes(nodes: readonly Node[], user: string): void {
   for (const node of nodes) console.log(line(node));
@@ -125,6 +129,10 @@ function describe(entry: AuditEntry): string {
       if (entry.denied === true) return `${what} ${entry.target} DENIED`;
       return `${what} ${entry.target} -> ${count(entry.returned.length, "node")}, ${count(entry.detached.length, "edge")} detached`;
     }
+    case "read":
+      return `read ${entry.target}${entry.returned.length === 0 ? " -> nothing" : ""}`;
+    case "search":
+      return `search "${entry.query}" -> ${count(entry.returned.length, "node")}`;
     case "ask": {
       if (entry.denied === true) return `ask "${entry.question}" DENIED`;
       return `ask "${entry.question}" -> ${count(entry.returned.length, "node")} read${entry.saved === undefined ? "" : `, filed as ${entry.saved}`}`;
@@ -171,6 +179,20 @@ async function fetchJson(command: Remote, path: string, init: { method?: string;
   return response.json();
 }
 
+async function show(command: Extract<Command, { name: "show" }>): Promise<void> {
+  const node = NodeSchema.parse(await fetchJson(command, `/v1/nodes/${encodeURIComponent(command.id)}`));
+  console.log(line(node));
+  console.log(`from ${node.provenance.source} ${node.provenance.path}${node.provenance.sha === undefined ? "" : ` @ ${node.provenance.sha}`}`);
+  if (node.body !== undefined) console.log(`\n${node.body}`);
+}
+
+async function search(command: Extract<Command, { name: "search" }>): Promise<void> {
+  const query = new URLSearchParams({ q: command.query, ...(command.limit === undefined ? {} : { limit: String(command.limit) }) });
+  const { nodes } = z.object({ nodes: z.array(NodeSchema) }).parse(await fetchJson(command, `/v1/search?${query}`));
+  for (const node of nodes) console.log(line(node));
+  console.log(`${count(nodes.length, "node")} found.`);
+}
+
 const AnswerSchema = z.object({ answer: z.string(), sources: z.array(NodeSchema), saved: NodeSchema.optional() });
 
 async function ask(command: Extract<Command, { name: "ask" }>): Promise<void> {
@@ -200,13 +222,15 @@ const PlanSchema = z.object({ target: z.string(), deleted: z.array(NodeSchema), 
 async function deleteNode(command: Extract<Command, { name: "delete" }>): Promise<void> {
   const path = `/v1/nodes/${encodeURIComponent(command.id)}`;
   const plan = PlanSchema.parse(await fetchJson(command, `${path}/deletion`));
-  console.log(`Deleting ${plan.target} removes:`);
+  const target = plan.deleted.find((node) => node.id === plan.target);
+  const name = target === undefined ? plan.target : named(target);
+  console.log(`Deleting ${name} removes:`);
   for (const node of plan.deleted) console.log(`  ${line(node)}${node.id === plan.target ? "" : "  derived only from deleted nodes"}`);
   if (plan.detached.length > 0) {
     console.log("and detaches, keeping these nodes, their other sources and their scope:");
     for (const edge of plan.detached) console.log(`  ${edge.from} -${edge.type}-> ${edge.to}`);
   }
-  console.log(`\nAre you sure? It will delete ${count(plan.deleted.length, "entry", "entries")} from ${plan.target}.`);
+  console.log(`\nAre you sure? It will delete ${count(plan.deleted.length, "entry", "entries")} from ${name}.`);
 
   let typed = command.confirm;
   if (typed === undefined) {

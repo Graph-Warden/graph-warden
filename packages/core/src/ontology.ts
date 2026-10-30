@@ -57,6 +57,9 @@ export const NodeSchema = z
     type: NodeTypeSchema,
     scope: ScopeSchema,
     provenance: ProvenanceSchema,
+    // A human name for the node, shown in place of its id: a document's `title:` field, or the first
+    // heading of a Markdown page. The id stays the node's identity.
+    title: z.string().min(1).optional(),
     // The node's text, what `ask` reads: the body of a Markdown page, the `body` field of a JSON or
     // YAML document, an answer filed by `ask`. The graph holds it so that it stays the source of
     // truth; nothing reads the files back.
