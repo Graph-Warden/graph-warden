@@ -25,6 +25,7 @@
     "@graph-warden/core": "workspace:*",
     "@graph-warden/identity": "workspace:*",
     "@graph-warden/neo4j": "workspace:*",
+    "@graph-warden/openai": "workspace:*",
     "fastify": "^5.12.7",
     "jose": "^6.2.14",
     "neo4j-driver": "^6.2.0",

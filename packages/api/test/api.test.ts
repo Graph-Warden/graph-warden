@@ -296,6 +296,18 @@ describe("loadConfig", () => {
     expect(config.GWARDEN_LLM_PLATFORM).toBe("vertex");
   });
 
+  it("needs a model, and a key or a server, for an OpenAI-compatible API", async () => {
+    const users = join(tmpdir(), `gw-users-openai-${process.pid}.yaml`);
+    await writeFile(users, `- { token: ${tokens.lea}, user: lea, teams: [bff] }\n`);
+    const demo = { ...base, GWARDEN_IDENTITY: "demo", GWARDEN_DEMO_USERS: users, GWARDEN_DEMO: "i-understand-anyone-with-a-token-is-that-user", GWARDEN_LLM: "openai" };
+    await expect(loadConfig({ ...demo, OPENAI_API_KEY: "sk-test" })).rejects.toThrow(/GWARDEN_LLM_MODEL/);
+    await expect(loadConfig({ ...demo, GWARDEN_LLM_MODEL: "gpt-5", OPENAI_API_KEY: "" })).rejects.toThrow(/OPENAI_API_KEY/);
+    await expect(loadConfig({ ...demo, GWARDEN_LLM_MODEL: "llama3.3", GWARDEN_LLM_BASE_URL: "localhost:11434" })).rejects.toThrow();
+    const config = await loadConfig({ ...demo, GWARDEN_LLM_MODEL: "llama3.3", GWARDEN_LLM_BASE_URL: "http://ollama:11434/v1", OPENAI_API_KEY: "" });
+    expect(config).toMatchObject({ GWARDEN_LLM: "openai", GWARDEN_LLM_BASE_URL: "http://ollama:11434/v1" });
+    expect(config.OPENAI_API_KEY).toBeUndefined();
+  });
+
   it("needs an issuer and an audience for OIDC", async () => {
     await expect(loadConfig({ ...base, GWARDEN_IDENTITY: "oidc", OIDC_ISSUER: "https://login.example.com" })).rejects.toThrow();
   });

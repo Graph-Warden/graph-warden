@@ -1,0 +1,23 @@
+{
+  "name": "@graph-warden/openai",
+  "version": "0.0.0",
+  "description": "LLMProvider for Graph-Warden on any OpenAI-compatible Chat Completions API: OpenAI, Azure OpenAI, Mistral, Ollama, vLLM, LM Studio.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@graph-warden/core": "workspace:*"
+  }
+}

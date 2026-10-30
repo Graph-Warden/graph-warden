@@ -62,13 +62,18 @@ const CommonSchema = z.object({
   GWARDEN_AUDITORS: list,
   // Groups whose members may delete nodes and file answers. None by default: nobody writes.
   GWARDEN_WRITERS: list,
-  // The model behind /v1/ask: none (the route answers 501) or claude, on the platform below with
-  // its credentials from the environment: anthropic (ANTHROPIC_API_KEY or an `ant auth login`
-  // profile), google-cloud (Claude on Google Cloud run by Anthropic) or vertex (Google's Vertex
-  // AI). Both Google platforms use Google credentials, never an API key.
-  GWARDEN_LLM: z.enum(["none", "claude"]).default("none"),
+  // The model behind /v1/ask: none (the route answers 501), claude or openai.
+  // - claude, on the platform below with its credentials from the environment: anthropic
+  //   (ANTHROPIC_API_KEY or an `ant auth login` profile), google-cloud (Claude on Google Cloud run
+  //   by Anthropic) or vertex (Google's Vertex AI). Both Google platforms use Google credentials,
+  //   never an API key.
+  // - openai, any OpenAI-compatible API at GWARDEN_LLM_BASE_URL (OpenAI by default): Azure OpenAI,
+  //   Mistral, Ollama, vLLM, LM Studio. OPENAI_API_KEY if the server asks for one.
+  GWARDEN_LLM: z.enum(["none", "claude", "openai"]).default("none"),
   GWARDEN_LLM_PLATFORM: z.enum(["anthropic", "google-cloud", "vertex"]).default("anthropic"),
-  GWARDEN_LLM_MODEL: z.string().min(1).optional(),
+  GWARDEN_LLM_MODEL: setting,
+  GWARDEN_LLM_BASE_URL: setting.pipe(z.url({ protocol: /^https?$/ }).optional()),
+  OPENAI_API_KEY: setting,
   ANTHROPIC_GOOGLE_CLOUD_WORKSPACE_ID: setting,
   ANTHROPIC_GOOGLE_CLOUD_BASE_URL: setting,
   CLOUD_ML_REGION: setting,
@@ -99,6 +104,12 @@ export async function loadConfig(env: NodeJS.ProcessEnv): Promise<Config> {
   }
   if (common.GWARDEN_LLM === "claude" && common.GWARDEN_LLM_PLATFORM === "vertex" && common.CLOUD_ML_REGION === undefined) {
     throw new Error("GWARDEN_LLM_PLATFORM=vertex needs CLOUD_ML_REGION (global, or a region where the model is enabled)");
+  }
+  if (common.GWARDEN_LLM === "openai" && common.GWARDEN_LLM_MODEL === undefined) {
+    throw new Error("GWARDEN_LLM=openai needs GWARDEN_LLM_MODEL, the name of the model on its server");
+  }
+  if (common.GWARDEN_LLM === "openai" && common.GWARDEN_LLM_BASE_URL === undefined && common.OPENAI_API_KEY === undefined) {
+    throw new Error("GWARDEN_LLM=openai needs OPENAI_API_KEY for OpenAI, or GWARDEN_LLM_BASE_URL for another server");
   }
   const settings = EnvSchema.parse(env);
   const web = common.GWARDEN_WEB_SECRET === undefined ? undefined : webFrom(common, settings, common.GWARDEN_WEB_SECRET);
