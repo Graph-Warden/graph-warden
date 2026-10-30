@@ -26,5 +26,10 @@
     "@graph-warden/typescript": "workspace:*",
     "neo4j-driver": "^6.2.0",
     "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/jsonld": "1.5.15",
+    "fast-xml-parser": "5.11.2",
+    "jsonld": "9.0.0"
   }
 }

@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
 import {
   createGraph,
@@ -35,10 +37,12 @@ import { createOpenAICompatibleProvider } from "@graph-warden/openai";
 import neo4j from "neo4j-driver";
 import { z } from "zod";
 import { parseCommand, type Command, type Remote } from "./args.js";
+import { toGraphML, toJsonLd, toMarkdown } from "./export.js";
 import { formatImpact, packageNames, postComment, pullRequestImpact } from "./impact.js";
 
 async function run(command: Command): Promise<void> {
   if (command.name === "pull") return pull(command);
+  if (command.name === "export") return exportGraph(command);
   if (command.name === "cache") return listCache(command.cache);
   if (command.name === "ask") return ask(command);
   if (command.name === "show") return show(command);
@@ -283,6 +287,25 @@ async function pullOnce(command: Extract<Command, { name: "pull" }>): Promise<vo
   } finally {
     cache.close();
   }
+}
+
+// An export is a pull from scratch: the API scopes and audits it, and it is all the export holds.
+async function exportGraph(command: Extract<Command, { name: "export" }>): Promise<void> {
+  const { principal, delta } = PullResponseSchema.parse(await fetchJson(command, "/v1/pull?after=0"));
+  const { nodes, edges } = delta;
+  const summary = `Exported as ${principal.user}: ${count(nodes.length, "node")}, ${count(edges.length, "edge")}`;
+  if (command.format === "markdown") {
+    const dir = command.out ?? ".";
+    await mkdir(dir, { recursive: true });
+    const files = toMarkdown(nodes, edges);
+    for (const [name, text] of files) await writeFile(join(dir, name), text);
+    console.error(`${summary}, ${count(files.size, "file")} in ${dir}.`);
+    return;
+  }
+  const text = command.format === "jsonld" ? `${JSON.stringify(toJsonLd(nodes, edges), null, 2)}\n` : toGraphML(nodes, edges);
+  if (command.out === undefined) process.stdout.write(text);
+  else await writeFile(command.out, text);
+  console.error(`${summary}${command.out === undefined ? "" : ` to ${command.out}`}.`);
 }
 
 async function fetchJson(command: Remote, path: string, init: { method?: string; body?: object } = {}): Promise<unknown> {

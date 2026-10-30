@@ -182,3 +182,12 @@ it("parses forget, audited as someone", () => {
   });
   expect(() => parseCommand(["forget", "docs:crm"])).toThrow(/--user/);
 });
+
+it("parses export, with a directory for markdown", () => {
+  const remote = ["--api", "https://gw.example.com", "--token", "t"];
+  expect(parseCommand(["export", "--format", "graphml", ...remote])).toEqual({ name: "export", format: "graphml", api: "https://gw.example.com", token: "t" });
+  expect(parseCommand(["export", "--format", "markdown", "--out", "vault", ...remote])).toMatchObject({ format: "markdown", out: "vault" });
+  expect(() => parseCommand(["export", "--format", "markdown", ...remote])).toThrow(/--out/);
+  expect(() => parseCommand(["export", "--format", "csv", ...remote])).toThrow(/--format/);
+  expect(() => parseCommand(["export", "--format", "jsonld"])).toThrow(/--api/);
+});
