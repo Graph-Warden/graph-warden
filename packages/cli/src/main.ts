@@ -9,6 +9,7 @@ import {
   CORE_ONTOLOGY,
   createWriter,
   deriveScopes,
+  narrowDependents,
   formatScope,
   AuditEntrySchema,
   EdgeSchema,
@@ -77,6 +78,10 @@ async function run(command: Command): Promise<void> {
         checkOntology(ontology, nodes, read.edges);
         await writer.upsertNodes(nodes);
         await writer.upsertEdges(read.edges);
+        // Nodes derived from these elsewhere (answers filed from them) narrow with them.
+        const dependents = narrowDependents(await store.snapshot(), ids);
+        await writer.upsertNodes(dependents);
+        for (const node of dependents) console.log(`Narrowed ${node.id}, derived from them, to ${formatScope(node.scope)}.`);
         console.log(`Ingested ${count(nodes.length, "node")} and ${count(read.edges.length, "edge")} from ${command.source}.`);
         for (const node of narrowed) console.log(`Narrowed ${node.id} to ${formatScope(node.scope)}, the readers of all its sources.`);
         break;

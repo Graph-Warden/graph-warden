@@ -48,3 +48,48 @@ export function deriveScopes(graph: Graph, author: Principal, ids: readonly stri
   };
   return ids.map(resolve);
 }
+
+// The scope of a node derived from sources whose scopes are `sources`, narrowed from `current`:
+// what deriveScope gives, without an author to check. Sources private to different users leave
+// nobody who reads them all: the node goes private to the user of its own private scope, or of
+// its first private source. Its content stays with someone who read part of it, never wider.
+function narrowed(current: Scope, sources: readonly Scope[]): Scope {
+  const all = [current, ...sources];
+  const privateTo = all.filter((scope) => scope.kind === "private").map((scope) => (scope as { user: string }).user);
+  if (privateTo.length > 0) return { kind: "private", user: current.kind === "private" ? current.user : (privateTo[0] ?? "") };
+  const teams = all.flatMap(requiredTeams);
+  return teams.length === 0 ? { kind: "shared" } : teamsScope(teams);
+}
+
+// After the scopes of `changed` nodes were written, the nodes derived from them, directly or
+// through others, narrowed to what their sources allow now: a source made narrower must not leave
+// a summary of it readable by those who lost access. Returns only the nodes whose scope changes.
+// Derivation never widens: a source made wider leaves its derived nodes as they are.
+export function narrowDependents(graph: Graph, changed: readonly string[]): Node[] {
+  const dependents = new Map<string, string[]>();
+  for (const edge of graph.edges) if (edge.type === "DERIVED_FROM") dependents.set(edge.to, [...(dependents.get(edge.to) ?? []), edge.from]);
+  const scopes = new Map<string, Scope>();
+  const scopeOf = (id: string) => scopes.get(id) ?? graph.nodes.get(id)?.scope;
+  const updated = new Map<string, Node>();
+  const queue = [...changed];
+  for (let steps = 0; queue.length > 0; steps++) {
+    // Each pass can only narrow, and scopes are finite: a cycle settles.
+    if (steps > 10 * (graph.nodes.size + 1)) throw new Error("DERIVED_FROM forms a cycle that does not settle");
+    const id = queue.shift() as string;
+    for (const dependent of dependents.get(id) ?? []) {
+      const node = graph.nodes.get(dependent);
+      const current = scopeOf(dependent);
+      if (node === undefined || current === undefined) continue;
+      const sources = graph.edges
+        .filter((edge) => edge.type === "DERIVED_FROM" && edge.from === dependent)
+        .map((edge) => scopeOf(edge.to))
+        .filter((scope): scope is Scope => scope !== undefined);
+      const next = narrowed(current, sources);
+      if (formatScope(next) === formatScope(current)) continue;
+      scopes.set(dependent, next);
+      updated.set(dependent, { ...node, scope: next });
+      queue.push(dependent);
+    }
+  }
+  return [...updated.values()];
+}
