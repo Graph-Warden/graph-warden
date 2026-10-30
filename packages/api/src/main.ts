@@ -21,7 +21,14 @@ const asker =
   config.GWARDEN_LLM === "claude"
     ? createAsker(store, writer, audit, createClaudeProvider(config.GWARDEN_LLM_MODEL === undefined ? {} : { model: config.GWARDEN_LLM_MODEL }), { writers })
     : undefined;
-const app = buildApi({ reader, editor, ...(asker === undefined ? {} : { asker }), identity: config.identity, logger: true });
+const app = buildApi({
+  reader,
+  editor,
+  ...(asker === undefined ? {} : { asker }),
+  ...(config.web === undefined ? {} : { web: config.web }),
+  identity: config.identity,
+  logger: true,
+});
 if (config.identityKind === "demo") app.log.warn("Demo identity: anyone holding a demo token is that user. Never expose this API.");
 
 const stop = async () => {

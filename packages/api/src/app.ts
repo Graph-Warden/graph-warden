@@ -19,6 +19,7 @@ import {
 } from "@graph-warden/core";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import { z } from "zod";
+import { CrossSite, registerWeb, type Sessions, type WebOptions } from "./web.js";
 
 // The API (proposal 0003): the one place readers reach the graph. Every route below `/v1` takes a
 // bearer token, turns it into a principal through the identity provider, and reads through the
@@ -34,6 +35,8 @@ export interface ApiOptions {
   readonly editor?: Editor;
   // Questions; without a model configured, /v1/ask answers 501.
   readonly asker?: Asker;
+  // The web app and browser sessions (proposal 0012); without it, only bearer tokens are accepted.
+  readonly web?: WebOptions;
   readonly logger?: boolean;
 }
 
@@ -77,10 +80,12 @@ class BadRequest extends Error {}
 export function buildApi(options: ApiOptions): FastifyInstance {
   const app = Fastify({ logger: options.logger ?? false });
 
+  const sessions: Sessions | undefined = options.web === undefined ? undefined : registerWeb(app, options.identity, options.web);
   const principalOf = async (request: FastifyRequest): Promise<Principal> => {
     const header = request.headers.authorization;
-    const token = header?.startsWith("Bearer ") ? header.slice("Bearer ".length).trim() : "";
-    if (token === "") throw new Unauthenticated("A bearer token is required");
+    const bearer = header?.startsWith("Bearer ") ? header.slice("Bearer ".length).trim() : "";
+    const token = bearer !== "" ? bearer : await sessions?.token(request);
+    if (token === undefined || token === "") throw new Unauthenticated("A bearer token or a session is required");
     return options.identity.principalFor(token);
   };
   const parse = <T>(schema: z.ZodType<T>, value: unknown): T => {
@@ -96,6 +101,7 @@ export function buildApi(options: ApiOptions): FastifyInstance {
       return reply.code(401).header("www-authenticate", "Bearer").send({ error: "unauthenticated" });
     }
     if (error instanceof Forbidden) return reply.code(403).send({ error: "forbidden" });
+    if (error instanceof CrossSite) return reply.code(403).send({ error: "forbidden", detail: `writes with a session need ${"x-requested-with: gwarden"}` });
     if (error instanceof Unreachable) {
       return reply.code(403).send({ error: "forbidden", detail: "the deletion would change nodes you may not read" });
     }

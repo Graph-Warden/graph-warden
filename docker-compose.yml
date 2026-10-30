@@ -85,6 +85,8 @@ services:
       GWARDEN_DEMO_USERS: /demo/users.yaml
       GWARDEN_AUDITORS: auditors
       GWARDEN_WRITERS: dev-leads
+      # The web app at http://localhost:8080, signed in with a demo token. Demo value only.
+      GWARDEN_WEB_SECRET: demo-only-web-session-secret-change-me
       # Set to claude, with ANTHROPIC_API_KEY, for gwarden ask.
       GWARDEN_LLM: ${GWARDEN_LLM:-none}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}

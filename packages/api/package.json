@@ -19,11 +19,14 @@
     "start": "node dist/main.js"
   },
   "dependencies": {
+    "@fastify/cookie": "^11.1.5",
+    "@fastify/static": "^10.1.8",
     "@graph-warden/anthropic": "workspace:*",
     "@graph-warden/core": "workspace:*",
     "@graph-warden/identity": "workspace:*",
     "@graph-warden/neo4j": "workspace:*",
     "fastify": "^5.12.7",
+    "jose": "^6.2.14",
     "neo4j-driver": "^6.2.0",
     "yaml": "^2.9.1",
     "zod": "^4.6.7"
