@@ -68,6 +68,7 @@ export function createMemoryIngestionState(): IngestionState {
   return {
     last: async (repo) => last.get(repo),
     record: async (repo, sha) => void last.set(repo, sha),
+    forget: async (repo) => void last.delete(repo),
   };
 }
 
@@ -128,5 +129,8 @@ export function createMemoryStaleMarks(): StaleMarks {
     mark: async (list) => void list.forEach((mark) => marks.set(mark.id, mark)),
     get: async (id) => marks.get(id),
     clear: async (id) => void marks.delete(id),
+    clearSource: async (source) => {
+      for (const [id, mark] of marks) if (mark.change.startsWith(`${source}@`)) marks.delete(id);
+    },
   };
 }

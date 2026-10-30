@@ -59,7 +59,13 @@ const edges: Edge[] = [
 
 function memoryMarks(): StaleMarks & { readonly all: Map<string, StaleMark> } {
   const all = new Map<string, StaleMark>();
-  return { all, mark: async (list) => void list.forEach((m) => all.set(m.id, m)), get: async (id) => all.get(id), clear: async (id) => void all.delete(id) };
+  return {
+    all,
+    mark: async (list) => void list.forEach((m) => all.set(m.id, m)),
+    get: async (id) => all.get(id),
+    clear: async (id) => void all.delete(id),
+    clearSource: async () => {},
+  };
 }
 
 // A model that answers from a table, counting its calls.

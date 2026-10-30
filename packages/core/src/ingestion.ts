@@ -45,6 +45,8 @@ export interface Repository {
 export interface IngestionState {
   last(repo: string): Promise<string | undefined>;
   record(repo: string, sha: string): Promise<void>;
+  // After an erasure: the next ingestion of the repository starts from scratch.
+  forget(repo: string): Promise<void>;
 }
 
 export interface SourceFile {

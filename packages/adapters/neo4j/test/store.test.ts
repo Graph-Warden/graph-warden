@@ -245,6 +245,9 @@ describe.skipIf(uri === undefined)("Neo4j adapter", () => {
       expect(await state.last("github:acme/shop")).toBe("6b1f74f");
       expect(await state.last("github:acme/bff")).toBe("2fdd496");
       expect((await store().snapshot()).nodes.size).toBe(0);
+      await state.forget("github:acme/shop");
+      expect(await state.last("github:acme/shop")).toBeUndefined();
+      expect(await state.last("github:acme/bff")).toBe("2fdd496");
     });
   });
 
@@ -258,6 +261,18 @@ describe.skipIf(uri === undefined)("Neo4j adapter", () => {
       expect((await store().snapshot()).nodes.size).toBe(0);
       await marks.clear("adr-0002");
       expect(await marks.get("adr-0002")).toBeUndefined();
+    });
+
+    it("clears the marks of an erased source's changes only", async () => {
+      const marks = createNeo4jStaleMarks(driver);
+      const author = { user: "pipeline", teams: [] };
+      await marks.mark([
+        { id: "a", change: "github:acme/shop@5a03dc8", evidence: "x", author },
+        { id: "b", change: "github:acme/shop-legacy@5a03dc8", evidence: "y", author },
+      ]);
+      await marks.clearSource("github:acme/shop");
+      expect(await marks.get("a")).toBeUndefined();
+      expect(await marks.get("b")).toBeDefined();
     });
   });
 });

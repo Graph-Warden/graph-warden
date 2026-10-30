@@ -87,6 +87,9 @@ export interface StaleMarks {
   mark(marks: readonly StaleMark[]): Promise<void>;
   get(id: string): Promise<StaleMark | undefined>;
   clear(id: string): Promise<void>;
+  // Clears the marks whose evidence is a change of this source (`<source>@<sha>`, see `changeId`),
+  // after its erasure.
+  clearSource(source: string): Promise<void>;
 }
 
 export interface StaleMark {
