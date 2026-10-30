@@ -1,5 +1,5 @@
 import { createGraph, type Graph } from "./traversal.js";
-import { deriveScopes } from "./derivation.js";
+import { deriveScopes, narrowDependents } from "./derivation.js";
 import type { Writer } from "./events.js";
 import type { Edge, EdgeType, Node } from "./ontology.js";
 import type { Principal, Scope } from "./scope.js";
@@ -217,6 +217,9 @@ export function createIngester(options: IngesterOptions): Ingester {
     await writer.deleteEdges(stale);
     await writer.upsertEdges(edges);
     for (const id of removed) await writer.deleteNode(id);
+    // Nodes elsewhere derived from what the commit narrowed (an answer filed from a page now
+    // private) narrow with it.
+    await writer.upsertNodes(narrowDependents(await store.snapshot(), derived.map((node) => node.id)));
     const touched = nodes.filter((node) => changed.has(node.provenance.path)).map((node) => node.id);
     return { sha, change: change.id, changed: [...touched, ...removed], upserted: nodes.length, deleted: removed.length };
   }
