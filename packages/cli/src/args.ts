@@ -10,7 +10,7 @@ export const USAGE = `Usage:
   gwarden traverse <node-id> (--api <url> --token <token> | --user <user> [--team <team>]...)
                    [--direction out|in|both] [--depth <n>] [--edge <TYPE>]...
   gwarden audit [--api <url> --token <token>] [--user <user>]
-  gwarden pull --api <url> --token <token> [--cache <file>]
+  gwarden pull --api <url> --token <token> [--cache <file>] [--watch [--interval <seconds>]]
   gwarden cache [--cache <file>]
   gwarden show <node-id> --api <url> --token <token>
   gwarden search <words>... --api <url> --token <token> [--limit <n>]
@@ -30,7 +30,8 @@ NEO4J_PASSWORD (see .env.example).
 
 Readers go through the API, as the user their token stands for: --api and --token, or GWARDEN_API and
 GWARDEN_TOKEN. pull fetches what changed since the last pull into a local SQLite cache (default
-~/.graph-warden/cache.db); cache lists it, offline. Without an API, ingest, traverse and audit talk to
+~/.graph-warden/cache.db); cache lists it, offline. pull --watch keeps pulling every --interval seconds (5 by
+default), where the stream (/v1/stream) cannot be used. Without an API, ingest, traverse and audit talk to
 Neo4j directly: that is for whoever operates the graph, and traverse then needs --user and --team.
 
 ask answers from the nodes the token's user may read, citing them; --from anchors it on a node.
@@ -79,6 +80,8 @@ export type Command =
   | ({
       readonly name: "pull";
       readonly cache: string;
+      // Seconds between pulls, when watching.
+      readonly watch?: number;
     } & Remote)
   | {
       readonly name: "cache";
@@ -135,6 +138,8 @@ export function parseCommand(argv: readonly string[]): Command {
       base: { type: "string" },
       head: { type: "string", default: "HEAD" },
       comment: { type: "string" },
+      watch: { type: "boolean", default: false },
+      interval: { type: "string" },
     },
   });
   const cache = values.cache ?? join(homedir(), ".graph-warden", "cache.db");
@@ -147,7 +152,12 @@ export function parseCommand(argv: readonly string[]): Command {
     return { api: api.replace(/\/+$/, ""), token };
   };
   const through = (): Through => (api === undefined || api === "" ? { kind: "neo4j" } : { kind: "api", ...remote() });
-  if (name === "pull") return { name, cache, ...remote() };
+  if (name === "pull") {
+    if (values.interval !== undefined && !values.watch) throw new Error("--interval needs --watch");
+    const interval = Number(values.interval ?? 5);
+    if (!(interval > 0)) throw new Error("--interval must be a positive number of seconds");
+    return { name, cache, ...(values.watch ? { watch: interval } : {}), ...remote() };
+  }
   if (name === "audit") return { name, through: through(), ...(values.user === undefined ? {} : { user: values.user }) };
 
   const [target] = positionals;

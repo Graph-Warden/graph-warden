@@ -169,6 +169,64 @@ describe("API stream", () => {
   });
 });
 
+describe("API stream across a merge", () => {
+  const blocks = (body: string) =>
+    body
+      .split("\n\n")
+      .filter((block) => block.includes("event: delta"))
+      .map((block) => ({
+        id: Number(/^id: (\d+)$/m.exec(block)?.[1]),
+        delta: JSON.parse(/^data: (.*)$/m.exec(block)?.[1] ?? "{}").delta as { nodes: Node[]; removed: string[] },
+      }));
+
+  it("resumes a reconnect mid-merge without gap or duplicate, and never names a foreign node", async () => {
+    const { app, get, writer } = await setup({ intervalMs: 15, maxSeconds: 0.12 });
+    const { cursor: start } = (await get("/v1/pull", tokens.bob)).json().delta;
+    // A merge written in batches, some of it for front only, including a deletion.
+    const merge = (async () => {
+      const pause = () => new Promise((resolve) => setTimeout(resolve, 40));
+      await writer.upsertNodes([node("m1", { kind: "shared" }), node("f1", { kind: "team", team: "front" })]);
+      await pause();
+      await writer.upsertNodes([node("m2", { kind: "team", team: "bff" }), node("f2", { kind: "team", team: "front" })]);
+      await pause();
+      await writer.deleteNode("f1");
+      await writer.upsertNodes([node("m3", { kind: "shared" })]);
+      await pause();
+      await writer.deleteNode("m1");
+      await pause();
+      await writer.upsertNodes([node("m4", { kind: "shared" })]);
+    })();
+
+    const received: { id: number; delta: { nodes: Node[]; removed: string[] } }[] = [];
+    let last = start;
+    // Each connection lasts 120 ms: the client reconnects several times during the merge.
+    for (let i = 0; i < 6; i++) {
+      const response = await app.inject({ method: "GET", url: "/v1/stream", headers: { authorization: `Bearer ${tokens.bob}`, "last-event-id": String(last) } });
+      for (const block of blocks(response.body)) {
+        received.push(block);
+        last = block.id;
+      }
+    }
+    await merge;
+
+    const ids = received.map((block) => block.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids).toEqual([...ids].sort((a, b) => a - b));
+    // Applying the deltas in order gives what a pull from the start gives.
+    const cache = new Map<string, Node>();
+    for (const { delta } of received) {
+      for (const n of delta.nodes) cache.set(n.id, n);
+      for (const id of delta.removed) cache.delete(id);
+    }
+    const { delta: full } = (await get(`/v1/pull?after=${start}`, tokens.bob)).json();
+    expect([...cache.keys()].sort()).toEqual(["m2", "m3", "m4"]);
+    expect([...cache.keys()].sort()).toEqual(full.nodes.map((n: Node) => n.id).sort());
+    const named = received.flatMap(({ delta }) => [...delta.nodes.map((n) => n.id), ...delta.removed]);
+    expect(named.filter((id) => id.startsWith("f"))).toEqual([]);
+    expect(Math.max(...ids)).toBe((await get("/v1/pull?after=0", tokens.lea)).json().delta.cursor);
+  });
+});
+
 describe("API writes", () => {
   const writerTokens = { lea: "lea-writer-0123456789", bob: "bob-writer-0123456789", carl: "carl-reader-0123456789" };
 

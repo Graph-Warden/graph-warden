@@ -163,3 +163,12 @@ it("parses impact, shared-only by default", () => {
   expect(() => parseCommand(["impact", "/repo", "--source", "s", "--base", "b", "--comment", "12"])).toThrow(/owner\/repo#number/);
   expect(() => parseCommand(["impact", "/repo", "--source", "s"])).toThrow(/--base/);
 });
+
+it("parses pull --watch", () => {
+  const remote = ["--api", "https://gw.example.com", "--token", "t"];
+  expect(parseCommand(["pull", ...remote])).not.toHaveProperty("watch");
+  expect(parseCommand(["pull", ...remote, "--watch"])).toMatchObject({ watch: 5 });
+  expect(parseCommand(["pull", ...remote, "--watch", "--interval", "30"])).toMatchObject({ watch: 30 });
+  expect(() => parseCommand(["pull", ...remote, "--interval", "30"])).toThrow(/--watch/);
+  expect(() => parseCommand(["pull", ...remote, "--watch", "--interval", "0"])).toThrow(/positive/);
+});
