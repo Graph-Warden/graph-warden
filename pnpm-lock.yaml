@@ -130,6 +130,25 @@ importers:
         specifier: ~5.11.0
         version: 5.11.1
 
+  packages/adapters/typescript:
+    dependencies:
+      '@graph-warden/core':
+        specifier: workspace:*
+        version: link:../../core
+      typescript:
+        specifier: ~5.9.3
+        version: 5.9.3
+      yaml:
+        specifier: ^2.9.1
+        version: 2.9.1
+    devDependencies:
+      '@graph-warden/git':
+        specifier: workspace:*
+        version: link:../git
+      '@graph-warden/memory':
+        specifier: workspace:*
+        version: link:../memory
+
   packages/api:
     dependencies:
       '@fastify/cookie':
@@ -266,6 +285,9 @@ importers:
       '@graph-warden/redis':
         specifier: workspace:*
         version: link:../adapters/redis
+      '@graph-warden/typescript':
+        specifier: workspace:*
+        version: link:../adapters/typescript
       fastify:
         specifier: ^5.12.7
         version: 5.12.7

@@ -1,0 +1,6 @@
+{
+  "name": "@shop/api-client",
+  "private": true,
+  "description": "Generated from apps/bff/openapi.yaml.",
+  "exports": { ".": "./src/index.ts" }
+}
