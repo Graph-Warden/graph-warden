@@ -55,6 +55,18 @@ export const AuditEntrySchema = z.discriminatedUnion("action", [
       planned: z.literal(true).optional(),
     })
     .readonly(),
+  // Where a request to a model went (issue #28): `sources` are the provenance sources of its
+  // content, `confidential` those that kept it local. `denied` when no model could take it.
+  z
+    .object({
+      ...common,
+      action: z.literal("route"),
+      model: z.enum(["local", "remote"]),
+      sources: z.array(z.string().min(1)).readonly(),
+      confidential: z.array(z.string().min(1)).readonly(),
+      denied: z.literal(true).optional(),
+    })
+    .readonly(),
   // What depends on some nodes (proposal 0005), through readable nodes only.
   z.object({ ...common, action: z.literal("related"), targets: z.array(z.string().min(1)).min(1).readonly() }).readonly(),
   // Reading the audit log is itself recorded: it says who looked at who saw what. So is a refused

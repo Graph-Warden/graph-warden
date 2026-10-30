@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 import { createClaudeProvider } from "@graph-warden/anthropic";
-import { createIngester, createRevalidator, createWriter, type IngestionQueue, type LLMProvider } from "@graph-warden/core";
-import { createDocumentExtractor } from "@graph-warden/documents";
+import { createIngester, createRevalidator, createWriter, routeModels, type IngestionQueue, type LLMProvider } from "@graph-warden/core";
+import { createDocumentExtractor, readSensitivity } from "@graph-warden/documents";
 import { createGitRepository } from "@graph-warden/git";
 import { createMemoryQueue } from "@graph-warden/memory";
-import { createNeo4jEventLog, createNeo4jIngestionState, createNeo4jStaleMarks, createNeo4jStore, ensureConstraints } from "@graph-warden/neo4j";
-import { createOpenAICompatibleProvider } from "@graph-warden/openai";
+import { createNeo4jAuditLog, createNeo4jEventLog, createNeo4jIngestionState, createNeo4jStaleMarks, createNeo4jStore, ensureConstraints } from "@graph-warden/neo4j";
+import { createOpenAICompatibleProvider, LOCAL_BASE_URL } from "@graph-warden/openai";
 import { createOpenApiExtractor } from "@graph-warden/openapi";
 import { createRedisQueue } from "@graph-warden/redis";
 import { createTypeScriptExtractor } from "@graph-warden/typescript";
@@ -31,7 +31,7 @@ const ingester = createIngester({
   extractors: [createDocumentExtractor({ ontology: config.ontology }), createTypeScriptExtractor(), createOpenApiExtractor()],
 });
 
-const llm: LLMProvider | undefined =
+const remote: LLMProvider | undefined =
   config.GWARDEN_LLM === "claude"
     ? createClaudeProvider({ platform: config.GWARDEN_LLM_PLATFORM, ...(config.GWARDEN_LLM_MODEL === undefined ? {} : { model: config.GWARDEN_LLM_MODEL }) })
     : config.GWARDEN_LLM === "openai" && config.GWARDEN_LLM_MODEL !== undefined
@@ -41,6 +41,15 @@ const llm: LLMProvider | undefined =
           ...(config.OPENAI_API_KEY === undefined ? {} : { apiKey: config.OPENAI_API_KEY }),
         })
       : undefined;
+const llm = routeModels({
+  remote,
+  local:
+    config.GWARDEN_LOCAL_LLM_MODEL === undefined
+      ? undefined
+      : createOpenAICompatibleProvider({ model: config.GWARDEN_LOCAL_LLM_MODEL, baseUrl: config.GWARDEN_LOCAL_LLM_BASE_URL ?? LOCAL_BASE_URL }),
+  ...(config.GWARDEN_SENSITIVITY === undefined ? {} : { policy: await readSensitivity(config.GWARDEN_SENSITIVITY) }),
+  audit: createNeo4jAuditLog(driver),
+});
 
 const redis = config.REDIS_URL === undefined ? undefined : new Redis(config.REDIS_URL);
 const queue: IngestionQueue = redis === undefined ? createMemoryQueue() : createRedisQueue(redis);

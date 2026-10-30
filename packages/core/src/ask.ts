@@ -15,9 +15,19 @@ import { retrieve, type RetrieveOptions } from "./search.js";
 // and a filed answer is derived (`DERIVED_FROM`) from all of them, cited or not: its scope is that
 // of every node the model read, and it is private to the asker unless they declare a wider one.
 
+export interface LLMRequest {
+  readonly system: string;
+  readonly prompt: string;
+  // The provenance sources of the content in the prompt, for routing by sensitivity (issue #28):
+  // every source, or none named, which a router treats as the most sensitive.
+  readonly sources?: readonly string[];
+  // Who the request is made for, for the audit of where it went.
+  readonly principal?: Principal;
+}
+
 // Port for a language model.
 export interface LLMProvider {
-  complete(request: { readonly system: string; readonly prompt: string }): Promise<string>;
+  complete(request: LLMRequest): Promise<string>;
 }
 
 export interface AskOptions extends RetrieveOptions {
@@ -83,7 +93,12 @@ export function createAsker(store: GraphStore, writer: Writer, audit: AuditLog, 
       // Recorded before the model reads anything, like a read before its result: the entry names
       // every node handed over, and the id the answer is to be filed under.
       await record({ action: "ask", question, returned: sources.map((n) => n.id), ...(id === undefined ? {} : { saved: id }) }, principal);
-      const answer = await llm.complete({ system: ASK_SYSTEM, prompt: askPrompt(question, sources) });
+      const answer = await llm.complete({
+        system: ASK_SYSTEM,
+        prompt: askPrompt(question, sources),
+        sources: sources.map((n) => n.provenance.source),
+        principal,
+      });
       if (id === undefined || options.save === undefined) return { answer, sources };
 
       const declared = options.save.scope ?? { kind: "private", user: principal.user };

@@ -33,6 +33,13 @@ const EnvSchema = z.object({
   GWARDEN_LLM_MODEL: setting,
   GWARDEN_LLM_BASE_URL: setting.pipe(z.url({ protocol: /^https?$/ }).optional()),
   OPENAI_API_KEY: setting,
+  // Model routing by source sensitivity (issue #28): content of a source GWARDEN_SENSITIVITY (a
+  // YAML file: default, confidential, internal) calls confidential goes only to the local model,
+  // an OpenAI-compatible server run alongside (Ollama by default) named by GWARDEN_LOCAL_LLM_MODEL.
+  // Every routing decision is audited.
+  GWARDEN_LOCAL_LLM_MODEL: setting,
+  GWARDEN_LOCAL_LLM_BASE_URL: setting.pipe(z.url({ protocol: /^https?$/ }).optional()),
+  GWARDEN_SENSITIVITY: setting,
   // Knowledge further than this many hops from a change is marked stale and revalidated on its
   // first read instead.
   GWARDEN_REVALIDATE_DEPTH: z.coerce.number().int().nonnegative().default(3),

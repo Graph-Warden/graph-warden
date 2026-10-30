@@ -26,6 +26,9 @@ The words below are used with this meaning in code, proposals, issues and review
 | Stream | `GET /v1/stream`: server-sent events, one delta each time what the caller may read changes. |
 | Asker | The use case answering a question (`createAsker`): retrieves readable nodes, audits them, hands them to the model, and files the answer if asked. |
 | LLM provider | The port (`LLMProvider`) for a language model. |
+| Sensitivity | How sensitive a provenance source is: `confidential` or `internal` (`GWARDEN_SENSITIVITY`). Content of a confidential source is sent only to the local model. |
+| Local model | A model run where the graph runs (Ollama, vLLM; `GWARDEN_LOCAL_LLM_MODEL`), as opposed to a remote provider. |
+| Router | The `LLMProvider` sending each request to the local or the remote model from the sources of its content (`createRouter`), auditing each decision as a `route` entry. A request naming no sources stays local. |
 | Export | The graph a user may read, pulled from scratch through the API and written as Markdown, JSON-LD or GraphML (`gwarden export`). |
 | Audit entry | A record of a read made on behalf of a user. |
 | Event log | The append-only port (`EventLog`) recording every write to the graph with a sequence number. Pulls read it to know what changed since a cursor. |

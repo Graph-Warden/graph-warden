@@ -16,11 +16,13 @@ import {
   PullResponseSchema,
   createEraser,
   requiredTeams,
+  routeModels,
+  type AuditLog,
   type AuditEntry,
   type LLMProvider,
   type Node,
 } from "@graph-warden/core";
-import { createDocumentExtractor, readDocuments, readOntology } from "@graph-warden/documents";
+import { createDocumentExtractor, readDocuments, readOntology, readSensitivity } from "@graph-warden/documents";
 import { createGitRepository } from "@graph-warden/git";
 import { createOpenApiExtractor } from "@graph-warden/openapi";
 import { createTypeScriptExtractor } from "@graph-warden/typescript";
@@ -33,7 +35,7 @@ import {
   createNeo4jStore,
   ensureConstraints,
 } from "@graph-warden/neo4j";
-import { createOpenAICompatibleProvider } from "@graph-warden/openai";
+import { createOpenAICompatibleProvider, LOCAL_BASE_URL } from "@graph-warden/openai";
 import neo4j from "neo4j-driver";
 import { z } from "zod";
 import { parseCommand, type Command, type Remote } from "./args.js";
@@ -91,7 +93,7 @@ async function run(command: Command): Promise<void> {
         break;
       }
       case "forget": {
-        const llm = llmFromEnv();
+        const llm = await routedFromEnv(audit);
         const eraser = createEraser(store, createWriter(store, createNeo4jEventLog(driver)), audit, {
           ...(llm === undefined ? {} : { llm }),
           marks: createNeo4jStaleMarks(driver),
@@ -157,6 +159,17 @@ async function run(command: Command): Promise<void> {
 }
 
 // The model named by the environment, with the API's settings; none when GWARDEN_LLM is unset.
+// The model of GWARDEN_LLM, routed by sensitivity as in the API (issue #28).
+async function routedFromEnv(audit: AuditLog): Promise<LLMProvider | undefined> {
+  const { GWARDEN_LOCAL_LLM_MODEL: model, GWARDEN_LOCAL_LLM_BASE_URL: baseUrl, GWARDEN_SENSITIVITY: sensitivity } = process.env;
+  return routeModels({
+    remote: llmFromEnv(),
+    local: model ? createOpenAICompatibleProvider({ model, baseUrl: baseUrl || LOCAL_BASE_URL }) : undefined,
+    ...(sensitivity ? { policy: await readSensitivity(sensitivity) } : {}),
+    audit,
+  });
+}
+
 function llmFromEnv(): LLMProvider | undefined {
   const { GWARDEN_LLM: kind, GWARDEN_LLM_MODEL: model, GWARDEN_LLM_BASE_URL: baseUrl, OPENAI_API_KEY: apiKey, GWARDEN_LLM_PLATFORM: platform } = process.env;
   if (kind === undefined || kind === "" || kind === "none") return undefined;
@@ -240,6 +253,8 @@ function describe(entry: AuditEntry): string {
       return `${entry.planned === true ? "forget preview" : "forget"} ${entry.source} -> ${count(entry.returned.length, "node")} deleted, ${entry.recompiled.length} recompiled`;
     case "related":
       return `related ${entry.targets.join(", ")} -> ${count(entry.returned.length, "node")}`;
+    case "route":
+      return `route ${entry.sources.join(", ") || "(unnamed sources)"} -> ${entry.model} model${entry.denied === true ? " DENIED, no local model" : ""}`;
     case "ask": {
       if (entry.denied === true) return `ask "${entry.question}" DENIED`;
       return `ask "${entry.question}" -> ${count(entry.returned.length, "node")} read${entry.saved === undefined ? "" : `, filed as ${entry.saved}`}`;

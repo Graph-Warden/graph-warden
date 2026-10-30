@@ -5,6 +5,7 @@ import {
   EdgeSchema,
   EdgeTypeSchema,
   Forbidden,
+  Unroutable,
   Invalid,
   NotFound,
   NodeTypeSchema,
@@ -137,6 +138,8 @@ export function buildApi(options: ApiOptions): FastifyInstance {
     if (error instanceof NotFound) return reply.code(404).send({ error: "not found" });
     if (error instanceof Conflict) return reply.code(409).send({ error: "conflict", detail: error.message });
     if (error instanceof NotConfigured) return reply.code(501).send({ error: "not configured", detail: error.message });
+    // Confidential content and no local model to send it to (issue #28): the question needs one.
+    if (error instanceof Unroutable) return reply.code(501).send({ error: "not configured", detail: error.message });
     if (error instanceof BadRequest || error instanceof Invalid || error instanceof OutsideOntology) return reply.code(400).send({ error: "bad request", detail: error.message });
     if (error instanceof Stale) return reply.code(412).send({ error: "precondition failed", detail: error.message });
     if (error instanceof PreconditionRequired) {
