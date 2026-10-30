@@ -20,6 +20,10 @@ The words below are used with this meaning in code, proposals, issues and review
 | Detach | Remove a `DERIVED_FROM` edge from a node that keeps other sources. The node keeps its scope. |
 | Editor | The only way to delete on behalf of a principal (`createEditor`): checks the writer groups and the scopes, audits, then writes. |
 | Writer group | A group whose members may delete nodes and file answers (`GWARDEN_WRITERS`). |
+| Wiki page | A node written in the web app rather than ingested: its provenance source is `wiki`. Saved over the version it edits (proposal 0012). |
+| Page version | A fingerprint of a node, sent as `ETag`. A page save names the version it edits and is refused if the page changed since. |
+| Session | A browser's sign-in: an encrypted `HttpOnly` cookie holding the ID token, resolved like a bearer token on each request. |
+| Stream | `GET /v1/stream`: server-sent events, one delta each time what the caller may read changes. |
 | Asker | The use case answering a question (`createAsker`): retrieves readable nodes, audits them, hands them to the model, and files the answer if asked. |
 | LLM provider | The port (`LLMProvider`) for a language model. |
 | Audit entry | A record of a read made on behalf of a user. |
