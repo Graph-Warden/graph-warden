@@ -1,12 +1,14 @@
 import {
   AuditEntrySchema,
   Conflict,
+  CORE_ONTOLOGY,
   EdgeSchema,
   EdgeTypeSchema,
   Forbidden,
   Invalid,
   NotFound,
   NodeTypeSchema,
+  OutsideOntology,
   pageVersion,
   Stale,
   parseScope,
@@ -14,6 +16,7 @@ import {
   type Asker,
   type DeletionPlan,
   type Editor,
+  type Ontology,
   type Pages,
   NodeSchema,
   PullResponseSchema,
@@ -42,6 +45,8 @@ export interface ApiOptions {
   readonly pages?: Pages;
   // Questions; without a model configured, /v1/ask answers 501.
   readonly asker?: Asker;
+  // The types the graph accepts, the core ones by default: the writer's, shown at /v1/ontology.
+  readonly ontology?: Ontology;
   // The web app and browser sessions (proposal 0012); without it, only bearer tokens are accepted.
   readonly web?: WebOptions;
   // How often /v1/stream looks for changes, and how long one connection lasts before the client
@@ -80,6 +85,7 @@ const PageBody = z.object({
 const quoted = (version: string) => `"${version}"`;
 
 const PrincipalResponse = PullResponseSchema.unwrap().shape.principal;
+const OntologyResponse = z.object({ nodeTypes: z.array(NodeTypeSchema), edgeTypes: z.array(EdgeTypeSchema) });
 const NodesResponse = z.object({ nodes: z.array(NodeSchema) });
 const AuditResponse = z.object({ entries: z.array(AuditEntrySchema) });
 const DeletionResponse = z.object({
@@ -129,7 +135,7 @@ export function buildApi(options: ApiOptions): FastifyInstance {
     if (error instanceof NotFound) return reply.code(404).send({ error: "not found" });
     if (error instanceof Conflict) return reply.code(409).send({ error: "conflict", detail: error.message });
     if (error instanceof NotConfigured) return reply.code(501).send({ error: "not configured", detail: error.message });
-    if (error instanceof BadRequest || error instanceof Invalid) return reply.code(400).send({ error: "bad request", detail: error.message });
+    if (error instanceof BadRequest || error instanceof Invalid || error instanceof OutsideOntology) return reply.code(400).send({ error: "bad request", detail: error.message });
     if (error instanceof Stale) return reply.code(412).send({ error: "precondition failed", detail: error.message });
     if (error instanceof PreconditionRequired) {
       return reply.code(428).send({ error: "precondition required", detail: "send If-Match with the version edited, or If-None-Match: * for a new page" });
@@ -142,6 +148,11 @@ export function buildApi(options: ApiOptions): FastifyInstance {
   app.get("/openapi.json", async () => openApi);
 
   app.get("/v1/me", async (request) => PrincipalResponse.parse(await principalOf(request)));
+
+  app.get("/v1/ontology", async (request) => {
+    await principalOf(request);
+    return OntologyResponse.parse(options.ontology ?? CORE_ONTOLOGY);
+  });
 
   // The ETag is the version a page edit must name in If-Match.
   app.get<{ Params: { id: string } }>("/v1/nodes/:id", async (request, reply) => {
@@ -306,6 +317,9 @@ export const openApi = {
   paths: {
     "/healthz": { get: { summary: "Liveness", security: [], responses: { "200": { description: "Up" } } } },
     "/v1/me": { get: { summary: "The principal the token stands for", responses: { "200": { description: "Principal", content: json(PrincipalResponse) }, ...errors } } },
+    "/v1/ontology": {
+      get: { summary: "The node and edge types the graph accepts: the core ones and the organisation's", responses: { "200": { description: "Ontology", content: json(OntologyResponse) }, ...errors } },
+    },
     "/v1/nodes/{id}": {
       get: {
         summary: "One node, title and text included",

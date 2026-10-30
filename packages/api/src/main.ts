@@ -14,7 +14,7 @@ await ensureConstraints(driver);
 const store = createNeo4jStore(driver);
 const audit = createNeo4jAuditLog(driver);
 const events = createNeo4jEventLog(driver);
-const writer = createWriter(store, events);
+const writer = createWriter(store, events, { ontology: config.ontology });
 const writers = config.GWARDEN_WRITERS;
 const reader = createReader(store, audit, { events, auditors: config.GWARDEN_AUDITORS });
 const editor = createEditor(store, writer, audit, { writers });
@@ -37,6 +37,7 @@ const app = buildApi({
   reader,
   editor,
   pages,
+  ontology: config.ontology,
   ...(asker === undefined ? {} : { asker }),
   ...(config.web === undefined ? {} : { web: config.web }),
   identity: config.identity,

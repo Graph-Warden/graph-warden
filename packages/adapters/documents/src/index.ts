@@ -1,14 +1,17 @@
 import { readdir, readFile } from "node:fs/promises";
 import { basename, extname, join, relative } from "node:path";
 import {
+  CORE_ONTOLOGY,
+  createOntology,
   EdgeTypeSchema,
   NodeSchema,
-  NodeTypeSchema,
+  OntologyExtensionSchema,
   parseScope,
   type Edge,
   type EdgeType,
   type Node,
   type NodeType,
+  type Ontology,
   type Scope,
 } from "@graph-warden/core";
 import { parse as parseYaml } from "yaml";
@@ -59,6 +62,8 @@ export interface DocumentOptions {
   // so nothing becomes visible to others unless a caller chose it (private by default is the
   // callers' rule, see the CLI).
   readonly defaultScope: Scope;
+  // The types a `type:` field may name; the core ones by default.
+  readonly ontology?: Ontology;
 }
 
 const FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/;
@@ -120,7 +125,7 @@ export function toGraph(pages: readonly Page[], options: DocumentOptions): { nod
   const nodes = kept.map((page) =>
     NodeSchema.parse({
       id: page.name,
-      type: nodeType(page.frontmatter),
+      type: nodeType(page.frontmatter, options.ontology ?? CORE_ONTOLOGY),
       scope: typeof page.frontmatter.scope === "string"
         ? parseScope(page.frontmatter.scope)
         : options.defaultScope,
@@ -152,8 +157,15 @@ export async function readDocuments(dir: string, options: DocumentOptions): Prom
 
 // `type:` names a node type of the ontology, in any case (`decision`, `Decision`); anything else,
 // or no type, is a Concept.
-function nodeType(frontmatter: Frontmatter): NodeType {
+function nodeType(frontmatter: Frontmatter, ontology: Ontology): NodeType {
   const { type } = frontmatter;
-  const match = NodeTypeSchema.options.find((t) => typeof type === "string" && t.toLowerCase() === type.toLowerCase());
+  const match = ontology.nodeTypes.find((t) => typeof type === "string" && t.toLowerCase() === type.toLowerCase());
   return match ?? "Concept";
+}
+
+// The organisation's additions to the ontology, from a YAML file:
+//   nodeTypes: [Microservice, Database]
+//   edgeTypes: [OWNS, RUNS_ON]
+export async function readOntology(path: string): Promise<Ontology> {
+  return createOntology(OntologyExtensionSchema.parse(parseYaml(await readFile(path, "utf8")) ?? {}));
 }

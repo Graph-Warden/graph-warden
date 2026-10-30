@@ -1,0 +1,6 @@
+# The shop's additions to the core ontology (proposal 0001), read by the API and by `gwarden ingest`
+# through GWARDEN_ONTOLOGY. Types are added, never removed: the core ones stay.
+nodeTypes:
+  - Dataset    # a BigQuery table or view
+  - Dashboard  # a Looker dashboard
+edgeTypes: []

@@ -2,7 +2,8 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { parsePage, readDocuments, toGraph } from "../src/index.js";
+import { createOntology } from "@graph-warden/core";
+import { parsePage, readDocuments, readOntology, toGraph } from "../src/index.js";
 
 describe("parsePage", () => {
   it("reads the frontmatter and the wikilinks, without aliases, headings or duplicates", () => {
@@ -116,8 +117,8 @@ describe("typed references", () => {
     expect(nodes.map((n) => n.type)).toEqual(["Decision", "Endpoint", "Concept"]);
   });
 
-  it("rejects an unknown edge type, naming the file", () => {
-    expect(() => parsePage("bad.md", "---\nreferences:\n  - { type: LIKES, to: x }\n---\n")).toThrow(/bad\.md: invalid references/);
+  it("rejects a malformed edge type, naming the file", () => {
+    expect(() => parsePage("bad.md", "---\nreferences:\n  - { type: likes, to: x }\n---\n")).toThrow(/bad\.md: invalid references/);
   });
 
   it("rejects references that are not a list", () => {
@@ -169,5 +170,25 @@ describe("readDocuments across formats", () => {
     const { nodes, edges } = await readDocuments(dir, { source: "docs:test", defaultScope: { kind: "shared" } });
     expect(nodes.map((n) => n.id)).toEqual(["a", "b", "c"]);
     expect(edges).toHaveLength(2);
+  });
+});
+
+describe("an organisation's ontology", () => {
+  const page = parsePage("orders.md", "---\ntype: microservice\nreferences:\n  - { type: RUNS_ON, to: db }\n---\n# orders");
+  const options = { source: "docs", defaultScope: { kind: "shared" } } as const;
+
+  it("types a page with a type the organisation added", () => {
+    expect(toGraph([page], options).nodes[0]?.type).toBe("Concept");
+    expect(toGraph([page], { ...options, ontology: createOntology({ nodeTypes: ["Microservice"] }) }).nodes[0]?.type).toBe("Microservice");
+  });
+
+  it("is read from a YAML file", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "gw-ontology-"));
+    await writeFile(join(dir, "ontology.yaml"), "nodeTypes: [Microservice]\nedgeTypes: [RUNS_ON]\n");
+    const ontology = await readOntology(join(dir, "ontology.yaml"));
+    expect(ontology.nodeTypes).toContain("Microservice");
+    expect(ontology.edgeTypes).toContain("RUNS_ON");
+    await writeFile(join(dir, "bad.yaml"), "nodeTypes: [micro service]\n");
+    await expect(readOntology(join(dir, "bad.yaml"))).rejects.toThrow();
   });
 });

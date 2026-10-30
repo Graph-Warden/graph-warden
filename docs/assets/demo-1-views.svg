@@ -23,20 +23,20 @@
   <text x="18" y="358"><tspan fill="#7fd18b">$ </tspan><tspan fill="#e6edf3" font-weight="600">GWARDEN_TOKEN=$LEA gwarden traverse orders-api --direction both --depth 2</tspan></text>
   <text x="18" y="378"><tspan fill="#d6dde4">Decision  adr-0007-cursor-pagination  "ADR 0007: cursor pagination on /orders"  </tspan><tspan fill="#6cb6ff">[team:bff]</tspan></text>
   <text x="18" y="398"><tspan fill="#d6dde4">Module    orders-service  "orders-service"  </tspan><tspan fill="#6cb6ff">[team:bff]</tspan></text>
-  <text x="18" y="418"><tspan fill="#d6dde4">Module    customer-360  "BigQuery analytics.customer_360"  </tspan><tspan fill="#6cb6ff">[team:data]</tspan></text>
-  <text x="18" y="438"><tspan fill="#d6dde4">Module    checkout  "checkout (web)"  </tspan><tspan fill="#6cb6ff">[team:front-a]</tspan></text>
-  <text x="18" y="458"><tspan fill="#d6dde4">Module    backoffice  "back-office"  </tspan><tspan fill="#6cb6ff">[team:front-b]</tspan></text>
-  <text x="18" y="478"><tspan fill="#d6dde4">Module    mobile-app  "mobile app"  </tspan><tspan fill="#6cb6ff">[team:front-c]</tspan></text>
+  <text x="18" y="418"><tspan fill="#d6dde4">Module    checkout  "checkout (web)"  </tspan><tspan fill="#6cb6ff">[team:front-a]</tspan></text>
+  <text x="18" y="438"><tspan fill="#d6dde4">Module    backoffice  "back-office"  </tspan><tspan fill="#6cb6ff">[team:front-b]</tspan></text>
+  <text x="18" y="458"><tspan fill="#d6dde4">Module    mobile-app  "mobile app"  </tspan><tspan fill="#6cb6ff">[team:front-c]</tspan></text>
+  <text x="18" y="478"><tspan fill="#d6dde4">Dataset   customer-360  "BigQuery analytics.customer_360"  </tspan><tspan fill="#6cb6ff">[team:data]</tspan></text>
   <text x="18" y="498"><tspan fill="#d6dde4">Concept   pagination-impact  "Impact of cursor pagination"  </tspan><tspan fill="#6cb6ff">[teams:bff,front-a,front-b]</tspan></text>
   <text x="18" y="518"><tspan fill="#d6dde4">Concept   lea-notes  "Lea's notes"  </tspan><tspan fill="#6cb6ff">[private:lea]</tspan></text>
-  <text x="18" y="538"><tspan fill="#d6dde4">Module    conversion-dashboard  "Conversion dashboard (Looker)"  </tspan><tspan fill="#6cb6ff">[team:data]</tspan></text>
-  <text x="18" y="558"><tspan fill="#d6dde4">Endpoint  user-profile-api  "GET /users/{id}/profile"  </tspan><tspan fill="#6cb6ff">[shared]</tspan></text>
-  <text x="18" y="578"><tspan fill="#d6dde4">Endpoint  consent-events  "Topic user.consent.v1"  </tspan><tspan fill="#6cb6ff">[shared]</tspan></text>
-  <text x="18" y="598"><tspan fill="#d6dde4">Endpoint  clickstream-events  "Clickstream contract web.v2"  </tspan><tspan fill="#6cb6ff">[shared]</tspan></text>
-  <text x="18" y="618"><tspan fill="#d6dde4">Module    recommendations-service  "recommendations-service"  </tspan><tspan fill="#6cb6ff">[team:data]</tspan></text>
-  <text x="18" y="638"><tspan fill="#d6dde4">Concept   erasure-trail  "Where an erased customer still is"  </tspan><tspan fill="#6cb6ff">[teams:data,user]</tspan></text>
-  <text x="18" y="658"><tspan fill="#d6dde4">Concept   profile-v2-impact  "Impact of profile v2"  </tspan><tspan fill="#6cb6ff">[teams:data,shopping-front,user]</tspan></text>
-  <text x="18" y="678"><tspan fill="#d6dde4">Incident  incident-142  "INC-142: empty order history"  </tspan><tspan fill="#6cb6ff">[team:front-a]</tspan></text>
+  <text x="18" y="538"><tspan fill="#d6dde4">Incident  incident-142  "INC-142: empty order history"  </tspan><tspan fill="#6cb6ff">[team:front-a]</tspan></text>
+  <text x="18" y="558"><tspan fill="#d6dde4">Module    recommendations-service  "recommendations-service"  </tspan><tspan fill="#6cb6ff">[team:data]</tspan></text>
+  <text x="18" y="578"><tspan fill="#d6dde4">Dashboard conversion-dashboard  "Conversion dashboard (Looker)"  </tspan><tspan fill="#6cb6ff">[team:data]</tspan></text>
+  <text x="18" y="598"><tspan fill="#d6dde4">Endpoint  user-profile-api  "GET /users/{id}/profile"  </tspan><tspan fill="#6cb6ff">[shared]</tspan></text>
+  <text x="18" y="618"><tspan fill="#d6dde4">Endpoint  consent-events  "Topic user.consent.v1"  </tspan><tspan fill="#6cb6ff">[shared]</tspan></text>
+  <text x="18" y="638"><tspan fill="#d6dde4">Endpoint  clickstream-events  "Clickstream contract web.v2"  </tspan><tspan fill="#6cb6ff">[shared]</tspan></text>
+  <text x="18" y="658"><tspan fill="#d6dde4">Concept   erasure-trail  "Where an erased customer still is"  </tspan><tspan fill="#6cb6ff">[teams:data,user]</tspan></text>
+  <text x="18" y="678"><tspan fill="#d6dde4">Concept   profile-v2-impact  "Impact of profile v2"  </tspan><tspan fill="#6cb6ff">[teams:data,shopping-front,user]</tspan></text>
   <text x="18" y="698"><tspan fill="#7d8a96">16 nodes reachable as lea.</tspan></text>
   </g>
 </svg>

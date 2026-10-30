@@ -13,7 +13,7 @@
 
 Graph-Warden rassemble ce que les équipes écrivent déjà (dépôts, specs d'API, documentation, sessions d'agents), le relie en un graphe typé, et permet aux agents IA de l'interroger. Chaque requête est faite au nom d'une personne, ne renvoie que ce que cette personne a le droit de voir, et est enregistrée.
 
-> Statut : **pré-alpha**, jalon M0. Rien n'est prêt pour la production. Voir [ce qui marche aujourd'hui](#ce-qui-marche-aujourdhui) et la [roadmap](docs/ROADMAP.md) (en anglais).
+> Statut : **alpha**. Le jalon M0 est terminé ; M1 et M2 sont en cours. Rien n'est prêt pour la production. Voir [ce qui marche aujourd'hui](#ce-qui-marche-aujourdhui) et la [roadmap](docs/ROADMAP.md) (en anglais).
 >
 > La version anglaise ([README.md](README.md)) fait foi ; la documentation détaillée (`docs/`) est en anglais.
 
@@ -23,12 +23,13 @@ Graph-Warden rassemble ce que les équipes écrivent déjà (dépôts, specs d'A
 |---|---|
 | [Le problème](#le-problème) | [Architecture](#architecture) |
 | [Un exemple](#un-exemple--un-endpoint-quatre-équipes) | [Scopes](#scopes) |
-| [Ce qu'il garantit](#ce-quil-garantit) | [Anatomie d'une lecture](#anatomie-dune-lecture) |
-| [Pour qui](#pour-qui) | [Scopes dérivés](#scopes-dérivés) |
-| [Le voir tourner](#le-voir-tourner) | [Interroger le graphe](#interroger-le-graphe) |
-| [Demander et supprimer](#demander-et-supprimer) | [Supprimer un nœud](#supprimer-un-nœud) |
-| [Ce qui le distingue](#ce-qui-le-distingue) | [Démarrage rapide](#démarrage-rapide) |
-| [Ce qui marche aujourd'hui](#ce-qui-marche-aujourdhui) | [Organisation du dépôt](#organisation-du-dépôt) |
+| [Ce qu'il garantit](#ce-quil-garantit) | [L'ontologie](#lontologie) |
+| [Pour qui](#pour-qui) | [Anatomie d'une lecture](#anatomie-dune-lecture) |
+| [Le voir tourner](#le-voir-tourner) | [Scopes dérivés](#scopes-dérivés) |
+| [Demander et supprimer](#demander-et-supprimer) | [Interroger le graphe](#interroger-le-graphe) |
+| [Ce qui le distingue](#ce-qui-le-distingue) | [Supprimer un nœud](#supprimer-un-nœud) |
+| [Ce qui marche aujourd'hui](#ce-qui-marche-aujourdhui) | [Démarrage rapide](#démarrage-rapide) |
+| | [Organisation du dépôt](#organisation-du-dépôt) |
 | | [Contribuer](#contribuer) |
 
 ---
@@ -247,13 +248,13 @@ Les bases de graphe ont déjà un contrôle d'accès par rôle, et les biblioth�
 
 ## Ce qui marche aujourd'hui
 
-- l'ontologie typée (Zod) et un stockage de graphe Neo4j ;
+- l'ontologie typée (Zod), étendue par configuration avec les types propres à l'organisation, et un stockage de graphe Neo4j ;
 - l'ingestion de documents Markdown, JSON et YAML avec références typées, privés par défaut ;
 - la traversée avec scopes vérifiés à chaque saut ; les documents dérivés lisibles seulement par qui lit toutes leurs sources ;
 - une API REST dont identités et groupes viennent d'un fournisseur OIDC ou de Google avec Cloud Identity ;
 - une entrée d'audit pour chaque lecture, question et suppression ;
 - `gwarden pull` vers un cache SQLite local qui ne contient que ce que l'utilisateur peut voir ;
-- `gwarden ask`, des réponses tirées des nœuds lisibles, par Claude (API Claude, Vertex AI, ou Google Cloud sans clé d'API), enregistrées comme nœuds dérivés sur demande ;
+- `gwarden ask`, des réponses tirées des nœuds lisibles, par Claude (API Claude, Vertex AI, ou Google Cloud sans clé d'API) ou tout modèle compatible OpenAI, local compris, enregistrées comme nœuds dérivés sur demande ;
 - `gwarden delete`, qui suit `DERIVED_FROM`, montré puis confirmé ;
 - une application web : pages, recherche, graphe (Sigma.js), questions, suppression et pages wiki, à jour en direct via SSE ;
 - une démo `docker compose` et un déploiement Cloud Run.
@@ -316,6 +317,17 @@ Chaque nœud porte exactement un scope :
 | `private:alice` | Alice seulement |
 
 Les groupes viennent du fournisseur d'identité, groupes imbriqués résolus. La supervision se décide là-bas, pas dans Graph-Warden : un groupe `dev-leads` imbriqué dans chaque groupe d'équipe permet aux leads de lire à travers les équipes. Voir la [proposal 0002](docs/proposals/0002-one-graph-many-scopes.md) et la [proposal 0010](docs/proposals/0010-identity-groups-and-derived-scopes.md).
+
+## L'ontologie
+
+Les nœuds et les arêtes sont typés. Les types du cœur sont ceux sur lesquels le domaine s'appuie : `Module`, `Endpoint`, `Decision`, `Concept`, `Incident`, `Team`, `Person`, `Session`, `Source`, `Change` ; `IMPORTS`, `EXPOSES`, `CONSUMES`, `DECIDES`, `DERIVED_FROM`, `CAUSES`, `FIXES` et quelques autres. Une organisation ajoute les siens dans un fichier YAML désigné par `GWARDEN_ONTOLOGY`, lu par l'API et par `gwarden ingest` :
+
+```yaml
+nodeTypes: [Microservice, Dataset, Dashboard]
+edgeTypes: [OWNS, RUNS_ON]
+```
+
+L'ontologie reste fermée : un nœud ou une arête d'un type qu'elle n'a pas est refusé à l'écriture, si bien qu'une faute de frappe ne devient jamais une nouvelle sorte de chose. On ajoute des types, on n'en retire jamais. Un type de nœud s'écrit en PascalCase, un type d'arête en UPPER_SNAKE_CASE ; le stockage Neo4j refuse aussi les noms de ses propres labels (`Node`, `AuditEntry`, `Event`, `Counter`). La démo déclare `Dataset` et `Dashboard` pour l'équipe Data ([`examples/shop/ontology.yaml`](examples/shop/ontology.yaml)) ; `GET /v1/ontology` liste les types en vigueur. Voir la [proposal 0001](docs/proposals/0001-typescript-and-zod.md).
 
 ## Anatomie d'une lecture
 

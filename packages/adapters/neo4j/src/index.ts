@@ -17,6 +17,10 @@ import neo4j, { type Driver, type Record as Neo4jRecord } from "neo4j-driver";
 // after its type. Values are validated against the ontology on the way in and on the way out, so
 // a node written by hand in the database cannot reach the domain unchecked.
 
+// Labels of the adapter's own nodes. A node type of the same name would put a graph node among
+// them, in the audit log or the event log: the ontology may extend the types, not these.
+export const RESERVED_LABELS = ["Node", "Counter", "AuditEntry", "Event"] as const;
+
 export async function ensureConstraints(driver: Driver): Promise<void> {
   // Community edition: uniqueness only. Existence of scope and provenance is enforced by the
   // schema validation below (property existence constraints need Enterprise).
@@ -31,8 +35,10 @@ export function createNeo4jStore(driver: Driver): GraphStore {
   return {
     async upsertNodes(nodes) {
       const rows = nodes.map((node) => toRow(NodeSchema.parse(node)));
+      const reserved = rows.find((row) => (RESERVED_LABELS as readonly string[]).includes(row.type));
+      if (reserved !== undefined) throw new Error(`${reserved.id}: node type ${reserved.type} is reserved by the Neo4j store`);
       for (const [type, group] of groupBy(rows, (row) => row.type)) {
-        // The label comes from the closed ontology enum, never from free input.
+        // The label is a validated type name (PascalCase, letters and digits), never free input.
         await driver.executeQuery(
           `UNWIND $rows AS row MERGE (n:Node {id: row.id}) SET n = row, n:${type}`,
           { rows: group },

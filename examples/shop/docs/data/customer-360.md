@@ -1,5 +1,5 @@
 ---
-type: Module
+type: Dataset
 scope: team:data
 title: BigQuery analytics.customer_360
 references:

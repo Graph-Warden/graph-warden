@@ -63,6 +63,7 @@ services:
     environment:
       NEO4J_URI: bolt://neo4j-demo:7687
       NEO4J_PASSWORD: graph-warden
+      GWARDEN_ONTOLOGY: /demo/ontology.yaml
     volumes:
       - ./examples/shop:/demo:ro
       # Uncomment for vertex or google-cloud, after `gcloud auth application-default login`.
@@ -89,6 +90,7 @@ services:
       GWARDEN_IDENTITY: demo
       GWARDEN_DEMO: i-understand-anyone-with-a-token-is-that-user
       GWARDEN_DEMO_USERS: /demo/users.yaml
+      GWARDEN_ONTOLOGY: /demo/ontology.yaml
       GWARDEN_AUDITORS: auditors
       GWARDEN_WRITERS: dev-leads
       # The web app at http://localhost:8080, signed in with a demo token. Demo value only.

@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
-import type { IdentityProvider } from "@graph-warden/core";
+import { CORE_ONTOLOGY, type IdentityProvider, type Ontology } from "@graph-warden/core";
+import { readOntology } from "@graph-warden/documents";
 import {
   createCloudIdentityGroups,
   createDemoIdentity,
@@ -58,6 +59,9 @@ const CommonSchema = z.object({
   NEO4J_URI: z.string().min(1).default("bolt://localhost:7687"),
   NEO4J_USER: z.string().min(1).default("neo4j"),
   NEO4J_PASSWORD: z.string().min(1),
+  // A YAML file of the organisation's node and edge types, added to the core ones (proposal 0001):
+  // `nodeTypes: [Microservice]`, `edgeTypes: [OWNS]`. The CLI's ingest reads the same variable.
+  GWARDEN_ONTOLOGY: setting,
   // Groups whose members may read the audit log through the API.
   GWARDEN_AUDITORS: list,
   // Groups whose members may delete nodes and file answers. None by default: nobody writes.
@@ -91,6 +95,7 @@ const CommonSchema = z.object({
 export type Config = z.infer<typeof CommonSchema> & {
   readonly identity: IdentityProvider;
   readonly identityKind: string;
+  readonly ontology: Ontology;
   readonly web?: WebOptions;
 };
 
@@ -113,7 +118,14 @@ export async function loadConfig(env: NodeJS.ProcessEnv): Promise<Config> {
   }
   const settings = EnvSchema.parse(env);
   const web = common.GWARDEN_WEB_SECRET === undefined ? undefined : webFrom(common, settings, common.GWARDEN_WEB_SECRET);
-  return { ...common, identity: await identityFrom(settings), identityKind: settings.GWARDEN_IDENTITY, ...(web === undefined ? {} : { web }) };
+  const ontology = common.GWARDEN_ONTOLOGY === undefined ? CORE_ONTOLOGY : await readOntology(common.GWARDEN_ONTOLOGY);
+  return {
+    ...common,
+    identity: await identityFrom(settings),
+    identityKind: settings.GWARDEN_IDENTITY,
+    ontology,
+    ...(web === undefined ? {} : { web }),
+  };
 }
 
 function webFrom(common: z.infer<typeof CommonSchema>, settings: z.infer<typeof EnvSchema>, secret: string): WebOptions {

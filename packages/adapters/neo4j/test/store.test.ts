@@ -124,6 +124,17 @@ describe.skipIf(uri === undefined)("Neo4j adapter", () => {
       );
     });
 
+    it("stores the types an organisation added, and refuses the labels it keeps for itself", async () => {
+      await store().upsertNodes([{ ...module_, id: "orders", type: "Microservice" }, decision]);
+      await store().upsertEdges([{ type: "RUNS_ON", from: "orders", to: "adr-0002" }]);
+      expect(await store().getNode("orders")).toMatchObject({ type: "Microservice" });
+      expect((await store().snapshot()).edges).toEqual([{ type: "RUNS_ON", from: "orders", to: "adr-0002" }]);
+      for (const type of ["AuditEntry", "Event", "Counter", "Node"]) {
+        await expect(store().upsertNodes([{ ...concept, id: "trojan", type }])).rejects.toThrow(/reserved/);
+      }
+      expect(await store().getNode("trojan")).toBeUndefined();
+    });
+
     it("refuses a duplicate id at the database level", async () => {
       await expect(driver.executeQuery("CREATE (:Node {id: 'x'}), (:Node {id: 'x'})")).rejects.toThrow();
     });
