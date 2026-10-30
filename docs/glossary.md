@@ -47,3 +47,6 @@ The words below are used with this meaning in code, proposals, issues and review
 | Trigger | One way the worker learns that a repository reached a commit. Every trigger only queues a job; none carries a diff. |
 | Module | The node of one source file, id `<repo>:<path>`. `IMPORTS` edges link modules as the TypeScript compiler resolves them. |
 | Endpoint | The node of one operation of an OpenAPI spec, id `<repo>:<METHOD> <path>`. Modules next to the spec `EXPOSES` it; modules elsewhere that call it, through a generated client or `fetch`, `CONSUMES` it. |
+| Related nodes | What depends on a change (`findRelated`): edges followed towards their dependents (`IMPORTS`, `DERIVED_FROM`, `DECIDES`, `CONSUMES` backwards, `EXPOSES` forwards). |
+| Revalidator | The use case sending the knowledge related to a commit to the model (`createRevalidator`): valid, updated (derived nodes only, narrowed to the code's readers) or contradicted (`CONTRADICTS` from the commit, and an alert). |
+| Stale mark | A node related to a change but beyond the revalidation depth (`StaleMarks`): revalidated on its first read. |

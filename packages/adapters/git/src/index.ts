@@ -60,6 +60,9 @@ export function createGitRepository(dir: string, options: GitOptions = {}): GitR
     },
     read: (commit, path) => git("show", `${sha(commit)}:${path}`),
     message: (commit) => git("log", "-1", "--format=%B", sha(commit)),
+    // Without `from`, what the commit did to its first parent, merges included.
+    diff: (from, to) =>
+      from === undefined ? git("show", "--format=", "--patch", "--diff-merges=first-parent", sha(to)) : git("diff", "--no-renames", sha(from), sha(to)),
     async has(commit) {
       try {
         await git("cat-file", "-e", `${sha(commit)}^{commit}`);

@@ -12,3 +12,4 @@ export * from "./ask.js";
 export * from "./search.js";
 export * from "./pages.js";
 export * from "./ingestion.js";
+export * from "./revalidation.js";

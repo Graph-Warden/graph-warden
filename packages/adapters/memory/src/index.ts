@@ -9,6 +9,8 @@ import {
   type IngestionQueue,
   type IngestionState,
   type Node,
+  type StaleMark,
+  type StaleMarks,
 } from "@graph-warden/core";
 
 // In-memory ports, for tests and demos: nothing survives the process.
@@ -115,5 +117,14 @@ export function createMemoryQueue(): IngestionQueue {
         },
       };
     },
+  };
+}
+
+export function createMemoryStaleMarks(): StaleMarks {
+  const marks = new Map<string, StaleMark>();
+  return {
+    mark: async (list) => void list.forEach((mark) => marks.set(mark.id, mark)),
+    get: async (id) => marks.get(id),
+    clear: async (id) => void marks.delete(id),
   };
 }

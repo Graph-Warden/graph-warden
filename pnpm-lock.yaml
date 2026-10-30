@@ -289,6 +289,9 @@ importers:
 
   packages/worker:
     dependencies:
+      '@graph-warden/anthropic':
+        specifier: workspace:*
+        version: link:../adapters/anthropic
       '@graph-warden/core':
         specifier: workspace:*
         version: link:../core
@@ -304,6 +307,9 @@ importers:
       '@graph-warden/neo4j':
         specifier: workspace:*
         version: link:../adapters/neo4j
+      '@graph-warden/openai':
+        specifier: workspace:*
+        version: link:../adapters/openai
       '@graph-warden/openapi':
         specifier: workspace:*
         version: link:../adapters/openapi

@@ -114,6 +114,8 @@ export interface ReaderOptions {
   readonly events?: EventLog;
   // Groups whose members may read the audit log. None by default: nobody reads it through the reader.
   readonly auditors?: readonly string[];
+  // Called before a node is read, to revalidate it if it is stale (proposal 0005).
+  readonly refresh?: (id: string) => Promise<unknown>;
   readonly now?: () => Date;
 }
 
@@ -130,11 +132,15 @@ export function recorder(audit: AuditLog, now: () => Date = () => new Date()) {
 }
 
 export function createReader(store: GraphStore, audit: AuditLog, options: ReaderOptions = {}): Reader {
-  const { events, auditors = [], now = () => new Date() } = options;
+  const { events, auditors = [], refresh, now = () => new Date() } = options;
   const record = recorder(audit, now);
 
   return {
     async node(principal, id) {
+      // Only for a node the principal may read, so that a read cannot spend model calls on, or
+      // time how long it takes to answer for, a node it cannot see.
+      const current = await store.getNode(id);
+      if (refresh !== undefined && current !== undefined && canRead(principal, current.scope)) await refresh(id);
       const node = await store.getNode(id);
       const readable = node !== undefined && canRead(principal, node.scope) ? node : undefined;
       await record({ action: "read", target: id, returned: readable === undefined ? [] : [id] }, principal);
