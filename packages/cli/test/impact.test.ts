@@ -90,7 +90,8 @@ describe("gwarden impact", () => {
     expect(asBff.teams).toEqual(["bff"]);
 
     expect(await store.snapshot()).toEqual(before);
-  });
+    // Ingests the demo three times.
+  }, 30_000);
 
   it("posts the report, replacing the previous one", async () => {
     const calls: { url: string; method: string }[] = [];

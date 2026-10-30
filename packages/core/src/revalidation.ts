@@ -100,8 +100,11 @@ export const VerdictSchema = z
   .object({
     verdict: z.enum(["valid", "updated", "contradicted"]),
     reason: z.string().min(1),
-    // The new text, for `updated`.
-    body: z.string().min(1).optional(),
+    // The new text, for `updated`. Models often send null or "" when there is none.
+    body: z
+      .string()
+      .nullish()
+      .transform((body) => (body === null || body === undefined || body.trim() === "" ? undefined : body)),
   })
   .refine((verdict) => verdict.verdict !== "updated" || verdict.body !== undefined, { message: "an update needs a body" });
 
@@ -160,12 +163,7 @@ export function createRevalidator(options: RevalidatorOptions): Revalidator {
   };
 
   async function judge(node: Node, change: string, evidence: string, author: Principal): Promise<{ verdict: Verdict; alert?: Alert }> {
-    const title = node.title === undefined ? "" : ` title="${node.title.replace(/"/g, "'")}"`;
-    const answer = await llm.complete({
-      system: SYSTEM,
-      prompt: `<document id="${node.id}" type="${node.type}"${title}>\n${node.body ?? ""}\n</document>\n\n<change>\n${evidence}\n</change>`,
-    });
-    const verdict = parseVerdict(answer, node.id);
+    const verdict = await askVerdict(llm, node, evidence);
     if (verdict.verdict === "valid") return { verdict };
 
     const graph = await store.snapshot();
@@ -216,17 +214,46 @@ export function createRevalidator(options: RevalidatorOptions): Revalidator {
   };
 }
 
-// The model's answer, validated: the first JSON object in it (models wrap it in prose or fences).
+// One verdict from the model: the prompt the revalidator sends, shared with the evaluation set.
+export async function askVerdict(llm: LLMProvider, node: Node, evidence: string): Promise<Verdict> {
+  const title = node.title === undefined ? "" : ` title="${node.title.replace(/"/g, "'")}"`;
+  const answer = await llm.complete({
+    system: SYSTEM,
+    prompt: `<document id="${node.id}" type="${node.type}"${title}>\n${node.body ?? ""}\n</document>\n\n<change>\n${evidence}\n</change>`,
+  });
+  return parseVerdict(answer, node.id);
+}
+
+// The model's answer, validated: the first JSON object in it, since models wrap it in prose or
+// fences, or write it twice.
 export function parseVerdict(answer: string, id: string): Verdict {
-  const start = answer.indexOf("{");
-  const end = answer.lastIndexOf("}");
-  let value: unknown;
-  try {
-    value = JSON.parse(start === -1 || end < start ? answer : answer.slice(start, end + 1));
-  } catch {
-    throw new Error(`${id}: the model's verdict is not JSON: ${answer.slice(0, 200)}`);
-  }
+  const value = firstObject(answer);
+  if (value === undefined) throw new Error(`${id}: the model's verdict is not JSON: ${answer.slice(0, 200)}`);
   const parsed = VerdictSchema.safeParse(value);
   if (!parsed.success) throw new Error(`${id}: invalid verdict: ${z.prettifyError(parsed.error)}`);
   return parsed.data;
+}
+
+// The first balanced {...} that parses, strings and escapes respected.
+function firstObject(text: string): unknown {
+  for (let start = text.indexOf("{"); start !== -1; start = text.indexOf("{", start + 1)) {
+    let depth = 0;
+    let inString = false;
+    for (let i = start; i < text.length; i++) {
+      const c = text[i];
+      if (inString) {
+        if (c === "\\") i++;
+        else if (c === '"') inString = false;
+      } else if (c === '"') inString = true;
+      else if (c === "{") depth++;
+      else if (c === "}" && --depth === 0) {
+        try {
+          return JSON.parse(text.slice(start, i + 1));
+        } catch {
+          break;
+        }
+      }
+    }
+  }
+  return undefined;
 }

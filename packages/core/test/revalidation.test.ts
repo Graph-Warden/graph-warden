@@ -164,6 +164,14 @@ describe("Revalidator", () => {
     expect(alerts).toHaveLength(2);
   });
 
+  it("reads a verdict as models write it", () => {
+    expect(parseVerdict('{"verdict": "valid", "reason": "ok", "body": null}', "x")).toEqual({ verdict: "valid", reason: "ok" });
+    expect(parseVerdict('```json\n{"verdict": "valid", "reason": "a } in {text}", "body": ""}\n```\nAgain: {"verdict": "updated"}', "x")).toEqual({
+      verdict: "valid",
+      reason: "a } in {text}",
+    });
+  });
+
   it("refuses a verdict that is not one", () => {
     expect(() => parseVerdict("I think it is fine.", "x")).toThrow(/not JSON/);
     expect(() => parseVerdict('{"verdict": "updated", "reason": "r"}', "x")).toThrow(/body/);
