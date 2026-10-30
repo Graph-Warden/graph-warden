@@ -43,3 +43,5 @@ The words below are used with this meaning in code, proposals, issues and review
 | Repository | The port (`Repository`) for a git repository: ancestry, first-parent commits, changed files, file contents. |
 | Extractor | Turns the files a commit changed into nodes and edges (documents, TypeScript imports, OpenAPI specs). |
 | Change | The node of one ingested commit. It `MODIFIES` the nodes of the files it touched; its id is `<repo>@<sha>`. |
+| Worker | The ingestion process (`gwarden-worker`): learns about merges by GitHub webhook, by a push from CI (`action/ingest`) or by polling its clones, and ingests them through the queue. |
+| Trigger | One way the worker learns that a repository reached a commit. Every trigger only queues a job; none carries a diff. |
