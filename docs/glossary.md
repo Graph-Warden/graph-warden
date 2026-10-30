@@ -26,6 +26,7 @@ The words below are used with this meaning in code, proposals, issues and review
 | Stream | `GET /v1/stream`: server-sent events, one delta each time what the caller may read changes. |
 | Asker | The use case answering a question (`createAsker`): retrieves readable nodes, audits them, hands them to the model, and files the answer if asked. |
 | LLM provider | The port (`LLMProvider`) for a language model. |
+| Export | The graph a user may read, pulled from scratch through the API and written as Markdown, JSON-LD or GraphML (`gwarden export`). |
 | Audit entry | A record of a read made on behalf of a user. |
 | Event log | The append-only port (`EventLog`) recording every write to the graph with a sequence number. Pulls read it to know what changed since a cursor. |
 | Writer | The only way to write the graph (`createWriter`): every write lands in the store and then in the event log. |
