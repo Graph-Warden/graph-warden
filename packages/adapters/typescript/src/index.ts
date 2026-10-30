@@ -12,7 +12,7 @@ import { parse as parseYaml } from "yaml";
 // repository and give no edge.
 //
 // Only the files a commit changed are read again. A change to a tsconfig, a package.json or the
-// workspace list may change how any import resolves: then every module is.
+// workspace list, removal included, may change how any import resolves: then every module is.
 
 const ROOT = "/repo/";
 const SOURCE = /\.(?:[cm]?tsx?|[cm]?jsx?)$/;
@@ -42,7 +42,7 @@ export function createTypeScriptExtractor(options: TypeScriptOptions = {}): Extr
     async extract(files, snapshot) {
       const all = await snapshot.files();
       const resolver = await createResolver(all, snapshot);
-      const changed = files.some((file) => isConfig(file.path)) ? all.filter(wanted) : files.map((file) => file.path).filter(wanted);
+      const changed = snapshot.changes.some((change) => isConfig(change.path)) ? all.filter(wanted) : files.map((file) => file.path).filter(wanted);
       const texts = new Map(files.map((file) => [file.path, file.text]));
       const present = new Set(all.filter(wanted));
       const repo = snapshot.repo.name;

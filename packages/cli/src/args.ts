@@ -22,8 +22,9 @@ export const USAGE = `Usage:
   gwarden impact <repo-dir> --source <name> --base <ref> [--head <ref>] [--scope <scope>] [--team <team>]...
                  [--comment <owner/repo>#<number>]
 
-Scopes: shared, team:<name>, teams:<a>,<b> (members of every team), private:<user>. A document without a scope: field is private to the
-ingesting --user unless --default-scope says otherwise. Every traverse is recorded in the audit log, which
+Scopes: shared, team:<name>, teams:<a>,<b> (members of every team), private:<user>. A document without a scope: field takes the scope of the
+nearest .gwarden.yaml folder file above it (scope: team:payments), else is private to the ingesting
+--user unless --default-scope says otherwise. Every traverse is recorded in the audit log, which
 audit prints oldest first.
 
 --team lists the groups the identity provider reports for --user, nested groups included. A document

@@ -1,5 +1,5 @@
 import { readdir, readFile } from "node:fs/promises";
-import { basename, extname, join, relative } from "node:path";
+import { basename, extname, join, posix, relative, sep } from "node:path";
 import {
   CORE_ONTOLOGY,
   createOntology,
@@ -62,10 +62,12 @@ export interface DocumentOptions {
   readonly source: string;
   // Pages to keep; all by default.
   readonly include?: (page: Page) => boolean;
-  // Scope of a page without a `scope:` frontmatter field. Required: there is no implicit default,
-  // so nothing becomes visible to others unless a caller chose it (private by default is the
-  // callers' rule, see the CLI).
+  // Scope of a page without a `scope:` frontmatter field, nor a folder file above it. Required:
+  // there is no implicit default, so nothing becomes visible to others unless a caller chose it
+  // (private by default is the callers' rule, see the CLI).
   readonly defaultScope: Scope;
+  // Scopes declared by folder files (`.gwarden.yaml`), by folder path.
+  readonly folders?: ReadonlyMap<string, Scope>;
   // The types a `type:` field may name; the core ones by default.
   readonly ontology?: Ontology;
 }
@@ -74,6 +76,30 @@ const FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/;
 const WIKILINK = /\[\[([^\]|#\n]+)(?:[#|][^\]\n]*)?\]\]/g;
 
 export const EXTENSIONS = [".md", ".json", ".yaml", ".yml"] as const;
+
+// A folder file declares the scope of every document in its folder and below, unless a nearer
+// folder file or the document's own `scope:` field says otherwise:
+//   scope: team:payments
+export const FOLDER_FILE = ".gwarden.yaml";
+const FolderSchema = z.object({ scope: z.string().min(1) }).strict();
+
+const isFolderFile = (path: string) => posix.basename(path) === FOLDER_FILE;
+export const isDocument = (path: string) => EXTENSIONS.some((extension) => path.endsWith(extension)) && !isFolderFile(path);
+
+export function parseFolder(path: string, text: string): Scope {
+  const parsed = FolderSchema.safeParse(parse(path, "YAML", () => parseYaml(text) ?? {}));
+  if (!parsed.success) throw new Error(`${path}: invalid folder file: ${z.prettifyError(parsed.error)}`);
+  return parse(path, "scope", () => parseScope(parsed.data.scope));
+}
+
+// The scope the nearest folder file above a document declares.
+function folderScope(folders: ReadonlyMap<string, Scope>, path: string): Scope | undefined {
+  for (let dir = posix.dirname(path); ; dir = posix.dirname(dir)) {
+    const scope = folders.get(dir);
+    if (scope !== undefined) return scope;
+    if (dir === "." || dir === "/" || dir === "") return undefined;
+  }
+}
 
 // Parses one document; the format follows the extension of `path`.
 export function parsePage(path: string, text: string): Page {
@@ -89,7 +115,7 @@ export function parsePage(path: string, text: string): Page {
   throw new Error(`${path}: unsupported document type, expected one of ${EXTENSIONS.join(", ")}`);
 }
 
-function parse(path: string, format: string, read: () => unknown): unknown {
+function parse<T>(path: string, format: string, read: () => T): T {
   try {
     return read();
   } catch (error) {
@@ -134,9 +160,10 @@ function toNodes(kept: readonly Page[], options: DocumentOptions, known: (name: 
     NodeSchema.parse({
       id: page.name,
       type: nodeType(page.frontmatter, options.ontology ?? CORE_ONTOLOGY),
-      scope: typeof page.frontmatter.scope === "string"
-        ? parseScope(page.frontmatter.scope)
-        : options.defaultScope,
+      scope:
+        typeof page.frontmatter.scope === "string"
+          ? parseScope(page.frontmatter.scope)
+          : (folderScope(options.folders ?? new Map(), page.path) ?? options.defaultScope),
       provenance: { source: options.source, path: page.path },
       ...(page.title === undefined ? {} : { title: page.title }),
       ...(page.body === undefined ? {} : { body: page.body }),
@@ -156,11 +183,12 @@ function toNodes(kept: readonly Page[], options: DocumentOptions, known: (name: 
 }
 
 export async function readDocuments(dir: string, options: DocumentOptions): Promise<{ nodes: Node[]; edges: Edge[] }> {
-  const files = (await readdir(dir, { recursive: true })).filter((file) => EXTENSIONS.some((extension) => file.endsWith(extension))).sort();
-  const pages = await Promise.all(
-    files.map(async (file) => parsePage(relative(dir, join(dir, file)), await readFile(join(dir, file), "utf8"))),
+  const all = (await readdir(dir, { recursive: true })).map((file) => relative(dir, join(dir, file)).split(sep).join("/")).sort();
+  const pages = await Promise.all(all.filter(isDocument).map(async (file) => parsePage(file, await readFile(join(dir, file), "utf8"))));
+  const folders = new Map(
+    await Promise.all(all.filter(isFolderFile).map(async (file) => [posix.dirname(file), parseFolder(file, await readFile(join(dir, file), "utf8"))] as const)),
   );
-  return toGraph(pages, options);
+  return toGraph(pages, { ...options, folders });
 }
 
 // `type:` names a node type of the ontology, in any case (`decision`, `Decision`); anything else,
@@ -187,8 +215,9 @@ export async function readSensitivity(path: string): Promise<SensitivityPolicy> 
 
 // The documents of a git repository, for the ingester. References are kept whatever their target:
 // it may be a document the commit did not change, and the ingester drops those to nothing.
-// A document without a `scope:` field takes the repository's scope unless `defaultScope` says
-// otherwise.
+// A document without a `scope:` field takes the scope of the nearest folder file, else the
+// repository's unless `defaultScope` says otherwise. A commit changing or removing a folder file
+// extracts every document below it again.
 export interface DocumentExtractorOptions {
   readonly include?: (path: string) => boolean;
   readonly defaultScope?: Scope;
@@ -198,10 +227,19 @@ export interface DocumentExtractorOptions {
 export function createDocumentExtractor(options: DocumentExtractorOptions = {}): Extractor {
   const { include = () => true, defaultScope, ...rest } = options;
   return {
-    matches: (path) => EXTENSIONS.some((extension) => path.endsWith(extension)) && include(path),
+    matches: (path) => isFolderFile(path) || (isDocument(path) && include(path)),
     async extract(files, snapshot) {
-      const pages = files.map((file) => parsePage(file.path, file.text));
-      const { nodes, edges } = toNodes(pages, { ...rest, source: snapshot.repo.name, defaultScope: defaultScope ?? snapshot.repo.scope }, () => true);
+      const all = await snapshot.files();
+      const folders = new Map(await Promise.all(all.filter(isFolderFile).map(async (path) => [posix.dirname(path), parseFolder(path, await snapshot.read(path))] as const)));
+      // Documents below a folder file the commit changed, read again: their scope may have changed.
+      const moved = snapshot.changes.filter((change) => isFolderFile(change.path)).map((change) => posix.dirname(change.path));
+      const below = (path: string) => moved.some((dir) => dir === "." || path.startsWith(`${dir}/`));
+      const texts = new Map(files.filter((file) => isDocument(file.path)).map((file) => [file.path, file.text]));
+      for (const path of all) {
+        if (isDocument(path) && include(path) && below(path) && !texts.has(path)) texts.set(path, await snapshot.read(path));
+      }
+      const pages = [...texts].map(([path, text]) => parsePage(path, text));
+      const { nodes, edges } = toNodes(pages, { ...rest, source: snapshot.repo.name, defaultScope: defaultScope ?? snapshot.repo.scope, folders }, () => true);
       return { nodes: nodes.map(({ provenance, ...node }) => ({ ...node, path: provenance.path })), edges };
     },
   };
