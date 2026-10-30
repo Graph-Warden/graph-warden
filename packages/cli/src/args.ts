@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { EdgeTypeSchema, parseScope, type Principal, type Scope, type TraversalOptions } from "@graph-warden/core";
 import type { Page } from "@graph-warden/documents";
+import type { Format } from "./export.js";
 
 export const USAGE = `Usage:
   gwarden ingest <dir> --source <name> --user <user> [--team <team>]... [--where key=value]...
@@ -12,6 +13,7 @@ export const USAGE = `Usage:
   gwarden audit [--api <url> --token <token>] [--user <user>]
   gwarden pull --api <url> --token <token> [--cache <file>] [--watch [--interval <seconds>]]
   gwarden cache [--cache <file>]
+  gwarden export --format markdown|jsonld|graphml --api <url> --token <token> [--out <path>]
   gwarden show <node-id> --api <url> --token <token>
   gwarden search <words>... --api <url> --token <token> [--limit <n>]
   gwarden ask "<question>" --api <url> --token <token> [--from <node-id>] [--save [--scope <scope>]]
@@ -34,6 +36,10 @@ GWARDEN_TOKEN. pull fetches what changed since the last pull into a local SQLite
 ~/.graph-warden/cache.db); cache lists it, offline. pull --watch keeps pulling every --interval seconds (5 by
 default), where the stream (/v1/stream) cannot be used. Without an API, ingest, traverse and audit talk to
 Neo4j directly: that is for whoever operates the graph, and traverse then needs --user and --team.
+
+export writes every node and edge the token's user may read, pulled from scratch through the API (so
+scoped and audited like any read): markdown as one file per node, linked to one another, in the
+--out directory (required); jsonld (JSON-LD 1.1) or graphml (for Gephi, yEd) to --out, or stdout.
 
 ask answers from the nodes the token's user may read, citing them; --from anchors it on a node.
 --save files the answer as a node derived from every node the model read, private to the user
@@ -95,6 +101,7 @@ export type Command =
       readonly name: "cache";
       readonly cache: string;
     }
+  | ({ readonly name: "export"; readonly format: Format; readonly out?: string } & Remote)
   | ({ readonly name: "show"; readonly id: string } & Remote)
   | ({ readonly name: "search"; readonly query: string; readonly limit?: number } & Remote)
   | ({
@@ -154,6 +161,8 @@ export function parseCommand(argv: readonly string[]): Command {
       comment: { type: "string" },
       watch: { type: "boolean", default: false },
       interval: { type: "string" },
+      format: { type: "string" },
+      out: { type: "string" },
     },
   });
   const cache = values.cache ?? join(homedir(), ".graph-warden", "cache.db");
@@ -171,6 +180,12 @@ export function parseCommand(argv: readonly string[]): Command {
     const interval = Number(values.interval ?? 5);
     if (!(interval > 0)) throw new Error("--interval must be a positive number of seconds");
     return { name, cache, ...(values.watch ? { watch: interval } : {}), ...remote() };
+  }
+  if (name === "export") {
+    const { format, out } = values;
+    if (format !== "markdown" && format !== "jsonld" && format !== "graphml") throw new Error("--format must be markdown, jsonld or graphml");
+    if (format === "markdown" && out === undefined) throw new Error("--out is required for markdown: the directory to write the files to");
+    return { name, format, ...(out === undefined ? {} : { out }), ...remote() };
   }
   if (name === "audit") return { name, through: through(), ...(values.user === undefined ? {} : { user: values.user }) };
 
