@@ -5,22 +5,42 @@
   </picture>
 </p>
 
+<p align="center"><b>English</b> · <a href="README.fr.md">Français</a></p>
+
 # Graph-Warden
 
 **One knowledge graph for every team's AI agents, with rights checked on every hop.**
 
-Graph-Warden captures knowledge where teams already produce it (repositories, API specs, docs, agent sessions), compiles it into a typed graph, and serves it to any consumer over REST, MCP or a live event stream. Every read is made on behalf of a person, sees only what that person's groups allow, and is recorded.
+Graph-Warden collects what teams already write (repositories, API specs, docs, agent sessions), links it into one typed graph, and lets AI agents query it. Every query is made on behalf of a person, returns only what that person may see, and is recorded.
 
-> Status: **pre-alpha**, milestone M0. Nothing here is ready for production. The design is settled in [`docs/proposals`](docs/proposals); the work is tracked in [issues](https://github.com/Graph-Warden/graph-warden/issues) and the [roadmap](docs/ROADMAP.md). See [what works today](#what-works-today).
+> Status: **pre-alpha**, milestone M0. Nothing here is ready for production. See [what works today](#what-works-today) and the [roadmap](docs/ROADMAP.md).
 
-## The problem in one picture
+**Reading guide.** The [first part](#part-1--the-product) is for anyone deciding whether this is useful: the problem, who it is for, a demo. The [second part](#part-2--under-the-hood) is for anyone building or running it: architecture, how a read is checked, how to run it.
 
-A large organisation wants its AI agents to know what the organisation knows. It has two options today, and both are bad:
+| Part 1 — The product | Part 2 — Under the hood |
+|---|---|
+| [The problem](#the-problem) | [Architecture](#architecture) |
+| [An example](#an-example-one-endpoint-four-teams) | [Scopes](#scopes) |
+| [What it guarantees](#what-it-guarantees) | [Anatomy of a read](#anatomy-of-a-read) |
+| [Who it is for](#who-it-is-for) | [Derived scopes](#derived-scopes) |
+| [See it run](#see-it-run) | [Quick start](#quick-start) |
+| [How it differs](#how-it-differs) | [Repository layout](#repository-layout) |
+| [What works today](#what-works-today) | [Contributing](#contributing) |
+
+---
+
+# Part 1 — The product
+
+## The problem
+
+A large organisation wants its AI agents to know what the organisation knows. Today it has two options, and both are bad:
 
 - **Open everything.** One team's agent reads HR files, security incidents, M&A notes and customer data that are none of its business.
-- **Wall every team off.** Each team gets its own silo, and everything that crosses teams is lost, which is exactly what agents are most useful for.
+- **Wall every team off.** Each team gets its own silo, and everything that crosses teams is lost — which is exactly where agents would help most.
 
-Graph-Warden is the third option: one graph, with access decided on every read. Filtering the result is not enough, because the path itself leaks:
+Graph-Warden is the third option: **one shared graph, with access decided on every read.**
+
+Filtering the final answer is not enough. In a graph, the path itself leaks information:
 
 ```mermaid
 flowchart LR
@@ -34,123 +54,47 @@ flowchart LR
     class P,R hidden
 ```
 
-An agent working for a front-end developer may walk from `checkout` to `GET /orders`. It may not walk on to `Project Falcon`, and it must not learn that the node exists because a path ran through it. Graph-Warden checks the reader's scopes **before each hop**, not on the final result.
+An agent working for a front-end developer may walk from `checkout` to `GET /orders`. It must not walk on to `Project Falcon`, and must not even learn that it exists because a path ran through it. Graph-Warden checks rights **before each step**, not on the final result.
+
+## An example: one endpoint, four teams
+
+The BFF team is about to change how `GET /orders` paginates. Three front-end teams consume it.
+
+- **Bob** (BFF team) asks his agent what depends on the endpoint. He sees his service and his decision record, not the front-end teams' internal notes.
+- **Alice** (front-end team A) sees her checkout module and the incident it caused last month, not the BFF's internals.
+- **Lea** (lead) sees all of it, plus an impact summary written for the leads from the three teams' documents.
+- **Bob does not see that summary**, even though it was published as "shared": it is built from documents he may not read, so Graph-Warden narrows it automatically.
+- **The DPO** can list every read any agent made, and when. Bob cannot.
+
+One graph, five people, five correct views — and nobody configured a filter for any of them. The [demo](#see-it-run) runs exactly this.
 
 ## What it guarantees
 
-| Guarantee | What it means | Where it lives |
-|---|---|---|
-| **Per-hop access** | A traversal never crosses a node the reader may not see, so nothing is inferred through it. | `packages/core` reader, [proposal 0002](docs/proposals/0002-one-graph-many-scopes.md) |
-| **Derived knowledge inherits its sources** | A summary compiled from three teams' documents is readable only by people who may read all three. | `deriveScopes`, [proposal 0010](docs/proposals/0010-identity-groups-and-derived-scopes.md) |
-| **Private by default** | A document with no scope is private to whoever ingested it. Nothing is shared unless someone chose to. | CLI `ingest` |
-| **One enforcement point** | Readers reach the graph only through the API. No client talks to Neo4j. | `packages/api`, [proposal 0003](docs/proposals/0003-api-as-sole-enforcement-point.md) |
-| **Every read is audited** | Who asked, with which groups, from which node, and which ids came back. If the entry cannot be written, the read fails. | `AuditLog` port |
-| **Identities come from your directory** | Users and groups come from OIDC (Entra ID, Keycloak, Okta…) or Google with Cloud Identity. Graph-Warden never manages accounts. | `packages/adapters/identity` |
-| **Erasure follows derivation** *(planned)* | Deleting a source deletes or recompiles everything derived from it (GDPR article 17). | M1 |
-
-### Scopes
-
-Every node carries exactly one scope:
-
-| Scope | Readable by |
+| Guarantee | In plain words |
 |---|---|
-| `shared` | everyone authenticated |
-| `team:bff` | members of the `bff` group |
-| `teams:bff,front-a` | members of **both** groups (a derived node with sources from both teams) |
-| `private:alice` | Alice only |
+| **Per-step access** | An agent never walks through something its user may not see, so nothing is inferred through it. |
+| **Summaries inherit their sources** | A summary built from three teams' documents is readable only by people who may read all three. |
+| **Private by default** | A document nobody scoped stays private to whoever added it. Sharing is always a decision. |
+| **One door** | Agents and tools reach the graph only through the API. Nobody queries the database directly. |
+| **Every read is recorded** | Who asked, with which groups, for what, and what came back. If the record cannot be written, the read fails. |
+| **Your directory decides** | Users and groups come from your identity provider (Entra ID, Okta, Keycloak, Google Workspace…). No second user base to maintain. |
+| **Erasure follows summaries** *(planned)* | Deleting a source also deletes or rebuilds everything derived from it (GDPR article 17). |
 
-Oversight belongs to the directory, not to Graph-Warden: a `dev-leads` group nested in every team group lets leads read across teams, and that is decided where the groups are managed.
+## Who it is for
 
-## How it works
-
-```mermaid
-flowchart LR
-    subgraph Sources
-        S1[merge on main]
-        S2[GitHub Action]
-        S3[git polling]
-        S4[docs: md / json / yaml]
-    end
-
-    subgraph Service["Graph-Warden service"]
-        Q["Ingestion queue<br/>ordered, idempotent,<br/>single writer"]
-        G[("Neo4j<br/>GraphStore")]
-        API["API<br/>scope per hop<br/>provenance · audit"]
-        Q --> G
-        G --> API
-    end
-
-    IdP["Identity provider<br/>OIDC · Cloud Identity"]
-    LLM["LLM provider<br/>Claude, OpenAI-compatible,<br/>or a local model"]
-
-    S1 & S2 & S3 & S4 --> Q
-    Q -.-> LLM
-    IdP -- "user + groups" --> API
-
-    API -- REST --> C1[your tools]
-    API -- MCP --> C2["Claude Code, Cursor,<br/>LibreChat, Open WebUI"]
-    API -- SSE --> C3[web graph view]
-    C4["gwarden CLI<br/>+ local cache"] -- pull --> API
-```
-
-Today: document ingestion through the CLI, Neo4j, the REST API, identity providers and `gwarden pull`. Planned: the queue, LLM compilation, webhooks, MCP and SSE (see the [roadmap](docs/ROADMAP.md)).
-
-- **The graph is the source of truth**, never the files it was built from. It lives in a server: Neo4j locally (`pnpm db:up`) or a hosted deployment, from which `gwarden pull` fetches only what the user may see.
-- **Targeted ingestion**, like `jest --findRelatedTests`: a merge only revalidates the knowledge reachable from the files it changed.
-- **No inbound port on developer machines**: clients pull or subscribe over SSE, so it works behind corporate proxies without tunnels.
-- **Bring your own model and your own client**: one `LLMProvider` interface, any MCP client.
-
-### Anatomy of a read
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Dev as Alice's agent
-    participant API
-    participant IdP as Identity provider
-    participant Reader as Reader (core)
-    participant Store as GraphStore
-    participant Audit as AuditLog
-
-    Dev->>API: GET /v1/nodes/orders-api/neighbours<br/>Authorization: Bearer token
-    API->>IdP: principalFor(token)
-    IdP-->>API: alice, groups [dev, front-a]
-    API->>Reader: traverse(alice, orders-api)
-    loop each hop
-        Reader->>Store: neighbours of the current frontier
-        Store-->>Reader: candidate nodes
-        Reader->>Reader: drop every node alice may not read,<br/>and never expand from it
-    end
-    Reader->>Audit: append(alice, groups, start, options, returned ids)
-    Audit-->>Reader: written (or the read fails)
-    Reader-->>API: visible nodes
-    API-->>Dev: 200 { nodes }
-```
-
-The audit entry is written **before** the answer leaves. Entries are append-only, numbered in write order, and stored outside the graph that traversals walk.
-
-### Derived scopes
-
-```mermaid
-flowchart BT
-    ADR["adr-0007-cursor-pagination<br/><i>team:bff</i>"]
-    CK["checkout<br/><i>team:front-a</i>"]
-    BO["backoffice<br/><i>team:front-b</i>"]
-    PI["pagination-impact<br/>declared: shared<br/>narrowed to: <b>teams:bff,front-a,front-b</b>"]
-
-    PI -- DERIVED_FROM --> ADR
-    PI -- DERIVED_FROM --> CK
-    PI -- DERIVED_FROM --> BO
-
-    classDef derived fill:#fff4e0,stroke:#d68910,color:#123
-    class PI derived
-```
-
-The leads wrote an impact summary and declared it `shared`. It is built from three teams' documents, so ingestion narrows it to the readers of all three. Declaring a scope can only make a node more private than its sources allow, never less. The ingesting user must be able to read every source.
+- **Security teams: agents that do not leak.** Rights are checked on every step of a traversal, not only on the result.
+- **Engineering teams: cross-team impact before the merge.** When the BFF team changes an endpoint, the front-end teams that consume it are told in the pull request, before it breaks in production *(planned, M2)*.
+- **Data protection and audit: compliance built in.** Every read an agent makes on behalf of a user is recorded, and erasure will reach everything an LLM derived from the erased source.
+- **Infrastructure teams: it fits a large group's constraints.**
+  - Self-hosted, on GCP, Azure or on premises.
+  - Developer machines open no inbound port: they pull the part of the graph their user may see.
+  - No tunnel, and SSE rather than WebSocket, so corporate proxies let it through.
+  - Apache-2.0, which legal teams accept where they often block the AGPL.
+  - Any model, including a local one for sensitive sources.
 
 ## See it run
 
-The demo is a sample shop where the BFF team is about to change the pagination of `GET /orders`, consumed by three front-end teams.
+The demo is the example above, on a sample shop. Its graph:
 
 ```mermaid
 flowchart LR
@@ -183,6 +127,8 @@ flowchart LR
 | Lea | `dev`, `dev-leads`, and through it every team group |
 | DPO | `auditors` |
 
+It needs only Docker:
+
 ```sh
 docker compose --profile demo up -d --build --wait
 examples/shop/demo.sh
@@ -192,7 +138,7 @@ examples/shop/demo.sh
 
 <p align="center"><img src="docs/assets/demo-1-views.svg" alt="Four users run the same traversal of orders-api and get different results" width="660"></p>
 
-**2. A derived summary takes the scope of all its sources.** Bob is in `bff` but not in `front-a` or `front-b`, so the impact summary does not exist for him. Lea reads it and its sources.
+**2. A summary takes the scope of all its sources.** Bob is in `bff` but not in `front-a` or `front-b`, so the impact summary does not exist for him. Lea reads it and its sources.
 
 <p align="center"><img src="docs/assets/demo-2-derived.svg" alt="Ingestion narrows pagination-impact; Bob gets nothing, Lea gets the summary and its sources" width="750"></p>
 
@@ -200,27 +146,20 @@ examples/shop/demo.sh
 
 <p align="center"><img src="docs/assets/demo-3-pull.svg" alt="Alice pulls three nodes and two edges into a local cache" width="800"></p>
 
-**4. Every read is audited.** Bob may not read the audit log, and his attempt is itself recorded. The DPO may.
+**4. Every read is recorded.** Bob may not read the audit log, and his attempt is itself recorded. The DPO may.
 
 <p align="center"><img src="docs/assets/demo-4-audit.svg" alt="Bob is refused the audit log; the DPO reads every entry, including Bob's denied attempt" width="1050"></p>
 
-The API uses fixed demo tokens (`examples/shop/users.yaml`) and listens on localhost only. Stop it with `docker compose --profile demo down`.
+The demo API uses fixed tokens (`examples/shop/users.yaml`) and listens on localhost only. Stop it with `docker compose --profile demo down`.
 
-## Who it is for
+## How it differs
 
-- **Security teams: agents that do not leak.** Rights are checked on every hop of a traversal, not only on the result.
-- **Engineering teams: cross-team impact before the merge.** When the BFF team changes an endpoint, the front-end teams that consume it are told in the pull request, before it breaks in production *(planned, M2)*.
-- **Data protection and audit: compliance built in.** Every read an agent makes on behalf of a user is recorded, and an erasure request will also reach everything an LLM derived from the erased source.
-- **Infrastructure teams: it fits a large group's constraints.**
-  - Self-hosted, on GCP, Azure or on premises.
-  - Developer machines open no inbound port: they pull the part of the graph their user may see.
-  - No tunnel, and SSE rather than WebSocket, so corporate proxies let it through.
-  - Apache-2.0, which legal teams accept where they often block the AGPL.
-  - Any model, including a local one for sensitive sources.
+Graph databases already have role-based access, and agent-memory libraries already scope memories by user. What they leave open is what happens between the agent and the knowledge:
 
-### How it differs
-
-Graph databases already have role-based access, and agent-memory libraries already scope memories by user. What they leave open is what happens between the agent and the knowledge: paths that leak through hidden nodes, LLM-derived knowledge that outlives or outranks its sources, erasure that stops at the original document, and changes in one team that silently break another.
+- paths that leak through nodes the reader may not see;
+- LLM-written summaries that are more visible than their sources;
+- erasure that stops at the original document;
+- changes in one team that silently break another.
 
 ## What works today
 
@@ -232,7 +171,185 @@ Graph databases already have role-based access, and agent-memory libraries alrea
 - `gwarden pull` into a local SQLite cache holding only what the user may see;
 - a `docker compose` demo and a Cloud Run deployment.
 
-**Not yet:** revalidating derived scopes when a source or a group changes, erasure, MCP, the live SSE stream, LLM compilation and the web view.
+**Not yet:** revalidating derived scopes when a source or a group changes, erasure, MCP, the live SSE stream, LLM compilation and the web view. The design for all of it is settled in [`docs/proposals`](docs/proposals); the work is tracked in [issues](https://github.com/Graph-Warden/graph-warden/issues).
+
+---
+
+# Part 2 — Under the hood
+
+## Architecture
+
+```mermaid
+flowchart LR
+    subgraph Sources
+        S1[merge on main]
+        S2[GitHub Action]
+        S3[git polling]
+        S4[docs: md / json / yaml]
+    end
+
+    subgraph Service["Graph-Warden service"]
+        Q["Ingestion queue<br/>ordered, idempotent,<br/>single writer"]
+        G[("Neo4j<br/>GraphStore")]
+        API["API<br/>scope per hop<br/>provenance · audit"]
+        Q --> G
+        G --> API
+    end
+
+    IdP["Identity provider<br/>OIDC · Cloud Identity"]
+    LLM["LLM provider<br/>Claude, OpenAI-compatible,<br/>or a local model"]
+
+    S1 & S2 & S3 & S4 --> Q
+    Q -.-> LLM
+    IdP -- "user + groups" --> API
+
+    API -- REST --> C1[your tools]
+    API -- MCP --> C2["Claude Code, Cursor,<br/>LibreChat, Open WebUI"]
+    API -- SSE --> C3[web graph view]
+    C4["gwarden CLI<br/>+ local cache"] -- pull --> API
+```
+
+Today: document ingestion through the CLI, Neo4j, the REST API, identity providers and `gwarden pull`. Planned: the queue, LLM compilation, webhooks, MCP and SSE.
+
+- **The graph is the source of truth**, never the files it was built from. It lives in a server: Neo4j locally (`pnpm db:up`) or a hosted deployment, from which `gwarden pull` fetches only what the user may see.
+- **Single writer, ordered ingestion** *(design)*: only the merge on `main` writes shared nodes, in commit order, and replaying a webhook creates no duplicates ([proposal 0004](docs/proposals/0004-single-writer-ordered-ingestion.md)).
+- **Targeted ingestion**, like `jest --findRelatedTests`: a merge only revalidates the knowledge reachable from the files it changed ([proposal 0005](docs/proposals/0005-targeted-ingestion.md)).
+- **No inbound port on developer machines**: clients pull or subscribe over SSE ([proposal 0006](docs/proposals/0006-pull-and-sse.md)).
+- **Bring your own model and your own client**: one `LLMProvider` interface, any MCP client ([proposal 0007](docs/proposals/0007-pluggable-llm-and-clients.md)).
+
+## Scopes
+
+Every node carries exactly one scope:
+
+| Scope | Readable by |
+|---|---|
+| `shared` | everyone authenticated |
+| `team:bff` | members of the `bff` group |
+| `teams:bff,front-a` | members of **both** groups (typically a node derived from both teams) |
+| `private:alice` | Alice only |
+
+Groups come from the identity provider, nested groups resolved. Oversight belongs there, not in Graph-Warden: a `dev-leads` group nested in every team group lets leads read across teams. See [proposal 0002](docs/proposals/0002-one-graph-many-scopes.md) and [proposal 0010](docs/proposals/0010-identity-groups-and-derived-scopes.md).
+
+## Anatomy of a read
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Dev as Alice's agent
+    participant API
+    participant IdP as Identity provider
+    participant Reader as Reader (core)
+    participant Store as GraphStore
+    participant Audit as AuditLog
+
+    Dev->>API: GET /v1/nodes/orders-api/neighbours<br/>Authorization: Bearer token
+    API->>IdP: principalFor(token)
+    IdP-->>API: alice, groups [dev, front-a]
+    API->>Reader: traverse(alice, orders-api)
+    loop each hop
+        Reader->>Store: neighbours of the current frontier
+        Store-->>Reader: candidate nodes
+        Reader->>Reader: drop every node alice may not read,<br/>and never expand from it
+    end
+    Reader->>Audit: append(alice, groups, start, options, returned ids)
+    Audit-->>Reader: written (or the read fails)
+    Reader-->>API: visible nodes
+    API-->>Dev: 200 { nodes }
+```
+
+The API is the only place readers reach the graph ([proposal 0003](docs/proposals/0003-api-as-sole-enforcement-point.md)). The audit entry is written **before** the answer leaves; entries are append-only, numbered in write order, and stored outside the graph that traversals walk. A property-based test (fast-check) checks it on random graphs: a traversal returns only readable nodes, and its result is unchanged when every node the reader may not see is removed — so a hidden node cannot leak through an id, a count or a path.
+
+## Derived scopes
+
+```mermaid
+flowchart BT
+    ADR["adr-0007-cursor-pagination<br/><i>team:bff</i>"]
+    CK["checkout<br/><i>team:front-a</i>"]
+    BO["backoffice<br/><i>team:front-b</i>"]
+    PI["pagination-impact<br/>declared: shared<br/>narrowed to: <b>teams:bff,front-a,front-b</b>"]
+
+    PI -- DERIVED_FROM --> ADR
+    PI -- DERIVED_FROM --> CK
+    PI -- DERIVED_FROM --> BO
+
+    classDef derived fill:#fff4e0,stroke:#d68910,color:#123
+    class PI derived
+```
+
+A node with `DERIVED_FROM` edges gets the scope of all its sources together, its declared scope counting as one more source, so derivation never widens it:
+
+- `shared` sources add no restriction;
+- team sources add up: `team:bff` + `team:front-a` gives `teams:bff,front-a`;
+- any private source makes the result private to its author.
+
+The author must be able to read every source: nobody derives from what they cannot see.
+
+## Quick start
+
+```sh
+corepack enable
+pnpm install
+pnpm typecheck && pnpm lint && pnpm test
+```
+
+The Neo4j adapter tests run when `NEO4J_TEST_URI` points at a throwaway database, which they wipe:
+
+```sh
+docker compose --profile test up -d --wait neo4j-test
+NEO4J_TEST_URI=bolt://localhost:7688 pnpm test
+```
+
+### Ingest and query locally
+
+Ingest a folder of Markdown, JSON or YAML documents into the local Neo4j, then walk the graph as different principals:
+
+```sh
+cp .env.example .env
+pnpm db:up && pnpm build
+pnpm gwarden ingest ~/docs --source docs:my-team --user alice --where theme=dev --default-scope team:dev
+pnpm gwarden traverse some-page --user carol --team dev --direction both   # sees the team's pages
+pnpm gwarden traverse some-page --user bob --direction both                # sees nothing
+pnpm gwarden audit --user carol                                            # what carol read, and when
+
+pnpm gwarden ingest ~/notes --source docs:alice --user alice       # no scope given: private to alice
+```
+
+A document is a Markdown page with frontmatter, or a JSON or YAML object:
+
+```markdown
+---
+type: Module
+scope: team:front-a
+references:
+  - { type: CONSUMES, to: orders-api }
+---
+# Checkout
+
+Lists the customer's orders with `GET /orders`, page by page.
+```
+
+- `references` lists edges, typed (`{ type: DECIDES, to: bff-api }`) or not (`- glossary`, a `REFERENCES` edge, like a Markdown `[[glossary]]` link).
+- `id` defaults to the file name, `type` to `Concept`.
+- `scope` (`shared`, `team:<x>`, `teams:<x>,<y>`, `private:<user>`) wins over `--default-scope`. Without either, a document is private to the ingesting `--user`.
+- `--where key=value` keeps documents whose field equals the value or, for a list, contains it.
+- `--team` stands for the groups an identity provider will report. Through the API, groups come from the token.
+
+Neo4j Browser at <http://localhost:7474> (user `neo4j`, password from `.env`) shows the raw graph, for example `MATCH p=(:Node)-[:REFERENCES]->(:Node) RETURN p`. It is an administrator's view: it bypasses the scopes, which only `gwarden` and the API apply.
+
+### Through the API
+
+Readers go through the API rather than Neo4j: `pnpm --filter @graph-warden/api start` with the settings of [`packages/api/src/config.ts`](packages/api/src/config.ts), then `gwarden traverse`, `pull`, `cache` and `audit` with `--api` and `--token` (or `GWARDEN_API` and `GWARDEN_TOKEN`). The API documents itself at `/openapi.json`.
+
+| Route | Returns |
+|---|---|
+| `GET /v1/me` | the caller's user and groups |
+| `GET /v1/nodes/{id}/neighbours` | the nodes reachable from `id` that the caller may read (`direction`, `depth`, `edge`) |
+| `GET /v1/pull?after=<cursor>` | what changed for the caller since the cursor |
+| `GET /v1/audit` | the audit log, for auditor groups only |
+
+### Deploy on Google Cloud
+
+[`deploy/gcp`](deploy/gcp/README.md): the API on Cloud Run, the graph on Neo4j Aura, identities from Google sign-in restricted to your domain, groups from Cloud Identity.
 
 ## Repository layout
 
@@ -265,67 +382,11 @@ flowchart TB
     core(["core<br/>domain + ports, no I/O"])
 ```
 
-The core holds the rules and defines ports; adapters implement them ([proposal 0009](docs/proposals/0009-domain-driven-design.md)). A new store, source or identity provider is an adapter, never a change to the rules.
-
-## Development
-
-```sh
-corepack enable
-pnpm install
-pnpm typecheck && pnpm lint && pnpm test
-```
-
-The Neo4j adapter tests run when `NEO4J_TEST_URI` points at a throwaway database, which they wipe:
-
-```sh
-docker compose --profile test up -d --wait neo4j-test
-NEO4J_TEST_URI=bolt://localhost:7688 pnpm test
-```
-
-### Deploy on Google Cloud
-
-[`deploy/gcp`](deploy/gcp/README.md): the API on Cloud Run, the graph on Neo4j Aura, identities from Google sign-in restricted to your domain, groups from Cloud Identity.
-
-### Run it locally
-
-Ingest a folder of Markdown, JSON or YAML documents into the local Neo4j, then walk the graph as different principals:
-
-```sh
-cp .env.example .env
-pnpm db:up && pnpm build
-pnpm gwarden ingest ~/docs --source docs:my-team --user alice --where theme=dev --default-scope team:dev
-pnpm gwarden traverse some-page --user carol --team dev --direction both   # sees the team's pages
-pnpm gwarden traverse some-page --user bob --direction both                # sees nothing
-pnpm gwarden audit --user carol                                            # what carol read, and when
-
-pnpm gwarden ingest ~/notes --source docs:alice --user alice       # no scope given: private to alice
-```
-
-A document's fields are the frontmatter of a Markdown page, or the whole object of a JSON or YAML file. `references` lists its edges, typed or not: `- { type: DECIDES, to: bff-api }` or `- glossary` (a `REFERENCES` edge, like a Markdown `[[glossary]]` link). `id` defaults to the file name, `type` to `Concept`.
-
-```markdown
----
-type: Module
-scope: team:front-a
-references:
-  - { type: CONSUMES, to: orders-api }
----
-# Checkout
-
-Lists the customer's orders with `GET /orders`, page by page.
-```
-
-`--where key=value` keeps documents whose field equals the value or, for a list, contains it. A document's own `scope` field (`shared`, `team:<x>`, `teams:<x>,<y>`, `private:<user>`) wins over `--default-scope`. Without either, a document is private to the ingesting `--user`.
-
-`--team` stands for the groups an identity provider (LDAP, OIDC, Cloud Identity) will report. Through the API, groups come from the token and `--team` is not used.
-
-Neo4j Browser at <http://localhost:7474> (user `neo4j`, password from `.env`) shows the raw graph, for example `MATCH p=(:Node)-[:REFERENCES]->(:Node) RETURN p`. It is an administrator's view: it bypasses the scopes, which only `gwarden` and the API apply.
-
-Readers go through the API rather than Neo4j: `pnpm --filter @graph-warden/api start` with the settings of [`packages/api/src/config.ts`](packages/api/src/config.ts), then `gwarden traverse`, `pull`, `cache` and `audit` with `--api` and `--token` (or `GWARDEN_API` and `GWARDEN_TOKEN`). The API documents itself at `/openapi.json`.
+The core holds the rules and defines ports; adapters implement them ([proposal 0009](docs/proposals/0009-domain-driven-design.md)). A new store, source or identity provider is an adapter, never a change to the rules. The vocabulary is in the [glossary](docs/glossary.md).
 
 ## Contributing
 
-Adapters are the easiest way in: each kind has a typed interface in `core` (a shared conformance suite per kind is planned). Read [CONTRIBUTING.md](CONTRIBUTING.md), then pick an issue labelled [`good first issue`](https://github.com/Graph-Warden/graph-warden/labels/good%20first%20issue).
+Adapters are the easiest way in: each kind has a typed interface in `core` (a shared conformance suite per kind is planned). Read [CONTRIBUTING.md](CONTRIBUTING.md), then pick an issue labelled [`good first issue`](https://github.com/Graph-Warden/graph-warden/labels/good%20first%20issue). Commits follow Conventional Commits and are signed off (`git commit -s`).
 
 Found a way to read something you should not? Report it privately: see [SECURITY.md](SECURITY.md).
 
