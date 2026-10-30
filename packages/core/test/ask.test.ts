@@ -82,9 +82,9 @@ describe("ask", () => {
     const { saved } = await asker.ask(bob, "How are orders paginated?", { save: {} });
     expect(saved?.scope).toEqual({ kind: "private", user: "bob" });
     const graph = await store.snapshot();
-    expect(graph.edges.filter((e) => e.from === saved?.id).map((e) => [e.type, e.to])).toEqual([
-      ["DERIVED_FROM", "orders-api"],
+    expect(graph.edges.filter((e) => e.from === saved?.id).map((e) => [e.type, e.to]).sort()).toEqual([
       ["DERIVED_FROM", "adr-0007"],
+      ["DERIVED_FROM", "orders-api"],
     ]);
   });
 

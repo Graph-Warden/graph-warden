@@ -1,32 +1,11 @@
-import { createGraph, type AuditEntry, type AuditLog, type Edge, type EventLog, type GraphEvent, type GraphStore, type Node } from "../src/index.js";
+import { createMemoryStore } from "@graph-warden/memory";
+import { type AuditEntry, type AuditLog, type EventLog, type GraphEvent, type GraphStore } from "../src/index.js";
 
-// In-memory ports for the domain tests. `@graph-warden/memory` has the same for other packages;
-// core cannot depend on it.
+// In-memory ports for the domain tests. The store is `@graph-warden/memory`'s, which vitest resolves
+// to its sources (core cannot depend on it outside tests), so that the domain tests also run with
+// GWARDEN_TEST_STORE=rdf.
 
-export function memoryStore(): GraphStore {
-  const nodes = new Map<string, Node>();
-  let edges: Edge[] = [];
-  const key = (e: Edge) => `${e.type} ${e.from} ${e.to}`;
-  return {
-    upsertNodes: async (list) => void list.forEach((node) => nodes.set(node.id, node)),
-    upsertEdges: async (list) => {
-      for (const edge of list) {
-        if (!nodes.has(edge.from) || !nodes.has(edge.to)) throw new Error("unknown node");
-        if (!edges.some((e) => key(e) === key(edge))) edges.push(edge);
-      }
-    },
-    getNode: async (id) => nodes.get(id),
-    deleteNode: async (id) => {
-      nodes.delete(id);
-      edges = edges.filter((e) => e.from !== id && e.to !== id);
-    },
-    deleteEdges: async (list) => {
-      const gone = new Set(list.map(key));
-      edges = edges.filter((e) => !gone.has(key(e)));
-    },
-    snapshot: async () => createGraph([...nodes.values()], edges),
-  };
-}
+export const memoryStore = (): GraphStore => createMemoryStore();
 
 export function memoryEvents(): EventLog {
   const events: GraphEvent[] = [];

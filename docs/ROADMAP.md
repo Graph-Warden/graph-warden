@@ -32,7 +32,7 @@ Each line is a GitHub issue under the matching milestone. Labels in brackets.
 ## M3 — Opening up
 - [ ] Source adapters: Markdown documents, GitLab, Confluence, Jira [adapter, good first issue]
 - [ ] Exports: Markdown documents, JSON-LD, GraphML [adapter, good first issue]
-- [ ] RDF `GraphStore` (SPARQL) [adapter]
+- [x] RDF `GraphStore` (SPARQL) [adapter]
 - [ ] Helm chart; deployment guides for GCP (GKE, Neo4j Aura, Vertex) then Azure [deploy]
 - [ ] Agent-session capture with promotion and redaction [worker, security]
 - [ ] Model routing by source sensitivity [worker, security]

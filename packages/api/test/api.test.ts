@@ -72,7 +72,7 @@ describe("API", () => {
   it("gives each caller only what their groups allow", async () => {
     const { get } = await setup();
     const ids = async (token: string) =>
-      ((await get("/v1/nodes/contract/neighbours?direction=both", token)).json().nodes as Node[]).map((n) => n.id);
+      ((await get("/v1/nodes/contract/neighbours?direction=both", token)).json().nodes as Node[]).map((n) => n.id).sort();
     expect(await ids(tokens.lea)).toEqual(["app", "summary"]);
     expect(await ids(tokens.bob)).toEqual(["app"]);
     expect(await ids(tokens.dpo)).toEqual([]);
