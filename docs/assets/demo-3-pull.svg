@@ -1,16 +1,21 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="798" height="198" viewBox="0 0 798 198" role="img" aria-label="Pull: a local cache with only what you may see">
-  <title>Pull: a local cache with only what you may see</title>
-  <rect width="798" height="198" rx="10" fill="#0f1419"/>
-  <path d="M0 10a10 10 0 0 1 10-10h778a10 10 0 0 1 10 10v18H0z" fill="#1c232b"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="814" height="298" viewBox="0 0 814 298" role="img" aria-label="Pull: a local cache with only what you may see">
+  <title>Pull: a local cache with only what you may see</title>
+  <rect width="814" height="298" rx="10" fill="#0f1419"/>
+  <path d="M0 10a10 10 0 0 1 10-10h794a10 10 0 0 1 10 10v18H0z" fill="#1c232b"/>
   <circle cx="18" cy="14" r="5.5" fill="#ff5f57"/><circle cx="36" cy="14" r="5.5" fill="#febc2e"/><circle cx="54" cy="14" r="5.5" fill="#28c840"/>
-  <text x="399" y="18" text-anchor="middle" fill="#7d8a96" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12">Pull: a local cache with only what you may see</text>
+  <text x="407" y="18" text-anchor="middle" fill="#7d8a96" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12">Pull: a local cache with only what you may see</text>
   <g font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13.5" xml:space="preserve" style="white-space:pre">
-  <text x="18" y="58"><tspan fill="#7fd18b">$ </tspan><tspan fill="#e6edf3" font-weight="600">GWARDEN_TOKEN=$ALICE gwarden pull --cache ./cache.db</tspan></text>
-  <text x="18" y="78"><tspan fill="#7d8a96">Pulled as alice from scratch: 3 nodes, 2 edges, 0 removed. Cache: 3 nodes, 2 edges, cursor 19.</tspan></text>
-  <text x="18" y="98"><tspan fill="#7fd18b">$ </tspan><tspan fill="#e6edf3" font-weight="600">gwarden cache --cache ./cache.db</tspan></text>
-  <text x="18" y="118"><tspan fill="#d6dde4">Module    checkout  </tspan><tspan fill="#6cb6ff">[team:front-a]</tspan></text>
-  <text x="18" y="138"><tspan fill="#d6dde4">Incident  incident-142  </tspan><tspan fill="#6cb6ff">[team:front-a]</tspan></text>
-  <text x="18" y="158"><tspan fill="#d6dde4">Endpoint  orders-api  </tspan><tspan fill="#6cb6ff">[shared]</tspan></text>
-  <text x="18" y="178"><tspan fill="#7d8a96">3 nodes, 2 edges in ./cache.db.</tspan></text>
+  <text x="18" y="58"><tspan fill="#7fd18b">$ </tspan><tspan fill="#e6edf3" font-weight="600">GWARDEN_TOKEN=$ALICE gwarden pull --cache ./cache.db</tspan></text>
+  <text x="18" y="78"><tspan fill="#7d8a96">Pulled as alice from scratch: 8 nodes, 3 edges, 0 removed. Cache: 8 nodes, 3 edges, cursor 62.</tspan></text>
+  <text x="18" y="98"><tspan fill="#7fd18b">$ </tspan><tspan fill="#e6edf3" font-weight="600">gwarden cache --cache ./cache.db</tspan></text>
+  <text x="18" y="118"><tspan fill="#d6dde4">Decision  adr-0003-versioned-clickstream  "ADR 0003: a versioned clickstream contract"  </tspan><tspan fill="#6cb6ff">[shared]</tspan></text>
+  <text x="18" y="138"><tspan fill="#d6dde4">Module    checkout  "checkout (web)"  </tspan><tspan fill="#6cb6ff">[team:front-a]</tspan></text>
+  <text x="18" y="158"><tspan fill="#d6dde4">Endpoint  clickstream-events  "Clickstream contract web.v2"  </tspan><tspan fill="#6cb6ff">[shared]</tspan></text>
+  <text x="18" y="178"><tspan fill="#d6dde4">Endpoint  consent-events  "Topic user.consent.v1"  </tspan><tspan fill="#6cb6ff">[shared]</tspan></text>
+  <text x="18" y="198"><tspan fill="#d6dde4">Incident  incident-142  "INC-142: empty order history"  </tspan><tspan fill="#6cb6ff">[team:front-a]</tspan></text>
+  <text x="18" y="218"><tspan fill="#d6dde4">Endpoint  orders-api  "GET /orders"  </tspan><tspan fill="#6cb6ff">[shared]</tspan></text>
+  <text x="18" y="238"><tspan fill="#d6dde4">Endpoint  recommendations-api  "GET /recommendations"  </tspan><tspan fill="#6cb6ff">[shared]</tspan></text>
+  <text x="18" y="258"><tspan fill="#d6dde4">Endpoint  user-profile-api  "GET /users/{id}/profile"  </tspan><tspan fill="#6cb6ff">[shared]</tspan></text>
+  <text x="18" y="278"><tspan fill="#7d8a96">8 nodes, 3 edges in ./cache.db.</tspan></text>
   </g>
 </svg>

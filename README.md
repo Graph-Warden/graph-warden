@@ -176,23 +176,27 @@ examples/shop/demo.sh
 
 **1. Same question, same graph, four answers.** Bob sees the BFF side of the endpoint, Alice her module and its incident, Carla only the mobile app. Lea, a lead, sees everything around it, including her own private notes.
 
-<p align="center"><img src="docs/assets/demo-1-views.svg" alt="Four users run the same traversal of orders-api and get different results" width="660"></p>
+<p align="center"><img src="docs/assets/demo-1-views.svg" alt="Four users run the same traversal of orders-api and get different results; Lea also sees the Data team's BigQuery table that reads the endpoint" width="765"></p>
 
 **2. A summary takes the scope of all its sources.** Bob is in `bff` but not in `front-a` or `front-b`, so the impact summary does not exist for him. Lea reads it and its sources.
 
-<p align="center"><img src="docs/assets/demo-2-derived.svg" alt="Ingestion narrows pagination-impact; Bob gets nothing, Lea gets the summary and its sources" width="750"></p>
+<p align="center"><img src="docs/assets/demo-2-derived.svg" alt="Ingestion narrows pagination-impact; Bob gets nothing, Lea gets the summary and its sources" width="789"></p>
 
 **3. Pull into a local cache.** Alice's machine opens no port: it pulls a SQLite cache that holds only what she may see, and later pulls only the changes.
 
-<p align="center"><img src="docs/assets/demo-3-pull.svg" alt="Alice pulls three nodes and two edges into a local cache" width="800"></p>
+<p align="center"><img src="docs/assets/demo-3-pull.svg" alt="Alice pulls eight nodes and three edges into a local cache" width="814"></p>
 
 **4. An endpoint is a contract between teams.** Release 2026.42 of the web shop renamed `add_to_cart` to `cart_add`; Data's conversion funnel dropped 31% with flat sales (INC-208), and the two teams wrote ADR 0003, a versioned clickstream contract. Marie sees the release and the ADR, Sofia the incident and the ADR, neither the other team's document. Lea sees the whole chain.
 
+<p align="center"><img src="docs/assets/demo-4-contract.svg" alt="Marie sees the release and the contract ADR, Sofia the incident's dashboard and the ADR, Lea all three" width="862"></p>
+
 **5. Profile v2, across three teams.** ADR 0012 takes `email` out of the user profile after a GDPR audit finding. It breaks the product page's newsletter prefill and the CRM matching of `customer_360`. The leads' impact summary is derived from User, Shopping-Front and Data documents: Yanis, who wrote the ADR, is only in `user` and does not get it. `erasure-trail`, the answer to "where is an erased customer still?", is narrowed the same way to `teams:data,user`.
+
+<p align="center"><img src="docs/assets/demo-5-profile.svg" alt="Yanis gets nothing from the profile v2 impact summary; Lea gets its three sources from User, Shopping-Front and Data" width="838"></p>
 
 **6. Every read is recorded.** Bob may not read the audit log, and his attempt is itself recorded. The DPO may.
 
-<p align="center"><img src="docs/assets/demo-4-audit.svg" alt="Bob is refused the audit log; the DPO reads every entry, including Bob's denied attempt" width="1050"></p>
+<p align="center"><img src="docs/assets/demo-6-audit.svg" alt="Bob is refused the audit log; the DPO reads every entry, including Bob's denied attempt" width="1050"></p>
 
 The demo API uses fixed tokens (`examples/shop/users.yaml`) and listens on localhost only. Stop it with `docker compose --profile demo down`.
 

@@ -178,23 +178,27 @@ examples/shop/demo.sh
 
 **1. Même question, même graphe, quatre réponses.** Bob voit le côté BFF de l'endpoint, Alice son module et son incident, Carla seulement l'application mobile. Lea, lead, voit tout autour, y compris ses propres notes privées.
 
-<p align="center"><img src="docs/assets/demo-1-views.svg" alt="Quatre utilisateurs lancent la même traversée de orders-api et obtiennent des résultats différents" width="660"></p>
+<p align="center"><img src="docs/assets/demo-1-views.svg" alt="Quatre utilisateurs lancent la même traversée de orders-api et obtiennent des résultats différents ; Lea voit aussi la table BigQuery de Data qui lit l'endpoint" width="765"></p>
 
 **2. Une synthèse prend le scope de toutes ses sources.** Bob est dans `bff` mais ni dans `front-a` ni dans `front-b` : pour lui, la synthèse d'impact n'existe pas. Lea la lit, ainsi que ses sources.
 
-<p align="center"><img src="docs/assets/demo-2-derived.svg" alt="L'ingestion restreint pagination-impact ; Bob n'obtient rien, Lea obtient la synthèse et ses sources" width="750"></p>
+<p align="center"><img src="docs/assets/demo-2-derived.svg" alt="L'ingestion restreint pagination-impact ; Bob n'obtient rien, Lea obtient la synthèse et ses sources" width="789"></p>
 
 **3. Tirer dans un cache local.** Le poste d'Alice n'ouvre aucun port : il tire un cache SQLite qui ne contient que ce qu'elle peut voir, puis seulement les changements.
 
-<p align="center"><img src="docs/assets/demo-3-pull.svg" alt="Alice tire trois nœuds et deux arêtes dans un cache local" width="800"></p>
+<p align="center"><img src="docs/assets/demo-3-pull.svg" alt="Alice tire huit nœuds et trois arêtes dans un cache local" width="814"></p>
 
 **4. Un endpoint est un contrat entre équipes.** La release 2026.42 de la boutique web a renommé `add_to_cart` en `cart_add` ; le tunnel de conversion de Data a chuté de 31 % à ventes constantes (INC-208), et les deux équipes ont écrit l'ADR 0003, un contrat de clickstream versionné. Marie voit la release et l'ADR, Sofia l'incident et l'ADR, aucune le document de l'autre équipe. Lea voit toute la chaîne.
 
+<p align="center"><img src="docs/assets/demo-4-contract.svg" alt="Marie voit la release et l'ADR du contrat, Sofia le tableau de bord de l'incident et l'ADR, Lea les trois" width="862"></p>
+
 **5. Le profil v2, à travers trois équipes.** L'ADR 0012 retire `email` du profil utilisateur après une remarque d'audit RGPD. Il casse le pré-remplissage newsletter de la page produit et le rapprochement CRM de `customer_360`. La synthèse d'impact des leads dérive de documents User, Shopping-Front et Data : Yanis, qui a écrit l'ADR, n'est que dans `user` et ne l'obtient pas. `erasure-trail`, la réponse à « où un client effacé est-il encore ? », est restreinte de la même façon à `teams:data,user`.
+
+<p align="center"><img src="docs/assets/demo-5-profile.svg" alt="Yanis n'obtient rien de la synthèse d'impact du profil v2 ; Lea obtient ses trois sources, chez User, Shopping-Front et Data" width="838"></p>
 
 **6. Chaque lecture est enregistrée.** Bob n'a pas le droit de lire le journal d'audit, et sa tentative est elle-même enregistrée. Le DPO, si.
 
-<p align="center"><img src="docs/assets/demo-4-audit.svg" alt="Bob se voit refuser le journal d'audit ; le DPO lit chaque entrée, y compris la tentative refusée de Bob" width="1050"></p>
+<p align="center"><img src="docs/assets/demo-6-audit.svg" alt="Bob se voit refuser le journal d'audit ; le DPO lit chaque entrée, y compris la tentative refusée de Bob" width="1050"></p>
 
 L'API de démo utilise des jetons fixes (`examples/shop/users.yaml`) et n'écoute que sur localhost. Pour l'arrêter : `docker compose --profile demo down`.
 
