@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1324" height="418" viewBox="0 0 1324 418" role="img" aria-label="Every read is audited, and only auditors read the log">
+  <title>Every read is audited, and only auditors read the log</title>
+  <rect width="1324" height="418" rx="10" fill="#0f1419"/>
+  <path d="M0 10a10 10 0 0 1 10-10h1304a10 10 0 0 1 10 10v18H0z" fill="#1c232b"/>
+  <circle cx="18" cy="14" r="5.5" fill="#ff5f57"/><circle cx="36" cy="14" r="5.5" fill="#febc2e"/><circle cx="54" cy="14" r="5.5" fill="#28c840"/>
+  <text x="662" y="18" text-anchor="middle" fill="#7d8a96" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12">Every read is audited, and only auditors read the log</text>
+  <g font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13.5" xml:space="preserve" style="white-space:pre">
+  <text x="18" y="58"><tspan fill="#7fd18b">$ </tspan><tspan fill="#e6edf3" font-weight="600">GWARDEN_TOKEN=$BOB gwarden audit</tspan></text>
+  <text x="18" y="78"><tspan fill="#ff7b72">$GWARDEN_API/v1/audit: 403 {"error":"forbidden"}</tspan></text>
+  <text x="18" y="98"><tspan fill="#d6dde4"></tspan></text>
+  <text x="18" y="118"><tspan fill="#7fd18b">$ </tspan><tspan fill="#e6edf3" font-weight="600">GWARDEN_TOKEN=$DPO gwarden audit</tspan></text>
+  <text x="18" y="138"><tspan fill="#d6dde4">2026-10-30T13:51:54.491Z  bob (dev, bff)  traverse orders-api [both depth 2] -&gt; 2 nodes</tspan></text>
+  <text x="18" y="158"><tspan fill="#d6dde4">2026-10-30T13:51:56.145Z  alice (dev, front-a)  traverse orders-api [both depth 2] -&gt; 2 nodes</tspan></text>
+  <text x="18" y="178"><tspan fill="#d6dde4">2026-10-30T13:51:57.633Z  carla (dev, front-c)  traverse orders-api [both depth 2] -&gt; 1 node</tspan></text>
+  <text x="18" y="198"><tspan fill="#d6dde4">2026-10-30T13:51:59.262Z  lea (dev, dev-leads, bff, front-a, front-b, front-c, shopping-front, user, data)  traverse orders-api [both depth 2] -&gt; 16 nodes</tspan></text>
+  <text x="18" y="218"><tspan fill="#d6dde4">2026-10-30T13:52:00.822Z  bob (dev, bff)  traverse pagination-impact [out] -&gt; 0 nodes</tspan></text>
+  <text x="18" y="238"><tspan fill="#d6dde4">2026-10-30T13:52:02.408Z  lea (dev, dev-leads, bff, front-a, front-b, front-c, shopping-front, user, data)  traverse pagination-impact [out] -&gt; 4 nodes</tspan></text>
+  <text x="18" y="258"><tspan fill="#d6dde4">2026-10-30T13:52:04.322Z  alice (dev, front-a)  pull after 0 -&gt; 8 nodes</tspan></text>
+  <text x="18" y="278"><tspan fill="#d6dde4">2026-10-30T13:52:06.314Z  marie (dev, shopping-front)  traverse clickstream-events [in depth 2] -&gt; 3 nodes</tspan></text>
+  <text x="18" y="298"><tspan fill="#d6dde4">2026-10-30T13:52:07.821Z  sofia (dev, data)  traverse incident-208 [both depth 1] -&gt; 2 nodes</tspan></text>
+  <text x="18" y="318"><tspan fill="#d6dde4">2026-10-30T13:52:09.379Z  lea (dev, dev-leads, bff, front-a, front-b, front-c, shopping-front, user, data)  traverse incident-208 [both depth 1] -&gt; 3 nodes</tspan></text>
+  <text x="18" y="338"><tspan fill="#d6dde4">2026-10-30T13:52:10.942Z  yanis (dev, user)  traverse profile-v2-impact [out depth 1] -&gt; 0 nodes</tspan></text>
+  <text x="18" y="358"><tspan fill="#d6dde4">2026-10-30T13:52:12.947Z  lea (dev, dev-leads, bff, front-a, front-b, front-c, shopping-front, user, data)  traverse profile-v2-impact [out depth 1] -&gt; 3 nodes</tspan></text>
+  <text x="18" y="378"><tspan fill="#ff7b72">2026-10-30T13:52:14.991Z  bob (dev, bff)  audit DENIED</tspan></text>
+  <text x="18" y="398"><tspan fill="#7d8a96">13 audit entries.</tspan></text>
+  </g>
+</svg>

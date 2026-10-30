@@ -1,34 +1,42 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="660" height="558" viewBox="0 0 660 558" role="img" aria-label="One graph, four views of GET /orders">
-  <title>One graph, four views of GET /orders</title>
-  <rect width="660" height="558" rx="10" fill="#0f1419"/>
-  <path d="M0 10a10 10 0 0 1 10-10h640a10 10 0 0 1 10 10v18H0z" fill="#1c232b"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="765" height="718" viewBox="0 0 765 718" role="img" aria-label="One graph, four views of GET /orders">
+  <title>One graph, four views of GET /orders</title>
+  <rect width="765" height="718" rx="10" fill="#0f1419"/>
+  <path d="M0 10a10 10 0 0 1 10-10h745a10 10 0 0 1 10 10v18H0z" fill="#1c232b"/>
   <circle cx="18" cy="14" r="5.5" fill="#ff5f57"/><circle cx="36" cy="14" r="5.5" fill="#febc2e"/><circle cx="54" cy="14" r="5.5" fill="#28c840"/>
-  <text x="330" y="18" text-anchor="middle" fill="#7d8a96" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12">One graph, four views of GET /orders</text>
+  <text x="382.5" y="18" text-anchor="middle" fill="#7d8a96" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12">One graph, four views of GET /orders</text>
   <g font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13.5" xml:space="preserve" style="white-space:pre">
-  <text x="18" y="58"><tspan fill="#f0b35b"># same question, same graph: each person sees only what their groups allow</tspan></text>
-  <text x="18" y="78"><tspan fill="#7fd18b">$ </tspan><tspan fill="#e6edf3" font-weight="600">GWARDEN_TOKEN=$BOB gwarden traverse orders-api --direction both --depth 2</tspan></text>
-  <text x="18" y="98"><tspan fill="#d6dde4">Decision  adr-0007-cursor-pagination  </tspan><tspan fill="#6cb6ff">[team:bff]</tspan></text>
-  <text x="18" y="118"><tspan fill="#d6dde4">Module    orders-service  </tspan><tspan fill="#6cb6ff">[team:bff]</tspan></text>
-  <text x="18" y="138"><tspan fill="#7d8a96">2 nodes reachable as bob.</tspan></text>
+  <text x="18" y="58"><tspan fill="#f0b35b"># same question, same graph: each person sees only what their groups allow</tspan></text>
+  <text x="18" y="78"><tspan fill="#7fd18b">$ </tspan><tspan fill="#e6edf3" font-weight="600">GWARDEN_TOKEN=$BOB gwarden traverse orders-api --direction both --depth 2</tspan></text>
+  <text x="18" y="98"><tspan fill="#d6dde4">Decision  adr-0007-cursor-pagination  "ADR 0007: cursor pagination on /orders"  </tspan><tspan fill="#6cb6ff">[team:bff]</tspan></text>
+  <text x="18" y="118"><tspan fill="#d6dde4">Module    orders-service  "orders-service"  </tspan><tspan fill="#6cb6ff">[team:bff]</tspan></text>
+  <text x="18" y="138"><tspan fill="#7d8a96">2 nodes reachable as bob.</tspan></text>
   <text x="18" y="158"><tspan fill="#d6dde4"></tspan></text>
-  <text x="18" y="178"><tspan fill="#7fd18b">$ </tspan><tspan fill="#e6edf3" font-weight="600">GWARDEN_TOKEN=$ALICE gwarden traverse orders-api --direction both --depth 2</tspan></text>
-  <text x="18" y="198"><tspan fill="#d6dde4">Module    checkout  </tspan><tspan fill="#6cb6ff">[team:front-a]</tspan></text>
-  <text x="18" y="218"><tspan fill="#d6dde4">Incident  incident-142  </tspan><tspan fill="#6cb6ff">[team:front-a]</tspan></text>
-  <text x="18" y="238"><tspan fill="#7d8a96">2 nodes reachable as alice.</tspan></text>
+  <text x="18" y="178"><tspan fill="#7fd18b">$ </tspan><tspan fill="#e6edf3" font-weight="600">GWARDEN_TOKEN=$ALICE gwarden traverse orders-api --direction both --depth 2</tspan></text>
+  <text x="18" y="198"><tspan fill="#d6dde4">Module    checkout  "checkout (web)"  </tspan><tspan fill="#6cb6ff">[team:front-a]</tspan></text>
+  <text x="18" y="218"><tspan fill="#d6dde4">Incident  incident-142  "INC-142: empty order history"  </tspan><tspan fill="#6cb6ff">[team:front-a]</tspan></text>
+  <text x="18" y="238"><tspan fill="#7d8a96">2 nodes reachable as alice.</tspan></text>
   <text x="18" y="258"><tspan fill="#d6dde4"></tspan></text>
-  <text x="18" y="278"><tspan fill="#7fd18b">$ </tspan><tspan fill="#e6edf3" font-weight="600">GWARDEN_TOKEN=$CARLA gwarden traverse orders-api --direction both --depth 2</tspan></text>
-  <text x="18" y="298"><tspan fill="#d6dde4">Module    mobile-app  </tspan><tspan fill="#6cb6ff">[team:front-c]</tspan></text>
-  <text x="18" y="318"><tspan fill="#7d8a96">1 node reachable as carla.</tspan></text>
+  <text x="18" y="278"><tspan fill="#7fd18b">$ </tspan><tspan fill="#e6edf3" font-weight="600">GWARDEN_TOKEN=$CARLA gwarden traverse orders-api --direction both --depth 2</tspan></text>
+  <text x="18" y="298"><tspan fill="#d6dde4">Module    mobile-app  "mobile app"  </tspan><tspan fill="#6cb6ff">[team:front-c]</tspan></text>
+  <text x="18" y="318"><tspan fill="#7d8a96">1 node reachable as carla.</tspan></text>
   <text x="18" y="338"><tspan fill="#d6dde4"></tspan></text>
-  <text x="18" y="358"><tspan fill="#7fd18b">$ </tspan><tspan fill="#e6edf3" font-weight="600">GWARDEN_TOKEN=$LEA gwarden traverse orders-api --direction both --depth 2</tspan></text>
-  <text x="18" y="378"><tspan fill="#d6dde4">Decision  adr-0007-cursor-pagination  </tspan><tspan fill="#6cb6ff">[team:bff]</tspan></text>
-  <text x="18" y="398"><tspan fill="#d6dde4">Module    orders-service  </tspan><tspan fill="#6cb6ff">[team:bff]</tspan></text>
-  <text x="18" y="418"><tspan fill="#d6dde4">Module    checkout  </tspan><tspan fill="#6cb6ff">[team:front-a]</tspan></text>
-  <text x="18" y="438"><tspan fill="#d6dde4">Module    backoffice  </tspan><tspan fill="#6cb6ff">[team:front-b]</tspan></text>
-  <text x="18" y="458"><tspan fill="#d6dde4">Module    mobile-app  </tspan><tspan fill="#6cb6ff">[team:front-c]</tspan></text>
-  <text x="18" y="478"><tspan fill="#d6dde4">Concept   pagination-impact  </tspan><tspan fill="#6cb6ff">[teams:bff,front-a,front-b]</tspan></text>
-  <text x="18" y="498"><tspan fill="#d6dde4">Concept   lea-notes  </tspan><tspan fill="#6cb6ff">[private:lea]</tspan></text>
-  <text x="18" y="518"><tspan fill="#d6dde4">Incident  incident-142  </tspan><tspan fill="#6cb6ff">[team:front-a]</tspan></text>
-  <text x="18" y="538"><tspan fill="#7d8a96">8 nodes reachable as lea.</tspan></text>
+  <text x="18" y="358"><tspan fill="#7fd18b">$ </tspan><tspan fill="#e6edf3" font-weight="600">GWARDEN_TOKEN=$LEA gwarden traverse orders-api --direction both --depth 2</tspan></text>
+  <text x="18" y="378"><tspan fill="#d6dde4">Decision  adr-0007-cursor-pagination  "ADR 0007: cursor pagination on /orders"  </tspan><tspan fill="#6cb6ff">[team:bff]</tspan></text>
+  <text x="18" y="398"><tspan fill="#d6dde4">Module    orders-service  "orders-service"  </tspan><tspan fill="#6cb6ff">[team:bff]</tspan></text>
+  <text x="18" y="418"><tspan fill="#d6dde4">Module    customer-360  "BigQuery analytics.customer_360"  </tspan><tspan fill="#6cb6ff">[team:data]</tspan></text>
+  <text x="18" y="438"><tspan fill="#d6dde4">Module    checkout  "checkout (web)"  </tspan><tspan fill="#6cb6ff">[team:front-a]</tspan></text>
+  <text x="18" y="458"><tspan fill="#d6dde4">Module    backoffice  "back-office"  </tspan><tspan fill="#6cb6ff">[team:front-b]</tspan></text>
+  <text x="18" y="478"><tspan fill="#d6dde4">Module    mobile-app  "mobile app"  </tspan><tspan fill="#6cb6ff">[team:front-c]</tspan></text>
+  <text x="18" y="498"><tspan fill="#d6dde4">Concept   pagination-impact  "Impact of cursor pagination"  </tspan><tspan fill="#6cb6ff">[teams:bff,front-a,front-b]</tspan></text>
+  <text x="18" y="518"><tspan fill="#d6dde4">Concept   lea-notes  "Lea's notes"  </tspan><tspan fill="#6cb6ff">[private:lea]</tspan></text>
+  <text x="18" y="538"><tspan fill="#d6dde4">Module    conversion-dashboard  "Conversion dashboard (Looker)"  </tspan><tspan fill="#6cb6ff">[team:data]</tspan></text>
+  <text x="18" y="558"><tspan fill="#d6dde4">Endpoint  user-profile-api  "GET /users/{id}/profile"  </tspan><tspan fill="#6cb6ff">[shared]</tspan></text>
+  <text x="18" y="578"><tspan fill="#d6dde4">Endpoint  consent-events  "Topic user.consent.v1"  </tspan><tspan fill="#6cb6ff">[shared]</tspan></text>
+  <text x="18" y="598"><tspan fill="#d6dde4">Endpoint  clickstream-events  "Clickstream contract web.v2"  </tspan><tspan fill="#6cb6ff">[shared]</tspan></text>
+  <text x="18" y="618"><tspan fill="#d6dde4">Module    recommendations-service  "recommendations-service"  </tspan><tspan fill="#6cb6ff">[team:data]</tspan></text>
+  <text x="18" y="638"><tspan fill="#d6dde4">Concept   erasure-trail  "Where an erased customer still is"  </tspan><tspan fill="#6cb6ff">[teams:data,user]</tspan></text>
+  <text x="18" y="658"><tspan fill="#d6dde4">Concept   profile-v2-impact  "Impact of profile v2"  </tspan><tspan fill="#6cb6ff">[teams:data,shopping-front,user]</tspan></text>
+  <text x="18" y="678"><tspan fill="#d6dde4">Incident  incident-142  "INC-142: empty order history"  </tspan><tspan fill="#6cb6ff">[team:front-a]</tspan></text>
+  <text x="18" y="698"><tspan fill="#7d8a96">16 nodes reachable as lea.</tspan></text>
   </g>
 </svg>
