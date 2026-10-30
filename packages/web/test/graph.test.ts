@@ -1,6 +1,6 @@
 import type { Delta, Node } from "@graph-warden/core";
 import { describe, expect, it } from "vitest";
-import { applyDelta, empty, filterNodes, incoming, outgoing } from "../src/graph.js";
+import { applyDelta, empty, filterNodes, incoming, neighbourhood, outgoing } from "../src/graph.js";
 
 const node = (id: string, extra: Partial<Node> = {}): Node => ({
   id,
@@ -53,5 +53,23 @@ describe("the web copy of the readable graph", () => {
     const store = applyDelta(empty, delta(1, { nodes: [node("x", { body: "about retries" }), node("retry-policy", { title: "Retries" })] }));
     expect(filterNodes(store, "retr").map((n) => n.id)).toEqual(["retry-policy", "x"]);
     expect(filterNodes(store, "retries about").map((n) => n.id)).toEqual(["x"]);
+  });
+
+  it("draws the nodes within a few hops of a focus, either way", () => {
+    const chain = applyDelta(
+      empty,
+      delta(1, {
+        nodes: ["a", "b", "c", "d"].map((id) => node(id)),
+        edges: [
+          { type: "REFERENCES", from: "a", to: "b" },
+          { type: "DERIVED_FROM", from: "c", to: "b" },
+          { type: "REFERENCES", from: "c", to: "d" },
+        ],
+      }),
+    );
+    expect(neighbourhood(chain, "a", 2).nodes.map((n) => n.id).sort()).toEqual(["a", "b", "c"]);
+    expect(neighbourhood(chain, "a", 2).edges).toHaveLength(2);
+    expect(neighbourhood(chain, undefined).nodes).toHaveLength(4);
+    expect(neighbourhood(chain, "unknown")).toEqual({ nodes: [], edges: [] });
   });
 });

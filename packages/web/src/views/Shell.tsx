@@ -2,12 +2,13 @@ import { useState, type FormEvent, type ReactNode } from "react";
 import type { Node, NodeType, Principal } from "@graph-warden/core";
 import { nameOf, type Store } from "../graph.js";
 import { pageHref } from "../markdown.js";
-import { searchHref } from "../route.js";
+import { graphHref, searchHref } from "../route.js";
 
 export function Shell(props: {
   principal: Principal;
   store: Store;
   error: string | undefined;
+  live: boolean;
   onRefresh: () => void;
   onSignOut: () => void;
   children: ReactNode;
@@ -31,6 +32,10 @@ export function Shell(props: {
         <form className="search" onSubmit={search} role="search">
           <input type="search" placeholder="Search what you may read" value={query} onChange={(event) => setQuery(event.target.value)} />
         </form>
+        <a href={graphHref()}>Graph</a>
+        <span className={props.live ? "live on" : "live"} title={props.live ? "Changes show up as they happen" : "Not receiving changes: refresh to update"}>
+          {props.live ? "Live" : "Offline"}
+        </span>
         <span className="who" title={props.principal.teams.join(", ")}>
           {props.principal.user}
         </span>

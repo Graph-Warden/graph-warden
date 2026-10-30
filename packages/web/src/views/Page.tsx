@@ -1,6 +1,7 @@
 import type { EdgeType } from "@graph-warden/core";
 import { incoming, nameOf, outgoing, type Relation, type Store } from "../graph.js";
 import { pageHref, renderMarkdown, withoutTitle } from "../markdown.js";
+import { graphHref } from "../route.js";
 import { Badges } from "./Badges.js";
 
 function Related({ title, relations, typed = false }: { title: string; relations: readonly Relation[]; typed?: boolean }) {
@@ -43,7 +44,7 @@ export function Page({ store, id }: { store: Store; id: string }) {
     <article>
       <h1>{nameOf(node)}</h1>
       <p className="meta">
-        <Badges node={node} /> <code className="id">{node.id}</code>
+        <Badges node={node} /> <code className="id">{node.id}</code> · <a href={graphHref(node.id)}>Show in the graph</a>
       </p>
       <p className="provenance">
         From <strong>{provenance.source}</strong> · {provenance.path}

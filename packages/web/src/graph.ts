@@ -64,3 +64,31 @@ export function filterNodes(store: Store, query: string): Node[] {
     .filter((n) => words.every((w) => `${named(n)} ${(n.body ?? "").toLowerCase()}`.includes(w)))
     .sort((a, b) => Number(words.every((w) => named(b).includes(w))) - Number(words.every((w) => named(a).includes(w))));
 }
+
+// What the graph view draws: everything, or the nodes within `depth` hops of `focus` either way,
+// with the edges between them.
+export function neighbourhood(store: Store, focus: string | undefined, depth = 2): { nodes: Node[]; edges: Edge[] } {
+  if (focus === undefined) return { nodes: [...store.nodes.values()], edges: [...store.edges] };
+  if (!store.nodes.has(focus)) return { nodes: [], edges: [] };
+  const kept = new Set([focus]);
+  let frontier = [focus];
+  for (let hop = 0; hop < depth && frontier.length > 0; hop++) {
+    const next: string[] = [];
+    for (const edge of store.edges) {
+      for (const [here, there] of [
+        [edge.from, edge.to],
+        [edge.to, edge.from],
+      ] as const) {
+        if (frontier.includes(here) && !kept.has(there)) {
+          kept.add(there);
+          next.push(there);
+        }
+      }
+    }
+    frontier = next;
+  }
+  return {
+    nodes: [...kept].map((id) => store.nodes.get(id) as Node),
+    edges: store.edges.filter((edge) => kept.has(edge.from) && kept.has(edge.to)),
+  };
+}

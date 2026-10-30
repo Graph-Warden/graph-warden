@@ -284,3 +284,60 @@ h1 {
     flex-wrap: wrap;
   }
 }
+
+.graph-view {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 7rem);
+  min-height: 24rem;
+}
+
+main:has(.graph-view) {
+  max-width: none;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.dot {
+  display: inline-block;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  vertical-align: -0.05rem;
+}
+
+.canvas {
+  flex: 1;
+  min-height: 20rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.canvas.pointing {
+  cursor: pointer;
+}
+
+.live {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.live::before {
+  content: "●";
+  margin-right: 0.3rem;
+  color: var(--muted);
+}
+
+.live.on::before {
+  color: #2f8f6f;
+}

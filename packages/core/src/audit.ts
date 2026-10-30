@@ -91,6 +91,10 @@ export interface Reader {
   traverse(principal: Principal, start: string, options?: TraversalOptions): Promise<readonly Node[]>;
   // What changed since the cursor, as the principal may see it. Needs an event log.
   pull(principal: Principal, after: number): Promise<Delta>;
+  // `pull` for a client that keeps asking (the web app's stream, proposal 0012): undefined while
+  // the log has nothing after the cursor, and recorded only when the delta hands the principal
+  // something, so that an idle open tab does not fill the audit log.
+  changes(principal: Principal, after: number): Promise<Delta | undefined>;
   // The audit log, for members of an auditor group only (`Forbidden` otherwise).
   auditTrail(principal: Principal, filter?: { readonly user?: string }): Promise<readonly AuditEntry[]>;
 }
@@ -152,6 +156,15 @@ export function createReader(store: GraphStore, audit: AuditLog, options: Reader
       if (events === undefined) throw new Error("This reader has no event log to pull from");
       const delta = await computeDelta(await store.snapshot(), events, principal, after);
       await record({ action: "pull", after, returned: [...delta.nodes.map((node) => node.id), ...delta.removed] }, principal);
+      return delta;
+    },
+
+    async changes(principal, after) {
+      if (events === undefined) throw new Error("This reader has no event log to pull from");
+      if ((await events.since(after)).length === 0) return undefined;
+      const delta = await computeDelta(await store.snapshot(), events, principal, after);
+      const returned = [...delta.nodes.map((node) => node.id), ...delta.removed];
+      if (returned.length > 0) await record({ action: "pull", after, returned }, principal);
       return delta;
     },
 

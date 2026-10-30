@@ -29,6 +29,17 @@ The script creates the project if needed and links billing. It enables the APIs,
 
 Then let the API read groups. In the Admin console, under **Account → Admin roles → Groups Reader → Assign service accounts**, add `graph-warden-api@<project>.iam.gserviceaccount.com`. Without this role, every call fails with a 500 rather than letting someone in without their groups.
 
+## Deploy without a domain
+
+With no Workspace or Cloud Identity domain, deploy the demo users of `examples/shop/users.yaml` (lea, bob, alice, carla, dpo) instead of Google accounts. Only the billing account and the Aura instance are needed:
+
+```sh
+IDENTITY=demo PROJECT_ID=graph-warden-demo BILLING_ACCOUNT=XXXXXX-XXXXXX-XXXXXX \
+NEO4J_URI=neo4j+s://xxxxxxxx.databases.neo4j.io deploy/gcp/deploy.sh
+```
+
+The tokens in the repository are public, so the script gives each user a new random token on the first run and keeps the list in Secret Manager (`demo-users`), mounted into the service as a file. Read them with `gcloud secrets versions access latest --secret demo-users`; delete the secret and deploy again to issue new ones. Anyone holding a token is that user: load demo data only. `DEMO_USERS` points to another list of `{ token, user, teams }`.
+
 ## Fill the graph
 
 Ingestion is an operator's job and talks to Aura directly, never through the API:

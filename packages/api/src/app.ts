@@ -37,6 +37,9 @@ export interface ApiOptions {
   readonly asker?: Asker;
   // The web app and browser sessions (proposal 0012); without it, only bearer tokens are accepted.
   readonly web?: WebOptions;
+  // How often /v1/stream looks for changes, and how long one connection lasts before the client
+  // reconnects from its last cursor (which also checks its token again).
+  readonly stream?: { readonly intervalMs?: number; readonly maxSeconds?: number };
   readonly logger?: boolean;
 }
 
@@ -49,6 +52,7 @@ const TraverseQuery = z.object({
     .optional(),
 });
 const PullQuery = z.object({ after: z.coerce.number().int().nonnegative().default(0) });
+const LastEventId = z.coerce.number().int().nonnegative().optional();
 const AuditQuery = z.object({ user: z.string().min(1).optional() });
 const DeleteQuery = z.object({ confirm: z.string().min(1) });
 const SearchQuery = z.object({ q: z.string().min(1).max(500), limit: z.coerce.number().int().min(1).max(50).default(20) });
@@ -145,6 +149,44 @@ export function buildApi(options: ApiOptions): FastifyInstance {
     const { after } = parse(PullQuery, request.query);
     const delta = await options.reader.pull(principal, after);
     return PullResponseSchema.parse({ principal, delta });
+  });
+
+  // Server-sent events: one `delta` event per change in what the caller may read, with the cursor
+  // as event id, so that a browser reconnecting sends it back as Last-Event-ID. The caller is
+  // resolved again before each delta, and the stream ends when its token no longer is valid.
+  const { intervalMs = 2000, maxSeconds = 300 } = options.stream ?? {};
+  app.get("/v1/stream", async (request, reply) => {
+    let principal = await principalOf(request);
+    const resumed = parse(LastEventId, request.headers["last-event-id"]);
+    let after = resumed ?? parse(PullQuery, request.query).after;
+    reply.hijack();
+    const out = reply.raw;
+    out.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive", "x-accel-buffering": "no" });
+    out.write(`retry: ${intervalMs}\n\n`);
+    let open = true;
+    request.raw.on("close", () => (open = false));
+    const until = Date.now() + maxSeconds * 1000;
+    let quiet = 0;
+    while (open && Date.now() < until) {
+      try {
+        const delta = await options.reader.changes(principal, after);
+        if (delta !== undefined) {
+          principal = await principalOf(request);
+          after = delta.cursor;
+          out.write(`id: ${after}\nevent: delta\ndata: ${JSON.stringify(PullResponseSchema.parse({ principal, delta }))}\n\n`);
+        } else if ((quiet += intervalMs) >= 25_000) {
+          // Keeps proxies from closing an idle connection.
+          out.write(": idle\n\n");
+          quiet = 0;
+        }
+      } catch (error) {
+        if (!(error instanceof Unauthenticated)) request.log.error(error);
+        out.write(`event: ${error instanceof Unauthenticated ? "signed-out" : "error"}\ndata: {}\n\n`);
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    }
+    out.end();
   });
 
   app.get("/v1/audit", async (request) => {
@@ -255,6 +297,16 @@ export const openApi = {
         summary: "What changed since a cursor, as the caller may see it",
         parameters: [{ name: "after", in: "query", schema: { type: "integer", minimum: 0, default: 0 } }],
         responses: { "200": { description: "Delta and the principal it was computed for", content: json(PullResponseSchema) }, ...errors },
+      },
+    },
+    "/v1/stream": {
+      get: {
+        summary: "Server-sent events: a delta event each time what the caller may read changes",
+        parameters: [
+          { name: "after", in: "query", schema: { type: "integer", minimum: 0, default: 0 } },
+          { name: "Last-Event-ID", in: "header", schema: { type: "integer", minimum: 0 }, description: "Overrides after when reconnecting" },
+        ],
+        responses: { "200": { description: "text/event-stream of delta events, data as for /v1/pull" }, ...errors },
       },
     },
     "/v1/audit": {

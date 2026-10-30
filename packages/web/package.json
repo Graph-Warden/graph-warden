@@ -12,15 +12,19 @@
   },
   "dependencies": {
     "dompurify": "^3.4.17",
+    "graphology": "^0.26.0",
+    "graphology-layout-forceatlas2": "^0.10.1",
     "marked": "^18.1.2",
     "react": "18.3.1",
-    "react-dom": "18.3.1"
+    "react-dom": "18.3.1",
+    "sigma": "^3.0.3"
   },
   "devDependencies": {
     "@graph-warden/core": "workspace:*",
     "@types/react": "^18.3.31",
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react": "^6.1.2",
+    "graphology-types": "^0.24.8",
     "jsdom": "^30.1.3",
     "vite": "^8.3.5"
   }

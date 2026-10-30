@@ -11,7 +11,7 @@ const node = (id: string, scope: Scope): Node => ({ id, type: "Concept", scope, 
 
 const tokens = { lea: "lea-token-0123456789", bob: "bob-token-0123456789", dpo: "dpo-token-0123456789" };
 
-async function setup() {
+async function setup(stream?: { intervalMs: number; maxSeconds: number }) {
   const store = createMemoryStore();
   const events = createMemoryEventLog();
   const audit = createMemoryAuditLog();
@@ -31,7 +31,7 @@ async function setup() {
     { token: tokens.bob, user: "bob", teams: ["dev", "bff"] },
     { token: tokens.dpo, user: "dpo", teams: ["auditors"] },
   ]);
-  const app = buildApi({ reader: createReader(store, audit, { events, auditors: ["auditors"] }), identity });
+  const app = buildApi({ reader: createReader(store, audit, { events, auditors: ["auditors"] }), identity, ...(stream === undefined ? {} : { stream }) });
   const get = (url: string, token?: string) =>
     app.inject({ method: "GET", url, headers: token === undefined ? {} : { authorization: `Bearer ${token}` } });
   return { app, get, writer, audit };
@@ -58,6 +58,7 @@ describe("API", () => {
       "/v1/search",
       "/v1/nodes/{id}/neighbours",
       "/v1/pull",
+      "/v1/stream",
       "/v1/audit",
       "/v1/nodes/{id}/deletion",
       "/v1/ask",
@@ -128,6 +129,41 @@ describe("API", () => {
       { action: "audit", principal: { user: "dpo" }, user: "bob" },
     ]);
     expect(all[2]).not.toHaveProperty("denied");
+  });
+});
+
+describe("API stream", () => {
+  const events = (body: string) =>
+    body
+      .split("\n\n")
+      .filter((block) => block.includes("event: "))
+      .map((block) => Object.fromEntries(block.split("\n").map((line) => [line.slice(0, line.indexOf(":")), line.slice(line.indexOf(":") + 2)])));
+
+  it("sends each change the caller may read as a delta event, and nothing else", async () => {
+    const { app, writer, audit } = await setup({ intervalMs: 20, maxSeconds: 0.3 });
+    const start = (await app.inject({ method: "GET", url: "/v1/pull", headers: { authorization: `Bearer ${tokens.bob}` } })).json().delta.cursor;
+    const recorded = audit.written.length;
+    setTimeout(() => {
+      void writer
+        .upsertNodes([node("hidden", { kind: "team", team: "front" })])
+        .then(() => writer.upsertNodes([node("news", { kind: "shared" })]));
+    }, 60);
+    const response = await app.inject({ method: "GET", url: `/v1/stream?after=${start}`, headers: { authorization: `Bearer ${tokens.bob}` } });
+    expect(response.headers["content-type"]).toBe("text/event-stream");
+    const sent = events(response.body);
+    expect(sent.map((e) => [e.event, JSON.parse(e.data).delta.nodes.map((n: Node) => n.id)])).toEqual([["delta", ["news"]]]);
+    expect(Number(sent[0]?.id)).toBe(start + 2);
+    // The delta with nothing for bob is not in his audit trail.
+    expect(audit.written.slice(recorded).map((e) => e.returned)).toEqual([["news"]]);
+  });
+
+  it("resumes from Last-Event-ID and refuses a caller without a token", async () => {
+    const { app, get, writer } = await setup({ intervalMs: 20, maxSeconds: 0.1 });
+    const { cursor } = (await get("/v1/pull", tokens.bob)).json().delta;
+    await writer.upsertNodes([node("news", { kind: "shared" })]);
+    const response = await app.inject({ method: "GET", url: "/v1/stream", headers: { authorization: `Bearer ${tokens.bob}`, "last-event-id": String(cursor) } });
+    expect(events(response.body).map((e) => JSON.parse(e.data).delta.nodes.map((n: Node) => n.id))).toEqual([["news"]]);
+    expect((await get("/v1/stream")).statusCode).toBe(401);
   });
 });
 
