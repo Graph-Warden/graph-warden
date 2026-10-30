@@ -135,6 +135,10 @@ describe("pull, for any sequence of writes", () => {
             cache.delete(id);
             cacheEdges = cacheEdges.filter((e) => e.from !== id && e.to !== id);
           }
+          // As the clients do: a delta carries every readable edge of the nodes it sends, so theirs
+          // are replaced. A node deleted and recreated between two pulls loses its old edges here.
+          const sent = new Set(delta.nodes.map((n) => n.id));
+          cacheEdges = cacheEdges.filter((e) => !sent.has(e.from) && !sent.has(e.to));
           for (const n of delta.nodes) cache.set(n.id, n);
           for (const e of delta.edges) if (!cacheEdges.some((c) => c.type === e.type && c.from === e.from && c.to === e.to)) cacheEdges.push(e);
           cursor = delta.cursor;
@@ -159,5 +163,20 @@ describe("pull, for any sequence of writes", () => {
       }),
       { numRuns: 1000 },
     );
+  });
+
+  it("drops the edges of a node deleted and recreated between two pulls", async () => {
+    const store = memoryStore();
+    const events = memoryEvents();
+    const writer = createWriter(store, events);
+    const reader = createReader(store, memoryAudit(), { events });
+    await writer.upsertNodes([node("n2", { kind: "team", team: "front" })]);
+    await writer.upsertEdges([{ type: "IMPORTS", from: "n2", to: "n2" }]);
+    const first = await reader.pull(alice, 0);
+    expect(first.edges).toHaveLength(1);
+    await writer.deleteNode("n2");
+    await writer.upsertNodes([node("n2", shared)]);
+    const second = await reader.pull(alice, first.cursor);
+    expect(second).toMatchObject({ nodes: [{ id: "n2" }], edges: [], removed: [] });
   });
 });
