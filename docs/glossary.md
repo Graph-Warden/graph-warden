@@ -50,3 +50,4 @@ The words below are used with this meaning in code, proposals, issues and review
 | Related nodes | What depends on a change (`findRelated`): edges followed towards their dependents (`IMPORTS`, `DERIVED_FROM`, `DECIDES`, `CONSUMES` backwards, `EXPOSES` forwards). |
 | Revalidator | The use case sending the knowledge related to a commit to the model (`createRevalidator`): valid, updated (derived nodes only, narrowed to the code's readers) or contradicted (`CONTRADICTS` from the commit, and an alert). |
 | Stale mark | A node related to a change but beyond the revalidation depth (`StaleMarks`): revalidated on its first read. |
+| Evaluation set | The cases every LLM provider is run against (`packages/eval/cases.yaml`, `gwarden-eval`): the revalidation verdict and the `ask` answer, with the production prompts and validation. |

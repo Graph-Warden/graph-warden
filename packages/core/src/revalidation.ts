@@ -160,12 +160,7 @@ export function createRevalidator(options: RevalidatorOptions): Revalidator {
   };
 
   async function judge(node: Node, change: string, evidence: string, author: Principal): Promise<{ verdict: Verdict; alert?: Alert }> {
-    const title = node.title === undefined ? "" : ` title="${node.title.replace(/"/g, "'")}"`;
-    const answer = await llm.complete({
-      system: SYSTEM,
-      prompt: `<document id="${node.id}" type="${node.type}"${title}>\n${node.body ?? ""}\n</document>\n\n<change>\n${evidence}\n</change>`,
-    });
-    const verdict = parseVerdict(answer, node.id);
+    const verdict = await askVerdict(llm, node, evidence);
     if (verdict.verdict === "valid") return { verdict };
 
     const graph = await store.snapshot();
@@ -214,6 +209,16 @@ export function createRevalidator(options: RevalidatorOptions): Revalidator {
       return { revalidated: [{ node: id, verdict: verdict.verdict }], stale: [], alerts: alert === undefined ? [] : [alert] };
     },
   };
+}
+
+// One verdict from the model: the prompt the revalidator sends, shared with the evaluation set.
+export async function askVerdict(llm: LLMProvider, node: Node, evidence: string): Promise<Verdict> {
+  const title = node.title === undefined ? "" : ` title="${node.title.replace(/"/g, "'")}"`;
+  const answer = await llm.complete({
+    system: SYSTEM,
+    prompt: `<document id="${node.id}" type="${node.type}"${title}>\n${node.body ?? ""}\n</document>\n\n<change>\n${evidence}\n</change>`,
+  });
+  return parseVerdict(answer, node.id);
 }
 
 // The model's answer, validated: the first JSON object in it (models wrap it in prose or fences).
