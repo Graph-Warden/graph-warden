@@ -1,0 +1,25 @@
+openapi: 3.1.0
+info:
+  title: Shop BFF
+  version: 2026.42.0
+paths:
+  /orders:
+    get:
+      operationId: listOrders
+      summary: Orders of the signed-in customer, paginated by cursor (ADR 0007)
+  /orders/{id}:
+    get:
+      operationId: getOrder
+      summary: One order
+  /orders/{id}/refund:
+    post:
+      operationId: refundOrder
+      summary: Refund an order (back-office only)
+  /profile:
+    get:
+      operationId: getProfile
+      summary: The signed-in customer's profile
+  /recommendations:
+    get:
+      operationId: listRecommendations
+      summary: Products recommended to the signed-in customer

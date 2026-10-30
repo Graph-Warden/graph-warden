@@ -1,0 +1,27 @@
+{
+  "name": "@graph-warden/typescript",
+  "version": "0.0.0",
+  "description": "Extractor for Graph-Warden: Module nodes and IMPORTS edges resolved by the TypeScript compiler.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@graph-warden/core": "workspace:*",
+    "typescript": "~5.9.3",
+    "yaml": "^2.9.1"
+  },
+  "devDependencies": {
+    "@graph-warden/git": "workspace:*",
+    "@graph-warden/memory": "workspace:*"
+  }
+}

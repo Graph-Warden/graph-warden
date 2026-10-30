@@ -1,0 +1,5 @@
+{
+  "name": "shop",
+  "private": true,
+  "description": "The demo's code: a BFF and three front-ends calling it through a generated client or fetch."
+}

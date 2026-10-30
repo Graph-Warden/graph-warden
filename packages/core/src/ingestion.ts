@@ -56,11 +56,15 @@ export interface Snapshot {
   readonly repo: RepositoryConfig;
   readonly sha: string;
   read(path: string): Promise<string>;
+  // Every file of the commit.
+  files(): Promise<readonly string[]>;
 }
 
 // Turns files into nodes and edges. A node's provenance is filled in by the ingester: the
 // extractor gives the path of the file it came from. Edges may point to nodes of files the commit
-// did not change; edges to nodes that do not exist are dropped.
+// did not change; edges to nodes that do not exist are dropped. An extractor may return nodes of
+// files the commit did not change, when a change elsewhere alters them (a tsconfig.json changes how
+// every import resolves): their edges are replaced too.
 export interface Extractor {
   matches(path: string): boolean;
   extract(files: readonly SourceFile[], snapshot: Snapshot): Promise<Extraction>;
@@ -134,7 +138,13 @@ export function createIngester(options: IngesterOptions): Ingester {
 
   async function ingestCommit(config: RepositoryConfig, repository: Repository, parent: string | undefined, sha: string) {
     const changes = await repository.changes(parent, sha);
-    const snapshot: Snapshot = { repo: config, sha, read: (path) => repository.read(sha, path) };
+    let files: Promise<readonly string[]> | undefined;
+    const snapshot: Snapshot = {
+      repo: config,
+      sha,
+      read: (path) => repository.read(sha, path),
+      files: () => (files ??= repository.changes(undefined, sha).then((all) => all.map((change) => change.path))),
+    };
     const upserted = changes.filter((change) => change.status === "upserted").map((change) => change.path);
 
     const nodes: Node[] = [];
@@ -171,7 +181,7 @@ export function createIngester(options: IngesterOptions): Ingester {
     const key = (edge: Edge) => `${edge.type} ${edge.from} ${edge.to}`;
     const edges = uniqueEdges([
       ...extracted.filter((edge) => kept.has(edge.from) && exists(edge.to)),
-      ...nodes.map((node): Edge => ({ type: "MODIFIES", from: change.id, to: node.id })),
+      ...nodes.filter((node) => changed.has(node.provenance.path)).map((node): Edge => ({ type: "MODIFIES", from: change.id, to: node.id })),
     ]);
     // The edges a changed file had and no longer has. Edges into its nodes belong to other files.
     const fresh = new Set(edges.map(key));
