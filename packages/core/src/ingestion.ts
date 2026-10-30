@@ -62,10 +62,14 @@ export interface Snapshot {
   read(path: string): Promise<string>;
   // Every file of the commit.
   files(): Promise<readonly string[]>;
+  // What the commit changed, removals included: a removed configuration file changes how others
+  // extract.
+  readonly changes: readonly FileChange[];
 }
 
 // Turns files into nodes and edges. A node's provenance is filled in by the ingester: the
-// extractor gives the path of the file it came from. Edges may point to nodes of files the commit
+// extractor gives the path of the file it came from. It is called when the commit added, modified
+// or removed a file it matches, with those it added or modified. Edges may point to nodes of files the commit
 // did not change; edges to nodes that do not exist are dropped. An extractor may return nodes of
 // files the commit did not change, when a change elsewhere alters them (a tsconfig.json changes how
 // every import resolves): their edges are replaced too.
@@ -155,6 +159,7 @@ export function createIngester(options: IngesterOptions): Ingester {
     const snapshot: Snapshot = {
       repo: config,
       sha,
+      changes,
       read: (path) => repository.read(sha, path),
       files: () => (files ??= repository.changes(undefined, sha).then((all) => all.map((change) => change.path))),
     };
@@ -166,7 +171,7 @@ export function createIngester(options: IngesterOptions): Ingester {
     const owners: { covered: ReadonlySet<string>; types?: ReadonlySet<EdgeType> }[] = [];
     for (const extractor of extractors) {
       const paths = upserted.filter((path) => extractor.matches(path));
-      if (paths.length === 0) continue;
+      if (!changes.some((change) => extractor.matches(change.path))) continue;
       const files = await Promise.all(paths.map(async (path) => ({ path, text: await snapshot.read(path) })));
       const extraction = await extractor.extract(files, snapshot);
       for (const { path, ...node } of extraction.nodes) {
