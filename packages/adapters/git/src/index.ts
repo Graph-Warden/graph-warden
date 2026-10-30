@@ -12,7 +12,15 @@ export interface GitOptions {
   readonly git?: string;
 }
 
-export function createGitRepository(dir: string, options: GitOptions = {}): Repository & { fetch(): Promise<void>; head(ref: string): Promise<string> } {
+export interface GitRepository extends Repository {
+  // Whether the clone has this commit; a job may name one it has not fetched yet.
+  has(sha: string): Promise<boolean>;
+  fetch(): Promise<void>;
+  // The commit a ref points to: `origin/main`.
+  head(ref: string): Promise<string>;
+}
+
+export function createGitRepository(dir: string, options: GitOptions = {}): GitRepository {
   const { git: bin = "git" } = options;
   const git = async (...args: string[]) =>
     (await run(bin, ["-C", dir, ...args], { maxBuffer: 256 * 1024 * 1024, encoding: "utf8" })).stdout;
@@ -52,6 +60,14 @@ export function createGitRepository(dir: string, options: GitOptions = {}): Repo
     },
     read: (commit, path) => git("show", `${sha(commit)}:${path}`),
     message: (commit) => git("log", "-1", "--format=%B", sha(commit)),
+    async has(commit) {
+      try {
+        await git("cat-file", "-e", `${sha(commit)}^{commit}`);
+        return true;
+      } catch {
+        return false;
+      }
+    },
     async fetch() {
       await git("fetch", "--quiet", "origin");
     },

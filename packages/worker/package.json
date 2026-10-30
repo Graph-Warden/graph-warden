@@ -1,0 +1,28 @@
+{
+  "name": "@graph-warden/worker",
+  "version": "0.0.0",
+  "description": "The Graph-Warden ingestion worker: learns about merges by webhook, by push from CI or by polling, and ingests them in git order.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "gwarden-worker": "./dist/main.js"
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@graph-warden/core": "workspace:*",
+    "@graph-warden/documents": "workspace:*",
+    "@graph-warden/git": "workspace:*",
+    "@graph-warden/memory": "workspace:*",
+    "@graph-warden/neo4j": "workspace:*",
+    "@graph-warden/redis": "workspace:*",
+    "fastify": "^5.12.7",
+    "ioredis": "~5.11.0",
+    "neo4j-driver": "^6.2.0",
+    "yaml": "^2.9.1",
+    "zod": "^4.6.7"
+  }
+}

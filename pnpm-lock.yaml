@@ -246,6 +246,42 @@ importers:
         specifier: ^8.3.5
         version: 8.3.5(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)
 
+  packages/worker:
+    dependencies:
+      '@graph-warden/core':
+        specifier: workspace:*
+        version: link:../core
+      '@graph-warden/documents':
+        specifier: workspace:*
+        version: link:../adapters/documents
+      '@graph-warden/git':
+        specifier: workspace:*
+        version: link:../adapters/git
+      '@graph-warden/memory':
+        specifier: workspace:*
+        version: link:../adapters/memory
+      '@graph-warden/neo4j':
+        specifier: workspace:*
+        version: link:../adapters/neo4j
+      '@graph-warden/redis':
+        specifier: workspace:*
+        version: link:../adapters/redis
+      fastify:
+        specifier: ^5.12.7
+        version: 5.12.7
+      ioredis:
+        specifier: ~5.11.0
+        version: 5.11.1
+      neo4j-driver:
+        specifier: ^6.2.0
+        version: 6.2.0
+      yaml:
+        specifier: ^2.9.1
+        version: 2.9.1
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+
 packages:
 
   '@anthropic-ai/google-cloud-sdk@1.1.1':
