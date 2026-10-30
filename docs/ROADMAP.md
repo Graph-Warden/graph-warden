@@ -25,6 +25,8 @@ Each line is a GitHub issue under the matching milestone. Labels in brackets.
 - [ ] Web graph view: Sigma.js, filters, neighbourhood, live updates [web]
 - [ ] Time travel by commit and PR impact view [web]
 - [ ] `gwarden forget <source>` with propagation [core, security]
+- [x] `gwarden delete` following `DERIVED_FROM`, shown then confirmed (proposal 0011) [core, api, cli]
+- [x] `gwarden ask`, answers from readable nodes, filed as derived nodes (proposal 0011) [core, api, cli]
 
 ## M3 — Opening up
 - [ ] Source adapters: Markdown documents, GitLab, Confluence, Jira [adapter, good first issue]

@@ -1,7 +1,15 @@
 import {
   AuditEntrySchema,
+  Conflict,
+  EdgeSchema,
   EdgeTypeSchema,
   Forbidden,
+  NotFound,
+  parseScope,
+  Unreachable,
+  type Asker,
+  type DeletionPlan,
+  type Editor,
   NodeSchema,
   PullResponseSchema,
   Unauthenticated,
@@ -15,11 +23,17 @@ import { z } from "zod";
 // The API (proposal 0003): the one place readers reach the graph. Every route below `/v1` takes a
 // bearer token, turns it into a principal through the identity provider, and reads through the
 // reader, which checks scopes on every hop and writes the audit entry. No route reads the store
-// directly, and no route writes: ingestion is the writer's job, behind the API.
+// directly. Ingestion is the writer's job, behind the API; the only writes made through it are a
+// deletion and a filed answer, by members of a writer group, both through the domain (proposal
+// 0011).
 
 export interface ApiOptions {
   readonly reader: Reader;
   readonly identity: IdentityProvider;
+  // Deletion; without it, the deletion routes answer 501.
+  readonly editor?: Editor;
+  // Questions; without a model configured, /v1/ask answers 501.
+  readonly asker?: Asker;
   readonly logger?: boolean;
 }
 
@@ -33,10 +47,29 @@ const TraverseQuery = z.object({
 });
 const PullQuery = z.object({ after: z.coerce.number().int().nonnegative().default(0) });
 const AuditQuery = z.object({ user: z.string().min(1).optional() });
+const DeleteQuery = z.object({ confirm: z.string().min(1) });
+const AskBody = z.object({
+  question: z.string().min(1).max(4000),
+  from: z.string().min(1).optional(),
+  // File the answer; `scope` is the scope declared for it, private to the asker by default.
+  save: z.boolean().default(false),
+  scope: z.string().min(1).optional(),
+});
 
 const PrincipalResponse = PullResponseSchema.unwrap().shape.principal;
 const NodesResponse = z.object({ nodes: z.array(NodeSchema) });
 const AuditResponse = z.object({ entries: z.array(AuditEntrySchema) });
+const DeletionResponse = z.object({
+  target: z.string(),
+  deleted: z.array(NodeSchema),
+  detached: z.array(EdgeSchema),
+  digest: z.string(),
+});
+const AskResponse = z.object({ answer: z.string(), sources: z.array(NodeSchema), saved: NodeSchema.optional() });
+const deletion = (plan: DeletionPlan) =>
+  DeletionResponse.parse({ target: plan.target.id, deleted: plan.deleted, detached: plan.detached, digest: plan.digest });
+
+class NotConfigured extends Error {}
 
 class BadRequest extends Error {}
 
@@ -62,6 +95,12 @@ export function buildApi(options: ApiOptions): FastifyInstance {
       return reply.code(401).header("www-authenticate", "Bearer").send({ error: "unauthenticated" });
     }
     if (error instanceof Forbidden) return reply.code(403).send({ error: "forbidden" });
+    if (error instanceof Unreachable) {
+      return reply.code(403).send({ error: "forbidden", detail: "the deletion would change nodes you may not read" });
+    }
+    if (error instanceof NotFound) return reply.code(404).send({ error: "not found" });
+    if (error instanceof Conflict) return reply.code(409).send({ error: "conflict", detail: error.message });
+    if (error instanceof NotConfigured) return reply.code(501).send({ error: "not configured", detail: error.message });
     if (error instanceof BadRequest) return reply.code(400).send({ error: "bad request", detail: error.message });
     request.log.error(error);
     return reply.code(500).send({ error: "internal error" });
@@ -96,6 +135,36 @@ export function buildApi(options: ApiOptions): FastifyInstance {
     return { entries: await options.reader.auditTrail(principal, user === undefined ? {} : { user }) };
   });
 
+  app.get<{ Params: { id: string } }>("/v1/nodes/:id/deletion", async (request) => {
+    const principal = await principalOf(request);
+    if (options.editor === undefined) throw new NotConfigured("deletion is not enabled on this API");
+    return deletion(await options.editor.planDeletion(principal, request.params.id));
+  });
+
+  app.delete<{ Params: { id: string } }>("/v1/nodes/:id", async (request) => {
+    const principal = await principalOf(request);
+    if (options.editor === undefined) throw new NotConfigured("deletion is not enabled on this API");
+    const { confirm } = parse(DeleteQuery, request.query);
+    return deletion(await options.editor.deleteNode(principal, request.params.id, confirm));
+  });
+
+  app.post("/v1/ask", async (request) => {
+    const principal = await principalOf(request);
+    if (options.asker === undefined) throw new NotConfigured("no language model is configured on this API");
+    const body = parse(AskBody, request.body);
+    let scope;
+    try {
+      scope = body.scope === undefined ? undefined : parseScope(body.scope);
+    } catch (error) {
+      throw new BadRequest(`scope: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    const result = await options.asker.ask(principal, body.question, {
+      ...(body.from === undefined ? {} : { from: body.from }),
+      ...(body.save ? { save: scope === undefined ? {} : { scope } } : {}),
+    });
+    return AskResponse.parse(result);
+  });
+
   return app;
 }
 
@@ -111,7 +180,7 @@ export const openApi = {
     title: "Graph-Warden API",
     version: "0.0.0",
     description:
-      "Reads of the governed knowledge graph. Every /v1 route needs a bearer token from the configured identity provider; scopes are checked on every hop and every read is audited.",
+      "The governed knowledge graph. Every /v1 route needs a bearer token from the configured identity provider; scopes are checked on every hop, and every read, question and deletion is audited.",
   },
   components: { securitySchemes: { bearer: { type: "http", scheme: "bearer" } } },
   security: [{ bearer: [] }],
@@ -142,6 +211,46 @@ export const openApi = {
         summary: "The audit log, for members of an auditor group",
         parameters: [{ name: "user", in: "query", schema: { type: "string" } }],
         responses: { "200": { description: "Entries, oldest first", content: json(AuditResponse) }, ...errors, "403": { description: "Not an auditor" } },
+      },
+    },
+    "/v1/nodes/{id}/deletion": {
+      get: {
+        summary: "What deleting a node would remove, and the digest to confirm it with",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        responses: {
+          "200": { description: "The node, the derived nodes left without a source, the DERIVED_FROM edges detached", content: json(DeletionResponse) },
+          ...errors,
+          "403": { description: "Not a writer, or the deletion would change nodes the caller may not read" },
+          "404": { description: "Unknown or unreadable node" },
+        },
+      },
+    },
+    "/v1/nodes/{id}": {
+      delete: {
+        summary: "Delete a node as shown by its deletion plan",
+        parameters: [
+          { name: "id", in: "path", required: true, schema: { type: "string" } },
+          { name: "confirm", in: "query", required: true, schema: { type: "string" }, description: "The digest of the plan shown" },
+        ],
+        responses: {
+          "200": { description: "What was deleted", content: json(DeletionResponse) },
+          ...errors,
+          "403": { description: "Not a writer, or the deletion would change nodes the caller may not read" },
+          "404": { description: "Unknown or unreadable node" },
+          "409": { description: "The graph changed since the plan was shown" },
+        },
+      },
+    },
+    "/v1/ask": {
+      post: {
+        summary: "Answer a question from the nodes the caller may read, and optionally file the answer",
+        requestBody: { required: true, content: { "application/json": { schema: z.toJSONSchema(AskBody, { io: "input" }) } } },
+        responses: {
+          "200": { description: "The answer and every node the model read", content: json(AskResponse) },
+          ...errors,
+          "403": { description: "Filing an answer without being a writer" },
+          "501": { description: "No language model configured" },
+        },
       },
     },
   },

@@ -23,6 +23,15 @@ describe("cache", () => {
     cache.close();
   });
 
+  it("drops the edges of a sent node that the delta no longer carries", () => {
+    const cache = openCache(":memory:");
+    const edge = (to: string) => ({ type: "DERIVED_FROM" as const, from: "summary", to });
+    cache.apply(api, bob, { cursor: 3, nodes: [node("summary"), node("a"), node("b")], edges: [edge("a"), edge("b")], removed: [] });
+    cache.apply(api, bob, { cursor: 5, nodes: [node("summary")], edges: [edge("b")], removed: [] });
+    expect(cache.edgeCount()).toBe(1);
+    cache.close();
+  });
+
   it("empties on clear", () => {
     const cache = openCache(":memory:");
     cache.apply(api, bob, { cursor: 1, nodes: [node("a")], edges: [], removed: [] });

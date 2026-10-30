@@ -53,6 +53,12 @@ const CommonSchema = z.object({
   NEO4J_PASSWORD: z.string().min(1),
   // Groups whose members may read the audit log through the API.
   GWARDEN_AUDITORS: list,
+  // Groups whose members may delete nodes and file answers. None by default: nobody writes.
+  GWARDEN_WRITERS: list,
+  // The model behind /v1/ask: none (the route answers 501) or claude, with the Anthropic
+  // credentials of the environment.
+  GWARDEN_LLM: z.enum(["none", "claude"]).default("none"),
+  GWARDEN_LLM_MODEL: z.string().min(1).optional(),
 });
 
 export type Config = z.infer<typeof CommonSchema> & { readonly identity: IdentityProvider; readonly identityKind: string };

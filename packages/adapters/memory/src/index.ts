@@ -19,6 +19,10 @@ export function createMemoryStore(): GraphStore {
       nodes.delete(id);
       edges = edges.filter((e) => e.from !== id && e.to !== id);
     },
+    deleteEdges: async (list) => {
+      const gone = new Set(list.map(key));
+      edges = edges.filter((e) => !gone.has(key(e)));
+    },
     snapshot: async () => createGraph([...nodes.values()], edges),
   };
 }
@@ -30,7 +34,7 @@ export function createMemoryEventLog(): EventLog {
     since: async (after) => events.filter((event) => event.seq > after),
     history: async (id, upTo) =>
       events.filter(
-        (event) => event.seq <= upTo && (event.kind === "edge-upserted" ? event.edge.from === id || event.edge.to === id : event.id === id),
+        (event) => event.seq <= upTo && ("edge" in event ? event.edge.from === id || event.edge.to === id : event.id === id),
       ),
   };
 }

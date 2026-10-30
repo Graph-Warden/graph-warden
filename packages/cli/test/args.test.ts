@@ -102,6 +102,40 @@ describe("pull", () => {
   });
 });
 
+describe("ask", () => {
+  const api = ["--api", "https://gw.example.com", "--token", "t"];
+
+  it("takes the question, an anchor and a scope to file it under", () => {
+    expect(parseCommand(["ask", "How", "are", "orders", "paginated?", "--from", "orders-api", "--save", "--scope", "shared", ...api])).toEqual({
+      name: "ask",
+      question: "How are orders paginated?",
+      from: "orders-api",
+      save: true,
+      scope: "shared",
+      api: "https://gw.example.com",
+      token: "t",
+    });
+  });
+
+  it("refuses a scope without --save, and a malformed scope", () => {
+    expect(() => parseCommand(["ask", "q", "--scope", "shared", ...api])).toThrow(/--save/);
+    expect(() => parseCommand(["ask", "q", "--save", "--scope", "everyone", ...api])).toThrow();
+  });
+});
+
+describe("delete", () => {
+  it("needs the API, and takes a confirmation for scripts", () => {
+    expect(parseCommand(["delete", "adr", "--confirm", "adr", "--api", "https://gw.example.com", "--token", "t"])).toEqual({
+      name: "delete",
+      id: "adr",
+      confirm: "adr",
+      api: "https://gw.example.com",
+      token: "t",
+    });
+    expect(() => parseCommand(["delete", "adr", "--token", "t"])).toThrow(/--api/);
+  });
+});
+
 it("prints usage for an unknown command", () => {
   expect(() => parseCommand(["frobnicate", "x"])).toThrow(/Usage/);
 });

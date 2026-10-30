@@ -25,9 +25,11 @@ Graph-Warden rassemble ce que les équipes écrivent déjà (dépôts, specs d'A
 | [Un exemple](#un-exemple--un-endpoint-quatre-équipes) | [Scopes](#scopes) |
 | [Ce qu'il garantit](#ce-quil-garantit) | [Anatomie d'une lecture](#anatomie-dune-lecture) |
 | [Pour qui](#pour-qui) | [Scopes dérivés](#scopes-dérivés) |
-| [Le voir tourner](#le-voir-tourner) | [Démarrage rapide](#démarrage-rapide) |
-| [Ce qui le distingue](#ce-qui-le-distingue) | [Organisation du dépôt](#organisation-du-dépôt) |
-| [Ce qui marche aujourd'hui](#ce-qui-marche-aujourdhui) | [Contribuer](#contribuer) |
+| [Le voir tourner](#le-voir-tourner) | [Interroger le graphe](#interroger-le-graphe) |
+| [Demander et supprimer](#demander-et-supprimer) | [Supprimer un nœud](#supprimer-un-nœud) |
+| [Ce qui le distingue](#ce-qui-le-distingue) | [Démarrage rapide](#démarrage-rapide) |
+| [Ce qui marche aujourd'hui](#ce-qui-marche-aujourdhui) | [Organisation du dépôt](#organisation-du-dépôt) |
+| | [Contribuer](#contribuer) |
 
 ---
 
@@ -79,8 +81,10 @@ Un graphe, cinq personnes, cinq vues correctes — et personne n'a configuré de
 | **Privé par défaut** | Un document sans scope reste privé à qui l'a ajouté. Partager est toujours une décision. |
 | **Une seule porte** | Agents et outils n'atteignent le graphe que par l'API. Personne n'interroge la base directement. |
 | **Chaque lecture est enregistrée** | Qui a demandé, avec quels groupes, quoi, et ce qui est revenu. Si l'enregistrement échoue, la lecture échoue. |
+| **Les réponses restent dans vos droits** | Une réponse d'IA n'est écrite qu'à partir de ce que vous pouvez lire, et une réponse enregistrée n'est visible que par qui peut lire tout ce dont elle est tirée. |
+| **La suppression suit les synthèses** | Supprimer un document supprime les synthèses construites uniquement à partir de lui, et ne fait que délier celles qui ont d'autres sources. Vous voyez la liste complète et tapez le nom avant que quoi que ce soit parte. |
 | **Votre annuaire décide** | Utilisateurs et groupes viennent de votre fournisseur d'identité (Entra ID, Okta, Keycloak, Google Workspace…). Pas de seconde base d'utilisateurs à maintenir. |
-| **L'effacement suit les synthèses** *(prévu)* | Supprimer une source supprime ou reconstruit tout ce qui en dérive (RGPD, article 17). |
+| **Effacement d'une source entière** *(prévu)* | Effacer une source (RGPD, article 17) applique la même suppression à chaque document qu'elle a apporté. |
 
 ## Pour qui
 
@@ -154,6 +158,25 @@ examples/shop/demo.sh
 
 L'API de démo utilise des jetons fixes (`examples/shop/users.yaml`) et n'écoute que sur localhost. Pour l'arrêter : `docker compose --profile demo down`.
 
+## Demander et supprimer
+
+**Posez une question, obtenez une réponse sourcée.** `gwarden ask "Comment change la pagination des commandes ?"` répond à partir des documents que vous pouvez lire, et les cite. Bob et Lea qui posent la même question obtiennent des réponses différentes, parce qu'ils ne lisent pas les mêmes choses. Avec `--save`, la réponse devient une page du graphe que d'autres peuvent retrouver — visible seulement par qui peut lire tout ce dont elle est tirée.
+
+**Supprimer sans laisser d'orphelins, ni de dégâts collatéraux.** `gwarden delete adr-0007-cursor-pagination` montre ce qui part avant que quoi que ce soit parte ; ici, avec une synthèse écrite uniquement à partir de cette décision :
+
+```text
+Deleting adr-0007-cursor-pagination removes:
+  Decision  adr-0007-cursor-pagination  [team:bff]
+  Concept   adr-summary  [team:bff]  derived only from deleted nodes
+and detaches, keeping these nodes, their other sources and their scope:
+  pagination-impact -DERIVED_FROM-> adr-0007-cursor-pagination
+
+Are you sure? It will delete 2 entries from adr-0007-cursor-pagination.
+Type adr-0007-cursor-pagination to confirm:
+```
+
+Seuls les membres d'un groupe d'écrivains peuvent supprimer ou enregistrer des réponses, et seulement ce qu'ils peuvent lire. Si le graphe a changé entre l'aperçu et la confirmation, rien n'est supprimé.
+
 ## Ce qui le distingue
 
 Les bases de graphe ont déjà un contrôle d'accès par rôle, et les bibliothèques de mémoire d'agent cloisonnent déjà les souvenirs par utilisateur. Ce qu'elles laissent ouvert, c'est ce qui se passe entre l'agent et la connaissance :
@@ -169,11 +192,13 @@ Les bases de graphe ont déjà un contrôle d'accès par rôle, et les biblioth�
 - l'ingestion de documents Markdown, JSON et YAML avec références typées, privés par défaut ;
 - la traversée avec scopes vérifiés à chaque saut ; les documents dérivés lisibles seulement par qui lit toutes leurs sources ;
 - une API REST dont identités et groupes viennent d'un fournisseur OIDC ou de Google avec Cloud Identity ;
-- une entrée d'audit pour chaque lecture ;
+- une entrée d'audit pour chaque lecture, question et suppression ;
 - `gwarden pull` vers un cache SQLite local qui ne contient que ce que l'utilisateur peut voir ;
+- `gwarden ask`, des réponses tirées des nœuds lisibles, par Claude, enregistrées comme nœuds dérivés sur demande ;
+- `gwarden delete`, qui suit `DERIVED_FROM`, montré puis confirmé ;
 - une démo `docker compose` et un déploiement Cloud Run.
 
-**Pas encore :** la revalidation des scopes dérivés quand une source ou un groupe change, l'effacement, MCP, le flux SSE en direct, la compilation par LLM et la vue web. La conception est arrêtée dans [`docs/proposals`](docs/proposals) ; le travail est suivi dans les [issues](https://github.com/Graph-Warden/graph-warden/issues).
+**Pas encore :** la revalidation des scopes dérivés quand une source ou un groupe change, l'effacement d'une source entière, MCP, le flux SSE en direct, la compilation par LLM et la vue web. La conception est arrêtée dans [`docs/proposals`](docs/proposals) ; le travail est suivi dans les [issues](https://github.com/Graph-Warden/graph-warden/issues).
 
 ---
 
@@ -211,7 +236,7 @@ flowchart LR
     C4["CLI gwarden<br/>+ cache local"] -- pull --> API
 ```
 
-Aujourd'hui : l'ingestion de documents par le CLI, Neo4j, l'API REST, les fournisseurs d'identité et `gwarden pull`. Prévu : la file, la compilation par LLM, les webhooks, MCP et SSE.
+Aujourd'hui : l'ingestion de documents par le CLI, Neo4j, l'API REST, les fournisseurs d'identité, `gwarden pull`, et les réponses aux questions par Claude. Prévu : la file, la compilation par LLM, les webhooks, MCP et SSE.
 
 - **Le graphe est la source de vérité**, jamais les fichiers dont il est construit. Il vit sur un serveur : Neo4j en local (`pnpm db:up`) ou un déploiement hébergé, d'où `gwarden pull` ne récupère que ce que l'utilisateur peut voir.
 - **Un seul écrivain, ingestion ordonnée** *(conception)* : seul le merge sur `main` écrit les nœuds partagés, dans l'ordre des commits, et rejouer un webhook ne crée aucun doublon ([proposal 0004](docs/proposals/0004-single-writer-ordered-ingestion.md)).
@@ -286,6 +311,57 @@ Un nœud avec des arêtes `DERIVED_FROM` prend le scope de toutes ses sources r�
 
 L'auteur doit pouvoir lire chaque source : personne ne dérive de ce qu'il ne peut pas voir.
 
+## Interroger le graphe
+
+```mermaid
+sequenceDiagram
+    actor User as Bob
+    participant Asker as Asker (core)
+    participant Audit as AuditLog
+    participant LLM as LLMProvider
+    participant Writer
+
+    User->>Asker: ask("Comment change la pagination ?", save?)
+    Asker->>Asker: recherche : nœuds lisibles seulement<br/>(ancre + voisins, puis correspondance des mots)
+    Asker->>Audit: append(question, chaque nœud transmis)
+    Asker->>LLM: ces nœuds, rien d'autre
+    LLM-->>Asker: réponse citant des [[ids]]
+    opt --save, groupe d'écrivains
+        Asker->>Writer: nœud réponse, DERIVED_FROM chaque nœud lu,<br/>scope = déclaré ∩ lecteurs de tous
+    end
+    Asker-->>User: réponse + nœuds lus
+```
+
+La recherche est faite par le domaine, pas par le modèle : on sait donc exactement sur quels nœuds une réponse a pu s'appuyer. Une réponse enregistrée dérive de **tous**, cités ou non : elle est privée à qui pose la question par défaut, et `--scope shared` est restreint aux lecteurs de toutes ses sources ([proposal 0011](docs/proposals/0011-ask-and-governed-deletion.md)). Le modèle est derrière le port `LLMProvider` ; le premier adaptateur est Claude (`GWARDEN_LLM=claude`, modèle par défaut `claude-opus-5-5`, identifiants pris dans l'environnement).
+
+## Supprimer un nœud
+
+```mermaid
+flowchart BT
+    X["adr-0007<br/><b>supprimé</b>"]
+    S["adr-summary<br/>seule source : adr-0007<br/><b>supprimé aussi</b>"]
+    D["digest<br/>seule source : adr-summary<br/><b>supprimé aussi</b>"]
+    I["pagination-impact<br/>sources : adr-0007, checkout<br/><b>gardé, arête détachée, scope inchangé</b>"]
+    C["checkout"]
+    M["orders-service<br/>IMPORTS adr-0007<br/><b>gardé</b>"]
+
+    S -- DERIVED_FROM --> X
+    D -- DERIVED_FROM --> S
+    I -. "DERIVED_FROM (retirée)" .-> X
+    I -- DERIVED_FROM --> C
+    M -- IMPORTS --> X
+
+    classDef gone fill:#fbe9e9,stroke:#c0392b,color:#123
+    classDef kept fill:#e7f5ea,stroke:#2f8a47,color:#123
+    class X,S,D gone
+    class I,M,C kept
+```
+
+- Seul `DERIVED_FROM` se propage. Un nœud dont toutes les sources sont supprimées part aussi, en cascade ; un nœud qui a d'autres sources ne perd que l'arête.
+- Un nœud qui perd une source **garde son scope** : son texte a aussi été écrit à partir de cette source, et l'élargir aux sources restantes le montrerait à des personnes qui n'ont jamais pu lire celle qui est supprimée.
+- Supprimer exige un groupe d'écrivains (`GWARDEN_WRITERS`) et le droit de lire chaque nœud supprimé ou détaché ; sinon la suppression est refusée sans nommer ce qu'elle atteindrait.
+- Le plan vient avec une empreinte. `DELETE /v1/nodes/{id}?confirm=<empreinte>` est refusé en 409 si le graphe a changé depuis : une confirmation ne couvre jamais plus que ce qui a été montré. Aperçus, suppressions et refus sont audités.
+
 ## Démarrage rapide
 
 ```sh
@@ -348,6 +424,17 @@ Les lecteurs passent par l'API, pas par Neo4j : `pnpm --filter @graph-warden/api
 | `GET /v1/nodes/{id}/neighbours` | les nœuds atteignables depuis `id` que l'appelant peut lire (`direction`, `depth`, `edge`) |
 | `GET /v1/pull?after=<curseur>` | ce qui a changé pour l'appelant depuis le curseur |
 | `GET /v1/audit` | le journal d'audit, pour les groupes auditeurs seulement |
+| `GET /v1/nodes/{id}/deletion` | ce que supprimer `id` retirerait et détacherait, et l'empreinte pour le confirmer |
+| `DELETE /v1/nodes/{id}?confirm=<empreinte>` | la suppression, pour les groupes d'écrivains, si le plan correspond toujours |
+| `POST /v1/ask` | une réponse tirée des nœuds que l'appelant peut lire ; `save: true` l'enregistre (groupes d'écrivains) |
+
+```sh
+gwarden ask "Comment change la pagination des commandes ?" --from orders-api   # réponse, et nœuds lus
+gwarden ask "Comment change la pagination des commandes ?" --save --scope shared
+gwarden delete adr-0007-cursor-pagination                                     # montre, puis demande de taper l'id
+```
+
+Réglages de l'API pour les écritures : `GWARDEN_WRITERS` (groupes autorisés à supprimer et enregistrer des réponses), `GWARDEN_LLM=claude` et, en option, `GWARDEN_LLM_MODEL`.
 
 ### Déployer sur Google Cloud
 
@@ -357,12 +444,13 @@ Les lecteurs passent par l'API, pas par Neo4j : `pnpm --filter @graph-warden/api
 
 | Package | Rôle | État |
 |---|---|---|
-| `packages/core` | Ontologie, scopes, scopes dérivés, traversée vérifiée à chaque saut, lectures auditées, journal d'événements et deltas de pull ; ports `GraphStore`, `AuditLog`, `EventLog` et `IdentityProvider` | M0 fait, M2 en cours |
+| `packages/core` | Ontologie, scopes, scopes dérivés, traversée vérifiée à chaque saut, lectures auditées, journal d'événements et deltas de pull, questions, plans de suppression ; ports `GraphStore`, `AuditLog`, `EventLog`, `IdentityProvider` et `LLMProvider` | M0 fait, M2 en cours |
 | `packages/adapters/neo4j` | `GraphStore`, `AuditLog` et `EventLog` en ajout seul sur Neo4j | fait |
 | `packages/adapters/identity` | `IdentityProvider` pour OIDC (Entra ID, Keycloak, Okta…), Google avec les groupes Cloud Identity, et jetons de démo | M2, première tranche |
 | `packages/adapters/memory` | Ports en mémoire pour les tests et les démos | fait |
-| `packages/adapters/documents` | Documents Markdown, JSON et YAML en nœuds et arêtes typées | M1, première tranche |
-| `packages/cli` | `gwarden ingest`, `traverse`, `audit`, `pull`, `cache` ; plus tard `forget`, impact de PR | M0–M2 |
+| `packages/adapters/documents` | Documents Markdown, JSON et YAML en nœuds et arêtes typées, avec leur texte | M1, première tranche |
+| `packages/adapters/anthropic` | `LLMProvider` sur Claude | première tranche |
+| `packages/cli` | `gwarden ingest`, `traverse`, `audit`, `pull`, `cache`, `ask`, `delete` ; plus tard `forget`, impact de PR | M0–M2 |
 | `packages/api` | REST avec OpenAPI, seul point d'accès des lecteurs au graphe ; webhooks plus tard | M2, première tranche |
 | `packages/mcp` | Serveur MCP | M2, prévu |
 | `packages/worker` | Consommateur de la file d'ingestion, appels LLM | M1, prévu |
@@ -377,6 +465,8 @@ flowchart TB
     cli --> neo4j[adapters/neo4j]
     api --> identity[adapters/identity]
     api --> neo4j
+    api --> anthropic[adapters/anthropic]
+    anthropic --> core
     documents --> core
     neo4j --> core
     identity --> core

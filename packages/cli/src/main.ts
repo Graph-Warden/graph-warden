@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { createInterface } from "node:readline/promises";
 import {
   createGraph,
   createReader,
@@ -6,6 +7,7 @@ import {
   deriveScopes,
   formatScope,
   AuditEntrySchema,
+  EdgeSchema,
   NodeSchema,
   PullResponseSchema,
   type AuditEntry,
@@ -20,6 +22,8 @@ import { parseCommand, type Command, type Remote } from "./args.js";
 async function run(command: Command): Promise<void> {
   if (command.name === "pull") return pull(command);
   if (command.name === "cache") return listCache(command.cache);
+  if (command.name === "ask") return ask(command);
+  if (command.name === "delete") return deleteNode(command);
   if (command.name === "traverse" && command.through.kind === "api") return traverseRemote(command, command.through);
   if (command.name === "audit" && command.through.kind === "api") return auditRemote(command, command.through);
   const driver = neo4j.driver(
@@ -64,8 +68,10 @@ async function run(command: Command): Promise<void> {
   }
 }
 
+const line = (node: Node) => `${node.type.padEnd(9)} ${node.id}  [${formatScope(node.scope)}]`;
+
 function printNodes(nodes: readonly Node[], user: string): void {
-  for (const node of nodes) console.log(`${node.type.padEnd(9)} ${node.id}  [${formatScope(node.scope)}]`);
+  for (const node of nodes) console.log(line(node));
   console.log(`${count(nodes.length, "node")} reachable as ${user}.`);
 }
 
@@ -114,6 +120,15 @@ function describe(entry: AuditEntry): string {
       return `pull after ${entry.after} -> ${count(entry.returned.length, "node")}`;
     case "audit":
       return `audit${entry.user === undefined ? "" : ` of ${entry.user}`}${entry.denied === true ? " DENIED" : ""}`;
+    case "delete": {
+      const what = entry.planned === true ? "delete preview" : "delete";
+      if (entry.denied === true) return `${what} ${entry.target} DENIED`;
+      return `${what} ${entry.target} -> ${count(entry.returned.length, "node")}, ${count(entry.detached.length, "edge")} detached`;
+    }
+    case "ask": {
+      if (entry.denied === true) return `ask "${entry.question}" DENIED`;
+      return `ask "${entry.question}" -> ${count(entry.returned.length, "node")} read${entry.saved === undefined ? "" : `, filed as ${entry.saved}`}`;
+    }
   }
 }
 
@@ -143,16 +158,76 @@ async function pull(command: Extract<Command, { name: "pull" }>): Promise<void> 
   }
 }
 
-async function fetchJson(command: Remote, path: string): Promise<unknown> {
-  const response = await fetch(`${command.api}${path}`, { headers: { authorization: `Bearer ${command.token}` } });
+async function fetchJson(command: Remote, path: string, init: { method?: string; body?: object } = {}): Promise<unknown> {
+  const response = await fetch(`${command.api}${path}`, {
+    method: init.method ?? "GET",
+    headers: {
+      authorization: `Bearer ${command.token}`,
+      ...(init.body === undefined ? {} : { "content-type": "application/json" }),
+    },
+    ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
+  });
   if (!response.ok) throw new Error(`${command.api}${path}: ${response.status} ${await response.text()}`);
   return response.json();
+}
+
+const AnswerSchema = z.object({ answer: z.string(), sources: z.array(NodeSchema), saved: NodeSchema.optional() });
+
+async function ask(command: Extract<Command, { name: "ask" }>): Promise<void> {
+  const { answer, sources, saved } = AnswerSchema.parse(
+    await fetchJson(command, "/v1/ask", {
+      method: "POST",
+      body: {
+        question: command.question,
+        save: command.save,
+        ...(command.from === undefined ? {} : { from: command.from }),
+        ...(command.scope === undefined ? {} : { scope: command.scope }),
+      },
+    }),
+  );
+  console.log(answer);
+  if (sources.length > 0) {
+    console.log(`\nRead ${count(sources.length, "node")}:`);
+    for (const node of sources) console.log(`  ${line(node)}`);
+  }
+  if (saved !== undefined) console.log(`\nFiled as ${saved.id}  [${formatScope(saved.scope)}]`);
+}
+
+const PlanSchema = z.object({ target: z.string(), deleted: z.array(NodeSchema), detached: z.array(EdgeSchema), digest: z.string() });
+
+// Deletion is shown, then confirmed by typing the node id, then made with the digest of what was
+// shown: if the graph changed in between, the API refuses and nothing is deleted.
+async function deleteNode(command: Extract<Command, { name: "delete" }>): Promise<void> {
+  const path = `/v1/nodes/${encodeURIComponent(command.id)}`;
+  const plan = PlanSchema.parse(await fetchJson(command, `${path}/deletion`));
+  console.log(`Deleting ${plan.target} removes:`);
+  for (const node of plan.deleted) console.log(`  ${line(node)}${node.id === plan.target ? "" : "  derived only from deleted nodes"}`);
+  if (plan.detached.length > 0) {
+    console.log("and detaches, keeping these nodes, their other sources and their scope:");
+    for (const edge of plan.detached) console.log(`  ${edge.from} -${edge.type}-> ${edge.to}`);
+  }
+  console.log(`\nAre you sure? It will delete ${count(plan.deleted.length, "entry", "entries")} from ${plan.target}.`);
+
+  let typed = command.confirm;
+  if (typed === undefined) {
+    if (!process.stdin.isTTY) throw new Error("delete asks for confirmation on a terminal; in a script, pass --confirm <node-id>");
+    const prompt = createInterface({ input: process.stdin, output: process.stdout });
+    try {
+      typed = (await prompt.question(`Type ${plan.target} to confirm: `)).trim();
+    } finally {
+      prompt.close();
+    }
+  }
+  if (typed !== plan.target) throw new Error(`Not deleted: "${typed}" is not ${plan.target}.`);
+
+  const done = PlanSchema.parse(await fetchJson(command, `${path}?confirm=${encodeURIComponent(plan.digest)}`, { method: "DELETE" }));
+  console.log(`Deleted ${count(done.deleted.length, "node")} and detached ${count(done.detached.length, "edge")}.`);
 }
 
 async function listCache(path: string): Promise<void> {
   const cache = await openCache(path);
   try {
-    for (const node of cache.nodes()) console.log(`${node.type.padEnd(9)} ${node.id}  [${formatScope(node.scope)}]`);
+    for (const node of cache.nodes()) console.log(line(node));
     console.log(`${count(cache.nodes().length, "node")}, ${count(cache.edgeCount(), "edge")} in ${path}.`);
   } finally {
     cache.close();

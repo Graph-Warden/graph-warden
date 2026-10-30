@@ -19,6 +19,7 @@ export const GraphEventSchema = z.discriminatedUnion("kind", [
   z.object({ seq: SeqSchema, kind: z.literal("node-upserted"), id: z.string().min(1), scope: ScopeSchema }).readonly(),
   z.object({ seq: SeqSchema, kind: z.literal("node-deleted"), id: z.string().min(1) }).readonly(),
   z.object({ seq: SeqSchema, kind: z.literal("edge-upserted"), edge: EdgeSchema }).readonly(),
+  z.object({ seq: SeqSchema, kind: z.literal("edge-deleted"), edge: EdgeSchema }).readonly(),
 ]);
 
 export type GraphEvent = z.infer<typeof GraphEventSchema>;
@@ -43,6 +44,7 @@ export interface Writer {
   upsertNodes(nodes: readonly Node[]): Promise<void>;
   upsertEdges(edges: readonly Edge[]): Promise<void>;
   deleteNode(id: string): Promise<void>;
+  deleteEdges(edges: readonly Edge[]): Promise<void>;
 }
 
 export function createWriter(store: GraphStore, log: EventLog): Writer {
@@ -60,6 +62,11 @@ export function createWriter(store: GraphStore, log: EventLog): Writer {
     async deleteNode(id) {
       await store.deleteNode(id);
       await log.append([{ kind: "node-deleted", id }]);
+    },
+    async deleteEdges(edges) {
+      const parsed = edges.map((edge) => EdgeSchema.parse(edge));
+      await store.deleteEdges(parsed);
+      await log.append(parsed.map((edge) => ({ kind: "edge-deleted", edge })));
     },
   };
 }
@@ -93,7 +100,7 @@ export async function computeDelta(graph: Graph, log: EventLog, principal: Princ
   const events = await log.since(after);
   const touched = new Set<string>();
   for (const event of events) {
-    if (event.kind === "edge-upserted") {
+    if (event.kind === "edge-upserted" || event.kind === "edge-deleted") {
       touched.add(event.edge.from);
       touched.add(event.edge.to);
     } else {
@@ -125,6 +132,6 @@ export async function computeDelta(graph: Graph, log: EventLog, principal: Princ
 // date at that cursor holds it.
 async function readableAt(log: EventLog, principal: Principal, id: string, cursor: number): Promise<boolean> {
   if (cursor === 0) return false;
-  const last = (await log.history(id, cursor)).filter((event) => event.kind !== "edge-upserted").at(-1);
+  const last = (await log.history(id, cursor)).filter((event) => event.kind === "node-upserted" || event.kind === "node-deleted").at(-1);
   return last?.kind === "node-upserted" && canRead(principal, last.scope);
 }

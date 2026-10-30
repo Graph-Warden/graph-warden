@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import { createReader } from "@graph-warden/core";
+import { createClaudeProvider } from "@graph-warden/anthropic";
+import { createAsker, createEditor, createReader, createWriter } from "@graph-warden/core";
 import { createNeo4jAuditLog, createNeo4jEventLog, createNeo4jStore, ensureConstraints } from "@graph-warden/neo4j";
 import neo4j from "neo4j-driver";
 import { buildApi } from "./app.js";
@@ -9,11 +10,18 @@ const config = await loadConfig(process.env);
 const driver = neo4j.driver(config.NEO4J_URI, neo4j.auth.basic(config.NEO4J_USER, config.NEO4J_PASSWORD));
 await ensureConstraints(driver);
 
-const reader = createReader(createNeo4jStore(driver), createNeo4jAuditLog(driver), {
-  events: createNeo4jEventLog(driver),
-  auditors: config.GWARDEN_AUDITORS,
-});
-const app = buildApi({ reader, identity: config.identity, logger: true });
+const store = createNeo4jStore(driver);
+const audit = createNeo4jAuditLog(driver);
+const events = createNeo4jEventLog(driver);
+const writer = createWriter(store, events);
+const writers = config.GWARDEN_WRITERS;
+const reader = createReader(store, audit, { events, auditors: config.GWARDEN_AUDITORS });
+const editor = createEditor(store, writer, audit, { writers });
+const asker =
+  config.GWARDEN_LLM === "claude"
+    ? createAsker(store, writer, audit, createClaudeProvider(config.GWARDEN_LLM_MODEL === undefined ? {} : { model: config.GWARDEN_LLM_MODEL }), { writers })
+    : undefined;
+const app = buildApi({ reader, editor, ...(asker === undefined ? {} : { asker }), identity: config.identity, logger: true });
 if (config.identityKind === "demo") app.log.warn("Demo identity: anyone holding a demo token is that user. Never expose this API.");
 
 const stop = async () => {

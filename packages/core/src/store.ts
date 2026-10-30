@@ -11,6 +11,8 @@ export interface GraphStore {
   getNode(id: string): Promise<Node | undefined>;
   // Removes the node and its edges.
   deleteNode(id: string): Promise<void>;
+  // Removes these edges, leaving their nodes; an edge that does not exist is ignored.
+  deleteEdges(edges: readonly Edge[]): Promise<void>;
   // The whole graph, for the domain to traverse. Replaced by per-hop neighbour lookups when
   // graphs outgrow memory.
   snapshot(): Promise<Graph>;

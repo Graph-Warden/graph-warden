@@ -49,7 +49,12 @@ export function openCache(path: string): Cache {
           dropEdges.run(id, id);
         }
         const putNode = db.prepare("INSERT INTO nodes (id, node) VALUES (?, ?) ON CONFLICT (id) DO UPDATE SET node = excluded.node");
-        for (const node of delta.nodes) putNode.run(node.id, JSON.stringify(node));
+        // A delta carries every readable edge of the nodes it sends, so theirs are replaced: an
+        // edge removed since the cursor (a source detached by a deletion) goes too.
+        for (const node of delta.nodes) {
+          putNode.run(node.id, JSON.stringify(node));
+          dropEdges.run(node.id, node.id);
+        }
         const putEdge = db.prepare(`INSERT OR IGNORE INTO edges (type, "from", "to") VALUES (?, ?, ?)`);
         for (const edge of delta.edges) putEdge.run(edge.type, edge.from, edge.to);
         setMeta.run("api", api);

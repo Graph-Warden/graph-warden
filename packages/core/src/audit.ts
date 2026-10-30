@@ -43,6 +43,30 @@ export const AuditEntrySchema = z.discriminatedUnion("action", [
   z
     .object({ ...common, action: z.literal("audit"), user: z.string().min(1).optional(), denied: z.literal(true).optional() })
     .readonly(),
+  // A deletion (proposal 0011): `returned` lists the nodes deleted, `detached` the `DERIVED_FROM`
+  // edges removed, as `from>to`. `planned` marks a preview, which deletes nothing; `denied` an
+  // attempt refused for want of rights.
+  z
+    .object({
+      ...common,
+      action: z.literal("delete"),
+      target: z.string().min(1),
+      detached: z.array(z.string().min(1)).readonly(),
+      planned: z.literal(true).optional(),
+      denied: z.literal(true).optional(),
+    })
+    .readonly(),
+  // A question (proposal 0011): `returned` lists every node handed to the model, cited or not;
+  // `saved` the answer filed in the graph, if any.
+  z
+    .object({
+      ...common,
+      action: z.literal("ask"),
+      question: z.string().min(1),
+      saved: z.string().min(1).optional(),
+      denied: z.literal(true).optional(),
+    })
+    .readonly(),
 ]);
 
 export type AuditEntry = z.infer<typeof AuditEntrySchema>;
@@ -73,12 +97,17 @@ export class Forbidden extends Error {
   override readonly name = "Forbidden";
 }
 
-export function createReader(store: GraphStore, audit: AuditLog, options: ReaderOptions = {}): Reader {
-  const { events, auditors = [], now = () => new Date() } = options;
-  const record = (entry: DistributiveOmit<AuditEntry, "at" | "principal">, principal: Principal) =>
+// Appends an entry for the principal, stamped now.
+export function recorder(audit: AuditLog, now: () => Date = () => new Date()) {
+  return (entry: DistributiveOmit<AuditEntry, "at" | "principal">, principal: Principal): Promise<void> =>
     audit.append(
       AuditEntrySchema.parse({ ...entry, at: now().toISOString(), principal: { user: principal.user, teams: [...principal.teams] } }),
     );
+}
+
+export function createReader(store: GraphStore, audit: AuditLog, options: ReaderOptions = {}): Reader {
+  const { events, auditors = [], now = () => new Date() } = options;
+  const record = recorder(audit, now);
 
   return {
     async traverse(principal, start, traversal = {}) {
@@ -116,4 +145,4 @@ export function createReader(store: GraphStore, audit: AuditLog, options: Reader
   };
 }
 
-type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
+export type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;

@@ -63,6 +63,16 @@ export function createNeo4jStore(driver: Driver): GraphStore {
       await driver.executeQuery("MATCH (n:Node {id: $id}) DETACH DELETE n", { id });
     },
 
+    async deleteEdges(edges) {
+      const parsed = edges.map((edge) => EdgeSchema.parse(edge));
+      for (const [type, group] of groupBy(parsed, (edge) => edge.type)) {
+        await driver.executeQuery(
+          `UNWIND $edges AS e MATCH (:Node {id: e.from})-[r:${type}]->(:Node {id: e.to}) DELETE r`,
+          { edges: group.map(({ from, to }) => ({ from, to })) },
+        );
+      }
+    },
+
     async snapshot() {
       const nodes = await driver.executeQuery("MATCH (n:Node) RETURN n");
       const edges = await driver.executeQuery(
@@ -133,9 +143,9 @@ export function createNeo4jEventLog(driver: Driver): EventLog {
       if (events.length === 0) return;
       const rows = events.map((event) => ({
         payload: JSON.stringify(event),
-        node: event.kind === "edge-upserted" ? null : event.id,
-        from: event.kind === "edge-upserted" ? event.edge.from : null,
-        to: event.kind === "edge-upserted" ? event.edge.to : null,
+        node: "edge" in event ? null : event.id,
+        from: "edge" in event ? event.edge.from : null,
+        to: "edge" in event ? event.edge.to : null,
       }));
       await driver.executeQuery(
         `${nextSeq("events", "size($rows)")}
@@ -164,6 +174,7 @@ interface Row {
   provenanceSource: string;
   provenancePath: string;
   provenanceSha: string | null;
+  body: string | null;
 }
 
 function toRow(node: Node): Row {
@@ -177,6 +188,7 @@ function toRow(node: Node): Row {
     provenanceSource: provenance.source,
     provenancePath: provenance.path,
     provenanceSha: provenance.sha ?? null,
+    body: node.body ?? null,
   };
 }
 
@@ -195,7 +207,8 @@ function fromRecord(record: Neo4jRecord): Node {
     path: row.provenancePath,
     ...(row.provenanceSha === null || row.provenanceSha === undefined ? {} : { sha: row.provenanceSha }),
   };
-  return NodeSchema.parse({ id: row.id, type: row.type, scope, provenance });
+  const body = row.body === null || row.body === undefined ? {} : { body: row.body };
+  return NodeSchema.parse({ id: row.id, type: row.type, scope, provenance, ...body });
 }
 
 function groupBy<T, K>(items: readonly T[], key: (item: T) => K): Map<K, T[]> {
