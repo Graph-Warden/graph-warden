@@ -171,6 +171,8 @@ function describe(entry: AuditEntry): string {
       return `read ${entry.target}${entry.returned.length === 0 ? " -> nothing" : ""}`;
     case "search":
       return `search "${entry.query}" -> ${count(entry.returned.length, "node")}`;
+    case "related":
+      return `related ${entry.targets.join(", ")} -> ${count(entry.returned.length, "node")}`;
     case "ask": {
       if (entry.denied === true) return `ask "${entry.question}" DENIED`;
       return `ask "${entry.question}" -> ${count(entry.returned.length, "node")} read${entry.saved === undefined ? "" : `, filed as ${entry.saved}`}`;

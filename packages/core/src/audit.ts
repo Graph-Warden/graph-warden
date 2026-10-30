@@ -5,7 +5,8 @@ import { NotFound } from "./deletion.js";
 import { computeDelta, type Delta, type EventLog } from "./events.js";
 import { retrieve, type RetrieveOptions } from "./search.js";
 import type { GraphStore } from "./store.js";
-import { traverse, type TraversalOptions } from "./traversal.js";
+import { findRelated } from "./revalidation.js";
+import { createGraph, traverse, type TraversalOptions } from "./traversal.js";
 
 // Audit of reads made on behalf of a user (proposal 0003). Every read goes through a `Reader`
 // (traversal, pull, the audit log itself), which records who asked for what and which nodes they
@@ -43,6 +44,8 @@ export const AuditEntrySchema = z.discriminatedUnion("action", [
   // One node read by id: `returned` is empty when it is unknown or unreadable.
   z.object({ ...common, action: z.literal("read"), target: z.string().min(1) }).readonly(),
   z.object({ ...common, action: z.literal("search"), query: z.string().min(1) }).readonly(),
+  // What depends on some nodes (proposal 0005), through readable nodes only.
+  z.object({ ...common, action: z.literal("related"), targets: z.array(z.string().min(1)).min(1).readonly() }).readonly(),
   // Reading the audit log is itself recorded: it says who looked at who saw what. So is a refused
   // attempt, marked `denied`.
   z
@@ -100,6 +103,9 @@ export interface Reader {
   // The readable nodes matching a query, best first.
   search(principal: Principal, query: string, options?: RetrieveOptions): Promise<readonly Node[]>;
   traverse(principal: Principal, start: string, options?: TraversalOptions): Promise<readonly Node[]>;
+  // What depends on these nodes (`findRelated`), nearest first, with the distance of each. Only
+  // readable nodes are crossed, as in a traversal: an unreadable node hides what lies behind it.
+  related(principal: Principal, ids: readonly string[]): Promise<readonly { readonly node: Node; readonly depth: number }[]>;
   // What changed since the cursor, as the principal may see it. Needs an event log.
   pull(principal: Principal, after: number): Promise<Delta>;
   // `pull` for a client that keeps asking (the web app's stream, proposal 0012): undefined while
@@ -167,6 +173,20 @@ export function createReader(store: GraphStore, audit: AuditLog, options: Reader
         principal,
       );
       return reached;
+    },
+
+    async related(principal, ids) {
+      const graph = await store.snapshot();
+      const readable = [...graph.nodes.values()].filter((node) => canRead(principal, node.scope));
+      const visible = new Set(readable.map((node) => node.id));
+      const subgraph = createGraph(readable, graph.edges.filter((edge) => visible.has(edge.from) && visible.has(edge.to)));
+      const { depth } = findRelated(subgraph, ids.filter((id) => visible.has(id)));
+      const found = [...depth.entries()]
+        .map(([id, d]) => ({ node: subgraph.nodes.get(id), depth: d }))
+        .filter((entry): entry is { node: Node; depth: number } => entry.node !== undefined)
+        .sort((a, b) => a.depth - b.depth || a.node.id.localeCompare(b.node.id));
+      await record({ action: "related", targets: [...ids], returned: found.map((entry) => entry.node.id) }, principal);
+      return found;
     },
 
     async pull(principal, after) {
