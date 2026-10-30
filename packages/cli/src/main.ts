@@ -184,6 +184,20 @@ function describe(entry: AuditEntry): string {
 const openCache = async (path: string) => (await import("./cache.js")).openCache(path);
 
 async function pull(command: Extract<Command, { name: "pull" }>): Promise<void> {
+  if (command.watch === undefined) return pullOnce(command);
+  // The fallback for clients that cannot hold the stream open (proposal 0006): pull, wait, again,
+  // each pull resuming from the cursor the cache holds.
+  let stopped = false;
+  const stop = () => (stopped = true);
+  process.once("SIGINT", stop);
+  process.once("SIGTERM", stop);
+  while (!stopped) {
+    await pullOnce(command);
+    for (let waited = 0; waited < command.watch * 1000 && !stopped; waited += 100) await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+}
+
+async function pullOnce(command: Extract<Command, { name: "pull" }>): Promise<void> {
   const cache = await openCache(command.cache);
   try {
     let after = cache.cursor(command.api);
