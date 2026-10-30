@@ -29,6 +29,20 @@ The script creates the project if needed and links billing. It enables the APIs,
 
 Then let the API read groups. In the Admin console, under **Account → Admin roles → Groups Reader → Assign service accounts**, add `graph-warden-api@<project>.iam.gserviceaccount.com`. Without this role, every call fails with a 500 rather than letting someone in without their groups.
 
+## Questions answered by Claude, without an API key
+
+`/v1/ask` needs a model. On Google Cloud the API reaches Claude with its service account: no key to store, rotate or leak, and the usage is billed through your Google Cloud account. Two platforms, set with `LLM`:
+
+- **`vertex`**: Claude on Google's Vertex AI. Enable the Claude model you want in **Vertex AI → Model Garden** for the project, then deploy with `LLM=vertex` (and `LLM_REGION` if the model is not served on the `global` endpoint). The script enables `aiplatform.googleapis.com` and grants the service account `roles/aiplatform.user`.
+- **`google-cloud`**: Claude on Google Cloud, run by Anthropic, with the same features as the Claude API. Subscribe in the Google Cloud Marketplace and create its Anthropic organisation (see Anthropic's documentation, *Claude models on Google Cloud*), then deploy with `LLM=google-cloud ANTHROPIC_GOOGLE_CLOUD_WORKSPACE_ID=wrkspc_…` (the workspace id is in the Claude Console, under Settings → Workspaces). The script enables `claude.googleapis.com` and grants `roles/claude.user`.
+
+```sh
+LLM=vertex PROJECT_ID=graph-warden-demo BILLING_ACCOUNT=XXXXXX-XXXXXX-XXXXXX \
+NEO4J_URI=neo4j+s://xxxxxxxx.databases.neo4j.io GOOGLE_DOMAIN=acme.com deploy/gcp/deploy.sh
+```
+
+`GWARDEN_LLM_MODEL` picks another model than `claude-opus-5-5`. On Vertex AI, a declined answer is not retried on a fallback model, as it is on the other platforms: the question fails instead.
+
 ## Deploy without a domain
 
 With no Workspace or Cloud Identity domain, deploy the demo users of `examples/shop/users.yaml` (lea, bob, alice, carla, dpo) instead of Google accounts. Only the billing account and the Aura instance are needed:

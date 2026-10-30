@@ -209,7 +209,7 @@ Les bases de graphe ont déjà un contrôle d'accès par rôle, et les biblioth�
 - une API REST dont identités et groupes viennent d'un fournisseur OIDC ou de Google avec Cloud Identity ;
 - une entrée d'audit pour chaque lecture, question et suppression ;
 - `gwarden pull` vers un cache SQLite local qui ne contient que ce que l'utilisateur peut voir ;
-- `gwarden ask`, des réponses tirées des nœuds lisibles, par Claude, enregistrées comme nœuds dérivés sur demande ;
+- `gwarden ask`, des réponses tirées des nœuds lisibles, par Claude (API Claude, Vertex AI, ou Google Cloud sans clé d'API), enregistrées comme nœuds dérivés sur demande ;
 - `gwarden delete`, qui suit `DERIVED_FROM`, montré puis confirmé ;
 - une application web : pages, recherche, graphe (Sigma.js), questions, suppression et pages wiki, à jour en direct via SSE ;
 - une démo `docker compose` et un déploiement Cloud Run.

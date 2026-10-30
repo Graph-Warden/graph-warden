@@ -207,7 +207,7 @@ Graph databases already have role-based access, and agent-memory libraries alrea
 - a REST API whose identities and groups come from an OIDC provider or Google with Cloud Identity;
 - an audit entry for every read, question and deletion;
 - `gwarden pull` into a local SQLite cache holding only what the user may see;
-- `gwarden ask`, answers from readable nodes with Claude, filed back as derived nodes on request;
+- `gwarden ask`, answers from readable nodes with Claude (Claude API, Vertex AI, or Google Cloud with no API key), filed back as derived nodes on request;
 - `gwarden delete`, following `DERIVED_FROM`, shown then confirmed;
 - a web app: pages, search, the graph (Sigma.js), questions, deletion and wiki pages, updated live over SSE;
 - a `docker compose` demo and a Cloud Run deployment.

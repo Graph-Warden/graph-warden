@@ -18,10 +18,14 @@ const writers = config.GWARDEN_WRITERS;
 const reader = createReader(store, audit, { events, auditors: config.GWARDEN_AUDITORS });
 const editor = createEditor(store, writer, audit, { writers });
 const pages = createPages(store, writer, audit, { writers });
-const asker =
+const llm =
   config.GWARDEN_LLM === "claude"
-    ? createAsker(store, writer, audit, createClaudeProvider(config.GWARDEN_LLM_MODEL === undefined ? {} : { model: config.GWARDEN_LLM_MODEL }), { writers })
+    ? createClaudeProvider({
+        platform: config.GWARDEN_LLM_PLATFORM,
+        ...(config.GWARDEN_LLM_MODEL === undefined ? {} : { model: config.GWARDEN_LLM_MODEL }),
+      })
     : undefined;
+const asker = llm === undefined ? undefined : createAsker(store, writer, audit, llm, { writers });
 const app = buildApi({
   reader,
   editor,

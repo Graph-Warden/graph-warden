@@ -285,6 +285,17 @@ describe("loadConfig", () => {
     expect(await config.identity.principalFor(tokens.lea)).toEqual({ user: "lea", teams: ["bff"] });
   });
 
+  it("needs the settings of the Google platform the model runs on", async () => {
+    const users = join(tmpdir(), `gw-users-llm-${process.pid}.yaml`);
+    await writeFile(users, `- { token: ${tokens.lea}, user: lea, teams: [bff] }\n`);
+    const demo = { ...base, GWARDEN_IDENTITY: "demo", GWARDEN_DEMO_USERS: users, GWARDEN_DEMO: "i-understand-anyone-with-a-token-is-that-user", GWARDEN_LLM: "claude" };
+    await expect(loadConfig({ ...demo, GWARDEN_LLM_PLATFORM: "google-cloud" })).rejects.toThrow(/WORKSPACE_ID/);
+    await expect(loadConfig({ ...demo, GWARDEN_LLM_PLATFORM: "vertex", CLOUD_ML_REGION: "" })).rejects.toThrow(/CLOUD_ML_REGION/);
+    await expect(loadConfig({ ...demo, GWARDEN_LLM_PLATFORM: "copilot" })).rejects.toThrow();
+    const config = await loadConfig({ ...demo, GWARDEN_LLM_PLATFORM: "vertex", CLOUD_ML_REGION: "global" });
+    expect(config.GWARDEN_LLM_PLATFORM).toBe("vertex");
+  });
+
   it("needs an issuer and an audience for OIDC", async () => {
     await expect(loadConfig({ ...base, GWARDEN_IDENTITY: "oidc", OIDC_ISSUER: "https://login.example.com" })).rejects.toThrow();
   });
