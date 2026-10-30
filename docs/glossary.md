@@ -46,3 +46,4 @@ The words below are used with this meaning in code, proposals, issues and review
 | Worker | The ingestion process (`gwarden-worker`): learns about merges by GitHub webhook, by a push from CI (`action/ingest`) or by polling its clones, and ingests them through the queue. |
 | Trigger | One way the worker learns that a repository reached a commit. Every trigger only queues a job; none carries a diff. |
 | Module | The node of one source file, id `<repo>:<path>`. `IMPORTS` edges link modules as the TypeScript compiler resolves them. |
+| Endpoint | The node of one operation of an OpenAPI spec, id `<repo>:<METHOD> <path>`. Modules next to the spec `EXPOSES` it; modules elsewhere that call it, through a generated client or `fetch`, `CONSUMES` it. |
