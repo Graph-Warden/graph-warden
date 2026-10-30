@@ -16,6 +16,8 @@ export const USAGE = `Usage:
   gwarden search <words>... --api <url> --token <token> [--limit <n>]
   gwarden ask "<question>" --api <url> --token <token> [--from <node-id>] [--save [--scope <scope>]]
   gwarden delete <node-id> --api <url> --token <token> [--confirm <node-id>]
+  gwarden impact <repo-dir> --source <name> --base <ref> [--head <ref>] [--scope <scope>] [--team <team>]...
+                 [--comment <owner/repo>#<number>]
 
 Scopes: shared, team:<name>, teams:<a>,<b> (members of every team), private:<user>. A document without a scope: field is private to the
 ingesting --user unless --default-scope says otherwise. Every traverse is recorded in the audit log, which
@@ -35,7 +37,14 @@ ask answers from the nodes the token's user may read, citing them; --from anchor
 --save files the answer as a node derived from every node the model read, private to the user
 unless --scope declares a wider one (narrowed to the readers of all its sources). delete shows
 what would go (the node, and the nodes derived only from what is deleted) and asks you to type the
-node id; --confirm <node-id> types it for you, in scripts. Both need a writer group to write.`;
+node id; --confirm <node-id> types it for you, in scripts. Both need a writer group to write.
+
+impact ingests the commits from --base to --head (HEAD by default) of a clone into a copy of the
+graph read from Neo4j, never the graph itself, and prints the endpoints they touch, the modules
+consuming them by package, and the decisions and documents to check. It lists only nodes readable
+by --team (shared only without it): the report is for everyone who reads the pull request.
+--scope is the repository's scope (shared by default). --comment posts it on the pull request,
+replacing the previous report, with GITHUB_TOKEN.`;
 
 export interface Remote {
   readonly api: string;
@@ -84,6 +93,16 @@ export type Command =
       readonly save: boolean;
       readonly scope?: string;
     } & Remote)
+  | {
+      readonly name: "impact";
+      readonly dir: string;
+      readonly source: string;
+      readonly base: string;
+      readonly head: string;
+      readonly scope: Scope;
+      readonly reader: Principal;
+      readonly comment?: { readonly repo: string; readonly pull: number };
+    }
   | ({
       readonly name: "delete";
       readonly id: string;
@@ -113,6 +132,9 @@ export function parseCommand(argv: readonly string[]): Command {
       scope: { type: "string" },
       confirm: { type: "string" },
       limit: { type: "string" },
+      base: { type: "string" },
+      head: { type: "string", default: "HEAD" },
+      comment: { type: "string" },
     },
   });
   const cache = values.cache ?? join(homedir(), ".graph-warden", "cache.db");
@@ -149,6 +171,22 @@ export function parseCommand(argv: readonly string[]): Command {
         ...(values.from === undefined ? {} : { from: values.from }),
         ...(values.scope === undefined ? {} : { scope: values.scope }),
         ...remote(),
+      };
+    }
+    case "impact": {
+      if (values.source === undefined) throw new Error("--source is required");
+      if (values.base === undefined) throw new Error("--base is required");
+      const comment = values.comment === undefined ? undefined : /^([\w.-]+\/[\w.-]+)#(\d+)$/.exec(values.comment);
+      if (comment === null) throw new Error("--comment expects owner/repo#number");
+      return {
+        name,
+        dir: target,
+        source: values.source,
+        base: values.base,
+        head: values.head,
+        scope: parseScope(values.scope ?? "shared"),
+        reader: { user: values.user ?? "pull-request", teams: values.team },
+        ...(comment === undefined ? {} : { comment: { repo: comment[1] ?? "", pull: Number(comment[2]) } }),
       };
     }
     case "delete":

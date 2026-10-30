@@ -13,3 +13,4 @@ export * from "./search.js";
 export * from "./pages.js";
 export * from "./ingestion.js";
 export * from "./revalidation.js";
+export * from "./impact.js";

@@ -12,14 +12,19 @@ import {
   EdgeSchema,
   NodeSchema,
   PullResponseSchema,
+  requiredTeams,
   type AuditEntry,
   type Node,
 } from "@graph-warden/core";
-import { readDocuments, readOntology } from "@graph-warden/documents";
+import { createDocumentExtractor, readDocuments, readOntology } from "@graph-warden/documents";
+import { createGitRepository } from "@graph-warden/git";
+import { createOpenApiExtractor } from "@graph-warden/openapi";
+import { createTypeScriptExtractor } from "@graph-warden/typescript";
 import { createNeo4jAuditLog, createNeo4jEventLog, createNeo4jStore, ensureConstraints } from "@graph-warden/neo4j";
 import neo4j from "neo4j-driver";
 import { z } from "zod";
 import { parseCommand, type Command, type Remote } from "./args.js";
+import { formatImpact, packageNames, postComment, pullRequestImpact } from "./impact.js";
 
 async function run(command: Command): Promise<void> {
   if (command.name === "pull") return pull(command);
@@ -68,6 +73,33 @@ async function run(command: Command): Promise<void> {
       }
       case "audit": {
         printAudit(await audit.entries(command.user === undefined ? {} : { user: command.user }));
+        break;
+      }
+      case "impact": {
+        const ontology = process.env.GWARDEN_ONTOLOGY ? await readOntology(process.env.GWARDEN_ONTOLOGY) : CORE_ONTOLOGY;
+        const repository = createGitRepository(command.dir);
+        const [base, head] = [await repository.head(command.base), await repository.head(command.head)];
+        // Read once; every write of the dry run goes to a copy. Nothing is written, so derived
+        // documents are narrowed as a principal in every team would, and the report filtered after.
+        const graph = await store.snapshot();
+        const teams = [...new Set([...graph.nodes.values()].flatMap((node) => requiredTeams(node.scope)))];
+        const impact = await pullRequestImpact({
+          graph,
+          repository,
+          config: { name: command.source, scope: command.scope, author: { user: "impact", teams } },
+          extractors: [createDocumentExtractor({ ontology }), createTypeScriptExtractor(), createOpenApiExtractor()],
+          ontology,
+          base,
+          head,
+          reader: command.reader,
+        });
+        const report = formatImpact(impact, await packageNames(repository, head));
+        console.log(report);
+        if (command.comment !== undefined) {
+          const token = process.env.GITHUB_TOKEN;
+          if (token === undefined || token === "") throw new Error("--comment needs GITHUB_TOKEN");
+          await postComment(command.comment.repo, command.comment.pull, report, token);
+        }
         break;
       }
     }

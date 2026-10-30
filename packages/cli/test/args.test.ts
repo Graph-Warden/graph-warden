@@ -149,3 +149,17 @@ describe("delete", () => {
 it("prints usage for an unknown command", () => {
   expect(() => parseCommand(["frobnicate", "x"])).toThrow(/Usage/);
 });
+
+it("parses impact, shared-only by default", () => {
+  expect(parseCommand(["impact", "/repo", "--source", "github:acme/shop", "--base", "main"])).toMatchObject({
+    name: "impact",
+    dir: "/repo",
+    base: "main",
+    head: "HEAD",
+    scope: { kind: "shared" },
+    reader: { teams: [] },
+  });
+  expect(parseCommand(["impact", "/repo", "--source", "s", "--base", "b", "--comment", "acme/shop#12"])).toMatchObject({ comment: { repo: "acme/shop", pull: 12 } });
+  expect(() => parseCommand(["impact", "/repo", "--source", "s", "--base", "b", "--comment", "12"])).toThrow(/owner\/repo#number/);
+  expect(() => parseCommand(["impact", "/repo", "--source", "s"])).toThrow(/--base/);
+});

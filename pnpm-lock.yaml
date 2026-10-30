@@ -225,9 +225,21 @@ importers:
       '@graph-warden/documents':
         specifier: workspace:*
         version: link:../adapters/documents
+      '@graph-warden/git':
+        specifier: workspace:*
+        version: link:../adapters/git
+      '@graph-warden/memory':
+        specifier: workspace:*
+        version: link:../adapters/memory
       '@graph-warden/neo4j':
         specifier: workspace:*
         version: link:../adapters/neo4j
+      '@graph-warden/openapi':
+        specifier: workspace:*
+        version: link:../adapters/openapi
+      '@graph-warden/typescript':
+        specifier: workspace:*
+        version: link:../adapters/typescript
       neo4j-driver:
         specifier: ^6.2.0
         version: 6.2.0

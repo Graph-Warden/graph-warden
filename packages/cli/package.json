@@ -7,7 +7,9 @@
   "bin": {
     "gwarden": "./dist/main.js"
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit"
@@ -15,7 +17,11 @@
   "dependencies": {
     "@graph-warden/core": "workspace:*",
     "@graph-warden/documents": "workspace:*",
+    "@graph-warden/git": "workspace:*",
+    "@graph-warden/memory": "workspace:*",
     "@graph-warden/neo4j": "workspace:*",
+    "@graph-warden/openapi": "workspace:*",
+    "@graph-warden/typescript": "workspace:*",
     "neo4j-driver": "^6.2.0",
     "zod": "^4.6.7"
   }
