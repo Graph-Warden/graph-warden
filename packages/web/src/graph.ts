@@ -1,4 +1,4 @@
-import type { Delta, Edge, EdgeType, Node, Scope } from "@graph-warden/core";
+import type { Delta, Edge, EdgeType, Node, NodeType, Scope } from "@graph-warden/core";
 
 // The part of the graph the signed-in user may read, as pulled from the API (proposal 0006): the
 // app never filters by scope, it only holds what the API sent. Deltas apply as in the CLI cache.
@@ -37,6 +37,20 @@ export const outgoing = (store: Store, id: string): Relation[] =>
 
 export const incoming = (store: Store, id: string): Relation[] =>
   store.edges.flatMap((e) => (e.to === id && store.nodes.has(e.from) ? [{ type: e.type, node: store.nodes.get(e.from) as Node }] : []));
+
+// As in core's ontology (a test checks they agree), which the browser cannot import.
+export const NODE_TYPES = [
+  "Source",
+  "Change",
+  "Module",
+  "Endpoint",
+  "Decision",
+  "Concept",
+  "Incident",
+  "Team",
+  "Person",
+  "Session",
+] as const satisfies readonly NodeType[];
 
 export const nameOf = (node: Node) => node.title ?? node.id;
 

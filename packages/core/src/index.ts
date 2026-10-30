@@ -10,3 +10,4 @@ export * from "./deletion.js";
 export * from "./editor.js";
 export * from "./ask.js";
 export * from "./search.js";
+export * from "./pages.js";

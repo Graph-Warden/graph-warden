@@ -7,7 +7,9 @@ export type Route =
   | { readonly view: "home" }
   | { readonly view: "node"; readonly id: string }
   | { readonly view: "search"; readonly query: string }
-  | { readonly view: "graph"; readonly id?: string };
+  | { readonly view: "graph"; readonly id?: string }
+  | { readonly view: "edit"; readonly id?: string }
+  | { readonly view: "ask"; readonly from?: string };
 
 export function parseRoute(hash: string): Route {
   const [path = "", search = ""] = hash.replace(/^#/, "").split("?");
@@ -21,11 +23,20 @@ export function parseRoute(hash: string): Route {
   };
   if (parts[0] === "node" && parts.length >= 2) return { view: "node", id: decode(parts.slice(1).join("/")) };
   if (parts[0] === "graph") return parts.length >= 2 ? { view: "graph", id: decode(parts.slice(1).join("/")) } : { view: "graph" };
+  if (parts[0] === "edit") return parts.length >= 2 ? { view: "edit", id: decode(parts.slice(1).join("/")) } : { view: "edit" };
+  if (parts[0] === "ask") {
+    const from = new URLSearchParams(search).get("from");
+    return from === null ? { view: "ask" } : { view: "ask", from };
+  }
   if (parts[0] === "search") return { view: "search", query: new URLSearchParams(search).get("q") ?? "" };
   return { view: "home" };
 }
 
 export const graphHref = (id?: string) => (id === undefined ? "#/graph" : `#/graph/${encodeURIComponent(id)}`);
+
+export const editHref = (id?: string) => (id === undefined ? "#/edit" : `#/edit/${encodeURIComponent(id)}`);
+
+export const askHref = (from?: string) => (from === undefined ? "#/ask" : `#/ask?${new URLSearchParams({ from }).toString()}`);
 
 export const searchHref = (query: string) => `#/search?${new URLSearchParams({ q: query }).toString()}`;
 

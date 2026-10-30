@@ -2,7 +2,7 @@ import { useState, type FormEvent, type ReactNode } from "react";
 import type { Node, NodeType, Principal } from "@graph-warden/core";
 import { nameOf, type Store } from "../graph.js";
 import { pageHref } from "../markdown.js";
-import { graphHref, searchHref } from "../route.js";
+import { askHref, editHref, graphHref, searchHref } from "../route.js";
 
 export function Shell(props: {
   principal: Principal;
@@ -33,6 +33,8 @@ export function Shell(props: {
           <input type="search" placeholder="Search what you may read" value={query} onChange={(event) => setQuery(event.target.value)} />
         </form>
         <a href={graphHref()}>Graph</a>
+        <a href={askHref()}>Ask</a>
+        <a href={editHref()}>New page</a>
         <span className={props.live ? "live on" : "live"} title={props.live ? "Changes show up as they happen" : "Not receiving changes: refresh to update"}>
           {props.live ? "Live" : "Offline"}
         </span>

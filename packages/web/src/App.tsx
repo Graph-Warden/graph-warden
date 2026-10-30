@@ -3,6 +3,8 @@ import type { Delta, Principal } from "@graph-warden/core";
 import { api, HttpError } from "./api.js";
 import { applyDelta, empty, type Store } from "./graph.js";
 import { useRoute } from "./route.js";
+import { Ask } from "./views/Ask.js";
+import { Editor } from "./views/Editor.js";
 import { GraphView } from "./views/GraphView.js";
 import { Login } from "./views/Login.js";
 import { Page } from "./views/Page.js";
@@ -111,6 +113,10 @@ export function App() {
     >
       {route.view === "node" ? (
         <Page store={store} id={route.id} />
+      ) : route.view === "edit" ? (
+        <Editor key={route.id ?? ""} principal={session.principal} {...(route.id === undefined ? {} : { id: route.id })} />
+      ) : route.view === "ask" ? (
+        <Ask store={store} principal={session.principal} {...(route.from === undefined ? {} : { from: route.from })} />
       ) : route.view === "graph" ? (
         <GraphView store={store} {...(route.id === undefined ? {} : { focus: route.id })} />
       ) : (

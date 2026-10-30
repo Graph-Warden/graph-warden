@@ -4,12 +4,17 @@ import {
   EdgeSchema,
   EdgeTypeSchema,
   Forbidden,
+  Invalid,
   NotFound,
+  NodeTypeSchema,
+  pageVersion,
+  Stale,
   parseScope,
   Unreachable,
   type Asker,
   type DeletionPlan,
   type Editor,
+  type Pages,
   NodeSchema,
   PullResponseSchema,
   Unauthenticated,
@@ -33,6 +38,8 @@ export interface ApiOptions {
   readonly identity: IdentityProvider;
   // Deletion; without it, the deletion routes answer 501.
   readonly editor?: Editor;
+  // Wiki pages; without it, PUT /v1/pages answers 501.
+  readonly pages?: Pages;
   // Questions; without a model configured, /v1/ask answers 501.
   readonly asker?: Asker;
   // The web app and browser sessions (proposal 0012); without it, only bearer tokens are accepted.
@@ -64,6 +71,14 @@ const AskBody = z.object({
   scope: z.string().min(1).optional(),
 });
 
+const PageBody = z.object({
+  title: z.string().min(1).max(300),
+  body: z.string().max(200_000),
+  scope: z.string().min(1),
+  type: NodeTypeSchema.optional(),
+});
+const quoted = (version: string) => `"${version}"`;
+
 const PrincipalResponse = PullResponseSchema.unwrap().shape.principal;
 const NodesResponse = z.object({ nodes: z.array(NodeSchema) });
 const AuditResponse = z.object({ entries: z.array(AuditEntrySchema) });
@@ -80,6 +95,8 @@ const deletion = (plan: DeletionPlan) =>
 class NotConfigured extends Error {}
 
 class BadRequest extends Error {}
+
+class PreconditionRequired extends Error {}
 
 export function buildApi(options: ApiOptions): FastifyInstance {
   const app = Fastify({ logger: options.logger ?? false });
@@ -112,7 +129,11 @@ export function buildApi(options: ApiOptions): FastifyInstance {
     if (error instanceof NotFound) return reply.code(404).send({ error: "not found" });
     if (error instanceof Conflict) return reply.code(409).send({ error: "conflict", detail: error.message });
     if (error instanceof NotConfigured) return reply.code(501).send({ error: "not configured", detail: error.message });
-    if (error instanceof BadRequest) return reply.code(400).send({ error: "bad request", detail: error.message });
+    if (error instanceof BadRequest || error instanceof Invalid) return reply.code(400).send({ error: "bad request", detail: error.message });
+    if (error instanceof Stale) return reply.code(412).send({ error: "precondition failed", detail: error.message });
+    if (error instanceof PreconditionRequired) {
+      return reply.code(428).send({ error: "precondition required", detail: "send If-Match with the version edited, or If-None-Match: * for a new page" });
+    }
     request.log.error(error);
     return reply.code(500).send({ error: "internal error" });
   });
@@ -122,9 +143,32 @@ export function buildApi(options: ApiOptions): FastifyInstance {
 
   app.get("/v1/me", async (request) => PrincipalResponse.parse(await principalOf(request)));
 
-  app.get<{ Params: { id: string } }>("/v1/nodes/:id", async (request) => {
+  // The ETag is the version a page edit must name in If-Match.
+  app.get<{ Params: { id: string } }>("/v1/nodes/:id", async (request, reply) => {
     const principal = await principalOf(request);
-    return NodeSchema.parse(await options.reader.node(principal, request.params.id));
+    const node = NodeSchema.parse(await options.reader.node(principal, request.params.id));
+    void reply.header("etag", quoted(pageVersion(node)));
+    return node;
+  });
+
+  app.put<{ Params: { id: string } }>("/v1/pages/:id", async (request, reply) => {
+    const principal = await principalOf(request);
+    if (options.pages === undefined) throw new NotConfigured("pages are not enabled on this API");
+    const body = parse(PageBody, request.body);
+    let scope;
+    try {
+      scope = parseScope(body.scope);
+    } catch (error) {
+      throw new BadRequest(`scope: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    const match = request.headers["if-match"];
+    const expected = request.headers["if-none-match"] === "*" ? null : typeof match === "string" ? match.replace(/^(W\/)?"|"$/g, "") : undefined;
+    if (expected === undefined) throw new PreconditionRequired();
+    const saved = await options.pages.save(principal, request.params.id, { title: body.title, body: body.body, scope, ...(body.type === undefined ? {} : { type: body.type }) }, expected);
+    return reply
+      .code(saved.created ? 201 : 200)
+      .header("etag", quoted(saved.version))
+      .send({ node: NodeSchema.parse(saved.node), version: saved.version });
   });
 
   app.get("/v1/search", async (request) => {
@@ -269,6 +313,26 @@ export const openApi = {
         responses: { "200": { description: "The node", content: json(NodeSchema) }, ...errors, "404": { description: "Unknown or unreadable node" } },
       },
       delete: DELETE_NODE,
+    },
+    "/v1/pages/{id}": {
+      put: {
+        summary: "Create or edit a wiki page, for members of a writer group",
+        parameters: [
+          { name: "id", in: "path", required: true, schema: { type: "string" } },
+          { name: "If-Match", in: "header", schema: { type: "string" }, description: "The ETag of the page edited" },
+          { name: "If-None-Match", in: "header", schema: { type: "string", enum: ["*"] }, description: "For a page that must not exist yet" },
+        ],
+        requestBody: { required: true, content: json(PageBody) },
+        responses: {
+          "200": { description: "The page saved, and its new version (also the ETag)" },
+          "201": { description: "The page created" },
+          ...errors,
+          "403": { description: "Not in a writer group" },
+          "409": { description: "The id is taken by a node that is not an editable page, or the scope of a page others derive from changed" },
+          "412": { description: "The page changed since the version named" },
+          "428": { description: "Neither If-Match nor If-None-Match" },
+        },
+      },
     },
     "/v1/search": {
       get: {

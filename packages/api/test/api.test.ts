@@ -2,7 +2,7 @@ import { writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { createAsker, createEditor, createReader, createWriter, type LLMProvider, type Node, type Scope } from "@graph-warden/core";
+import { createAsker, createEditor, createPages, createReader, createWriter, type LLMProvider, type Node, type Scope } from "@graph-warden/core";
 import { createDemoIdentity } from "@graph-warden/identity";
 import { createMemoryAuditLog, createMemoryEventLog, createMemoryStore } from "@graph-warden/memory";
 import { buildApi, loadConfig } from "../src/index.js";
@@ -55,6 +55,7 @@ describe("API", () => {
       "/healthz",
       "/v1/me",
       "/v1/nodes/{id}",
+      "/v1/pages/{id}",
       "/v1/search",
       "/v1/nodes/{id}/neighbours",
       "/v1/pull",
@@ -193,11 +194,33 @@ describe("API writes", () => {
     ]);
     const editor = createEditor(store, writer, audit, { writers: ["writers"] });
     const asker = options.llm === undefined ? undefined : createAsker(store, writer, audit, options.llm, { writers: ["writers"] });
-    const app = buildApi({ reader: createReader(store, audit, { events }), editor, ...(asker === undefined ? {} : { asker }), identity });
-    const call = (method: "GET" | "DELETE" | "POST", url: string, token: string, payload?: object) =>
-      app.inject({ method, url, headers: { authorization: `Bearer ${token}` }, ...(payload === undefined ? {} : { payload }) });
+    const pages = createPages(store, writer, audit, { writers: ["writers"] });
+    const app = buildApi({ reader: createReader(store, audit, { events }), editor, pages, ...(asker === undefined ? {} : { asker }), identity });
+    const call = (method: "GET" | "DELETE" | "POST" | "PUT", url: string, token: string, payload?: object, headers: Record<string, string> = {}) =>
+      app.inject({ method, url, headers: { authorization: `Bearer ${token}`, ...headers }, ...(payload === undefined ? {} : { payload }) });
     return { call, store };
   }
+
+  it("creates and edits a wiki page over the version read, and never an ingested node", async () => {
+    const { call } = await writes();
+    const page = { title: "Runbook", body: "See [[adr]] and [[checkout]].", scope: "team:bff" };
+    expect((await call("PUT", "/v1/pages/runbook", writerTokens.bob, page)).statusCode).toBe(428);
+    const created = await call("PUT", "/v1/pages/runbook", writerTokens.bob, page, { "if-none-match": "*" });
+    expect(created.statusCode).toBe(201);
+    expect(created.json().node).toMatchObject({ id: "runbook", title: "Runbook", provenance: { source: "wiki" } });
+    const read = await call("GET", "/v1/nodes/runbook", writerTokens.carl);
+    expect(read.headers.etag).toBe(created.headers.etag);
+    // bob could not read checkout: only adr is referenced.
+    expect((await call("GET", "/v1/nodes/runbook/neighbours", writerTokens.carl)).json().nodes.map((n: Node) => n.id)).toEqual(["adr"]);
+
+    const edit = { ...page, body: "Edited." };
+    const edited = await call("PUT", "/v1/pages/runbook", writerTokens.lea, edit, { "if-match": String(read.headers.etag) });
+    expect(edited.statusCode).toBe(200);
+    expect((await call("PUT", "/v1/pages/runbook", writerTokens.bob, edit, { "if-match": String(read.headers.etag) })).statusCode).toBe(412);
+    expect((await call("PUT", "/v1/pages/adr", writerTokens.lea, page, { "if-none-match": "*" })).statusCode).toBe(409);
+    expect((await call("PUT", "/v1/pages/other", writerTokens.carl, page, { "if-none-match": "*" })).statusCode).toBe(403);
+    expect((await call("PUT", "/v1/pages/other", writerTokens.bob, { ...page, scope: "team:front" }, { "if-none-match": "*" })).statusCode).toBe(400);
+  });
 
   it("shows a deletion, then makes it only with the digest of what was shown", async () => {
     const { call, store } = await writes();

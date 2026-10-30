@@ -72,6 +72,17 @@ export const AuditEntrySchema = z.discriminatedUnion("action", [
       denied: z.literal(true).optional(),
     })
     .readonly(),
+  // A wiki page written through the API (proposal 0012): `returned` is the page when it was saved,
+  // `created` marks a new one, `denied` an attempt refused for want of rights.
+  z
+    .object({
+      ...common,
+      action: z.literal("edit"),
+      target: z.string().min(1),
+      created: z.literal(true).optional(),
+      denied: z.literal(true).optional(),
+    })
+    .readonly(),
 ]);
 
 export type AuditEntry = z.infer<typeof AuditEntrySchema>;

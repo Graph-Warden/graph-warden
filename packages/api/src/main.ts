@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { createClaudeProvider } from "@graph-warden/anthropic";
-import { createAsker, createEditor, createReader, createWriter } from "@graph-warden/core";
+import { createAsker, createEditor, createPages, createReader, createWriter } from "@graph-warden/core";
 import { createNeo4jAuditLog, createNeo4jEventLog, createNeo4jStore, ensureConstraints } from "@graph-warden/neo4j";
 import neo4j from "neo4j-driver";
 import { buildApi } from "./app.js";
@@ -17,6 +17,7 @@ const writer = createWriter(store, events);
 const writers = config.GWARDEN_WRITERS;
 const reader = createReader(store, audit, { events, auditors: config.GWARDEN_AUDITORS });
 const editor = createEditor(store, writer, audit, { writers });
+const pages = createPages(store, writer, audit, { writers });
 const asker =
   config.GWARDEN_LLM === "claude"
     ? createAsker(store, writer, audit, createClaudeProvider(config.GWARDEN_LLM_MODEL === undefined ? {} : { model: config.GWARDEN_LLM_MODEL }), { writers })
@@ -24,6 +25,7 @@ const asker =
 const app = buildApi({
   reader,
   editor,
+  pages,
   ...(asker === undefined ? {} : { asker }),
   ...(config.web === undefined ? {} : { web: config.web }),
   identity: config.identity,

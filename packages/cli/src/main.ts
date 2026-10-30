@@ -137,6 +137,8 @@ function describe(entry: AuditEntry): string {
       if (entry.denied === true) return `ask "${entry.question}" DENIED`;
       return `ask "${entry.question}" -> ${count(entry.returned.length, "node")} read${entry.saved === undefined ? "" : `, filed as ${entry.saved}`}`;
     }
+    case "edit":
+      return `edit ${entry.target}${entry.denied === true ? " DENIED" : entry.created === true ? " (new page)" : ""}`;
   }
 }
 

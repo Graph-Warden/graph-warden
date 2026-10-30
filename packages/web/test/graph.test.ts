@@ -1,6 +1,6 @@
-import type { Delta, Node } from "@graph-warden/core";
+import { formatScope as coreFormatScope, NodeTypeSchema, type Delta, type Node, type Scope } from "@graph-warden/core";
 import { describe, expect, it } from "vitest";
-import { applyDelta, empty, filterNodes, incoming, neighbourhood, outgoing } from "../src/graph.js";
+import { applyDelta, empty, filterNodes, formatScope, incoming, neighbourhood, NODE_TYPES, outgoing } from "../src/graph.js";
 
 const node = (id: string, extra: Partial<Node> = {}): Node => ({
   id,
@@ -71,5 +71,11 @@ describe("the web copy of the readable graph", () => {
     expect(neighbourhood(chain, "a", 2).edges).toHaveLength(2);
     expect(neighbourhood(chain, undefined).nodes).toHaveLength(4);
     expect(neighbourhood(chain, "unknown")).toEqual({ nodes: [], edges: [] });
+  });
+
+  it("agrees with core on node types and scope names", () => {
+    expect([...NODE_TYPES]).toEqual(NodeTypeSchema.options);
+    const scopes: Scope[] = [{ kind: "shared" }, { kind: "team", team: "a" }, { kind: "teams", teams: ["a", "b"] }, { kind: "private", user: "u" }];
+    for (const scope of scopes) expect(formatScope(scope)).toBe(coreFormatScope(scope));
   });
 });
