@@ -184,6 +184,9 @@ export function createNeo4jIngestionState(driver: Driver): IngestionState {
     async record(repo, sha) {
       await driver.executeQuery("MERGE (i:Ingestion {repo: $repo}) SET i.sha = $sha", { repo, sha });
     },
+    async forget(repo) {
+      await driver.executeQuery("MATCH (i:Ingestion {repo: $repo}) DELETE i", { repo });
+    },
   };
 }
 
@@ -205,6 +208,9 @@ export function createNeo4jStaleMarks(driver: Driver): StaleMarks {
     },
     async clear(id) {
       await driver.executeQuery("MATCH (s:Stale {id: $id}) DELETE s", { id });
+    },
+    async clearSource(source) {
+      await driver.executeQuery("MATCH (s:Stale) WHERE s.change STARTS WITH $prefix DELETE s", { prefix: `${source}@` });
     },
   };
 }

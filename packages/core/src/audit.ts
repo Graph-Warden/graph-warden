@@ -44,6 +44,17 @@ export const AuditEntrySchema = z.discriminatedUnion("action", [
   // One node read by id: `returned` is empty when it is unknown or unreadable.
   z.object({ ...common, action: z.literal("read"), target: z.string().min(1) }).readonly(),
   z.object({ ...common, action: z.literal("search"), query: z.string().min(1) }).readonly(),
+  // The erasure of a source (issue #17): `returned` lists the nodes deleted, `recompiled` the
+  // derived nodes written again without it. `planned` marks a preview.
+  z
+    .object({
+      ...common,
+      action: z.literal("forget"),
+      source: z.string().min(1),
+      recompiled: z.array(z.string().min(1)).readonly(),
+      planned: z.literal(true).optional(),
+    })
+    .readonly(),
   // What depends on some nodes (proposal 0005), through readable nodes only.
   z.object({ ...common, action: z.literal("related"), targets: z.array(z.string().min(1)).min(1).readonly() }).readonly(),
   // Reading the audit log is itself recorded: it says who looked at who saw what. So is a refused

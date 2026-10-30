@@ -16,6 +16,7 @@ export const USAGE = `Usage:
   gwarden search <words>... --api <url> --token <token> [--limit <n>]
   gwarden ask "<question>" --api <url> --token <token> [--from <node-id>] [--save [--scope <scope>]]
   gwarden delete <node-id> --api <url> --token <token> [--confirm <node-id>]
+  gwarden forget <source> --user <user> [--team <team>]... [--confirm <source>]
   gwarden impact <repo-dir> --source <name> --base <ref> [--head <ref>] [--scope <scope>] [--team <team>]...
                  [--comment <owner/repo>#<number>]
 
@@ -39,6 +40,13 @@ ask answers from the nodes the token's user may read, citing them; --from anchor
 unless --scope declares a wider one (narrowed to the readers of all its sources). delete shows
 what would go (the node, and the nodes derived only from what is deleted) and asks you to type the
 node id; --confirm <node-id> types it for you, in scripts. Both need a writer group to write.
+
+forget erases a source (a provenance source: docs:my-team, github:acme/shop) from Neo4j: its nodes, the
+nodes derived only from them, and the nodes derived from them and from others, which hold its content
+too. Those are written again from their other sources by the model of GWARDEN_LLM (claude or openai,
+with GWARDEN_LLM_MODEL, GWARDEN_LLM_BASE_URL, OPENAI_API_KEY as for the API), or deleted without one.
+It shows what goes and asks you to type the source; --confirm types it, in scripts. The erasure is
+audited as --user.
 
 impact ingests the commits from --base to --head (HEAD by default) of a clone into a copy of the
 graph read from Neo4j, never the graph itself, and prints the endpoints they touch, the modules
@@ -96,6 +104,12 @@ export type Command =
       readonly save: boolean;
       readonly scope?: string;
     } & Remote)
+  | {
+      readonly name: "forget";
+      readonly source: string;
+      readonly principal: Principal;
+      readonly confirm?: string;
+    }
   | {
       readonly name: "impact";
       readonly dir: string;
@@ -182,6 +196,10 @@ export function parseCommand(argv: readonly string[]): Command {
         ...(values.scope === undefined ? {} : { scope: values.scope }),
         ...remote(),
       };
+    }
+    case "forget": {
+      if (values.user === undefined) throw new Error("--user is required: the erasure is audited as someone");
+      return { name, source: target, principal: { user: values.user, teams: values.team }, ...(values.confirm === undefined ? {} : { confirm: values.confirm }) };
     }
     case "impact": {
       if (values.source === undefined) throw new Error("--source is required");

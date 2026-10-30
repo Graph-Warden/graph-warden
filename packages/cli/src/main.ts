@@ -12,15 +12,26 @@ import {
   EdgeSchema,
   NodeSchema,
   PullResponseSchema,
+  createEraser,
   requiredTeams,
   type AuditEntry,
+  type LLMProvider,
   type Node,
 } from "@graph-warden/core";
 import { createDocumentExtractor, readDocuments, readOntology } from "@graph-warden/documents";
 import { createGitRepository } from "@graph-warden/git";
 import { createOpenApiExtractor } from "@graph-warden/openapi";
 import { createTypeScriptExtractor } from "@graph-warden/typescript";
-import { createNeo4jAuditLog, createNeo4jEventLog, createNeo4jStore, ensureConstraints } from "@graph-warden/neo4j";
+import { createClaudeProvider } from "@graph-warden/anthropic";
+import {
+  createNeo4jAuditLog,
+  createNeo4jEventLog,
+  createNeo4jIngestionState,
+  createNeo4jStaleMarks,
+  createNeo4jStore,
+  ensureConstraints,
+} from "@graph-warden/neo4j";
+import { createOpenAICompatibleProvider } from "@graph-warden/openai";
 import neo4j from "neo4j-driver";
 import { z } from "zod";
 import { parseCommand, type Command, type Remote } from "./args.js";
@@ -75,6 +86,39 @@ async function run(command: Command): Promise<void> {
         printAudit(await audit.entries(command.user === undefined ? {} : { user: command.user }));
         break;
       }
+      case "forget": {
+        const llm = llmFromEnv();
+        const eraser = createEraser(store, createWriter(store, createNeo4jEventLog(driver)), audit, {
+          ...(llm === undefined ? {} : { llm }),
+          marks: createNeo4jStaleMarks(driver),
+          state: createNeo4jIngestionState(driver),
+        });
+        const plan = await eraser.plan(command.principal, command.source);
+        if (plan.deleted.length === 0) {
+          console.log(`Nothing comes from ${command.source}.`);
+          break;
+        }
+        console.log(`Forgetting ${command.source} deletes:`);
+        for (const node of plan.deleted) console.log(`  ${line(node)}`);
+        if (plan.recompiled.length > 0) {
+          console.log("and writes again from their other sources only:");
+          for (const node of plan.recompiled) console.log(`  ${line(node)}`);
+        }
+        let typed = command.confirm;
+        if (typed === undefined) {
+          if (!process.stdin.isTTY) throw new Error("forget asks for confirmation on a terminal; in a script, pass --confirm <source>");
+          const prompt = createInterface({ input: process.stdin, output: process.stdout });
+          try {
+            typed = (await prompt.question(`\nThis cannot be undone. Type ${command.source} to confirm: `)).trim();
+          } finally {
+            prompt.close();
+          }
+        }
+        if (typed !== command.source) throw new Error(`Not forgotten: "${typed}" is not ${command.source}.`);
+        const done = await eraser.forget(command.principal, command.source, plan.digest);
+        console.log(`Forgot ${command.source}: ${count(done.deleted.length, "node")} deleted, ${done.recompiled.length} recompiled.`);
+        break;
+      }
       case "impact": {
         const ontology = process.env.GWARDEN_ONTOLOGY ? await readOntology(process.env.GWARDEN_ONTOLOGY) : CORE_ONTOLOGY;
         const repository = createGitRepository(command.dir);
@@ -106,6 +150,23 @@ async function run(command: Command): Promise<void> {
   } finally {
     await driver.close();
   }
+}
+
+// The model named by the environment, with the API's settings; none when GWARDEN_LLM is unset.
+function llmFromEnv(): LLMProvider | undefined {
+  const { GWARDEN_LLM: kind, GWARDEN_LLM_MODEL: model, GWARDEN_LLM_BASE_URL: baseUrl, OPENAI_API_KEY: apiKey, GWARDEN_LLM_PLATFORM: platform } = process.env;
+  if (kind === undefined || kind === "" || kind === "none") return undefined;
+  if (kind === "claude") {
+    if (platform !== undefined && platform !== "" && platform !== "anthropic" && platform !== "google-cloud" && platform !== "vertex") {
+      throw new Error("GWARDEN_LLM_PLATFORM must be anthropic, google-cloud or vertex");
+    }
+    return createClaudeProvider({ ...(platform ? { platform } : {}), ...(model ? { model } : {}) });
+  }
+  if (kind === "openai") {
+    if (!model) throw new Error("GWARDEN_LLM=openai needs GWARDEN_LLM_MODEL");
+    return createOpenAICompatibleProvider({ model, ...(baseUrl ? { baseUrl } : {}), ...(apiKey ? { apiKey } : {}) });
+  }
+  throw new Error("GWARDEN_LLM must be none, claude or openai");
 }
 
 const line = (node: Node) =>
@@ -171,6 +232,8 @@ function describe(entry: AuditEntry): string {
       return `read ${entry.target}${entry.returned.length === 0 ? " -> nothing" : ""}`;
     case "search":
       return `search "${entry.query}" -> ${count(entry.returned.length, "node")}`;
+    case "forget":
+      return `${entry.planned === true ? "forget preview" : "forget"} ${entry.source} -> ${count(entry.returned.length, "node")} deleted, ${entry.recompiled.length} recompiled`;
     case "related":
       return `related ${entry.targets.join(", ")} -> ${count(entry.returned.length, "node")}`;
     case "ask": {
