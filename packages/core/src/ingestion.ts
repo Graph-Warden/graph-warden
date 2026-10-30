@@ -121,6 +121,8 @@ export class Diverged extends Error {
 }
 
 export const changeId = (repo: string, sha: string): string => `${repo}@${sha}`;
+// The repository of a `Change` node, from its id.
+export const changeSource = (id: string): string => id.slice(0, id.lastIndexOf("@"));
 
 export function createIngester(options: IngesterOptions): Ingester {
   const { store, writer, state, repositories, extractors } = options;

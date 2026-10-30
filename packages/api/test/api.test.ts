@@ -2,7 +2,7 @@ import { writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { createAsker, createEditor, createPages, createReader, createWriter, type LLMProvider, type Node, type Scope } from "@graph-warden/core";
+import { createAsker, createEditor, createPages, createReader, createRouter, createSensitivityPolicy, createWriter, type LLMProvider, type Node, type Scope } from "@graph-warden/core";
 import { createDemoIdentity } from "@graph-warden/identity";
 import { createMemoryAuditLog, createMemoryEventLog, createMemoryStore } from "@graph-warden/memory";
 import { buildApi, loadConfig } from "../src/index.js";
@@ -319,6 +319,15 @@ describe("API writes", () => {
   it("answers 501 when no model is configured", async () => {
     const { call } = await writes();
     expect((await call("POST", "/v1/ask", writerTokens.lea, { question: "pagination" })).statusCode).toBe(501);
+  });
+
+  it("answers 501 when the question reads confidential sources and no local model is configured", async () => {
+    const remote: LLMProvider = { complete: async () => "sent out" };
+    const llm = createRouter({ remote, policy: createSensitivityPolicy({ confidential: ["docs"] }), audit: createMemoryAuditLog() });
+    const { call } = await writes({ llm });
+    const response = await call("POST", "/v1/ask", writerTokens.lea, { question: "pagination" });
+    expect(response.statusCode).toBe(501);
+    expect(response.body).not.toMatch(/sent out/);
   });
 });
 

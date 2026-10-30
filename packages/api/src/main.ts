@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 import { createClaudeProvider } from "@graph-warden/anthropic";
-import { createAsker, createEditor, createPages, createReader, createRevalidator, createWriter } from "@graph-warden/core";
+import { createAsker, createEditor, createPages, createReader, createRevalidator, createWriter, routeModels } from "@graph-warden/core";
+import { readSensitivity } from "@graph-warden/documents";
 import { createNeo4jAuditLog, createNeo4jEventLog, createNeo4jStaleMarks, createNeo4jStore, ensureConstraints } from "@graph-warden/neo4j";
-import { createOpenAICompatibleProvider } from "@graph-warden/openai";
+import { createOpenAICompatibleProvider, LOCAL_BASE_URL } from "@graph-warden/openai";
 import neo4j from "neo4j-driver";
 import { buildApi } from "./app.js";
 import { loadConfig } from "./config.js";
@@ -16,7 +17,7 @@ const audit = createNeo4jAuditLog(driver);
 const events = createNeo4jEventLog(driver);
 const writer = createWriter(store, events, { ontology: config.ontology });
 const writers = config.GWARDEN_WRITERS;
-const llm =
+const remote =
   config.GWARDEN_LLM === "claude"
     ? createClaudeProvider({
         platform: config.GWARDEN_LLM_PLATFORM,
@@ -29,6 +30,15 @@ const llm =
           ...(config.OPENAI_API_KEY === undefined ? {} : { apiKey: config.OPENAI_API_KEY }),
         })
       : undefined;
+const llm = routeModels({
+  remote,
+  local:
+    config.GWARDEN_LOCAL_LLM_MODEL === undefined
+      ? undefined
+      : createOpenAICompatibleProvider({ model: config.GWARDEN_LOCAL_LLM_MODEL, baseUrl: config.GWARDEN_LOCAL_LLM_BASE_URL ?? LOCAL_BASE_URL }),
+  ...(config.GWARDEN_SENSITIVITY === undefined ? {} : { policy: await readSensitivity(config.GWARDEN_SENSITIVITY) }),
+  audit,
+});
 // Knowledge the worker marked stale is revalidated on its first read (proposal 0005).
 const revalidator = llm === undefined ? undefined : createRevalidator({ store, writer, llm, marks: createNeo4jStaleMarks(driver) });
 const reader = createReader(store, audit, {

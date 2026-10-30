@@ -111,7 +111,13 @@ export function createEraser(store: GraphStore, writer: Writer, audit: AuditLog,
           .filter((e) => e.type === "DERIVED_FROM" && e.from === node.id && !gone.has(e.to))
           .map((e) => graph.nodes.get(e.to))
           .filter((n): n is Node => n !== undefined);
-        const body = await (llm as LLMProvider).complete({ system: RECOMPILE, prompt: recompilePrompt(node, remaining) });
+        const body = await (llm as LLMProvider).complete({
+          system: RECOMPILE,
+          prompt: recompilePrompt(node, remaining),
+          // The title is the node's own.
+          sources: [node.provenance.source, ...remaining.map((n) => n.provenance.source)],
+          principal,
+        });
         rewritten.push({ ...node, body });
       }
       await writer.upsertNodes(rewritten);

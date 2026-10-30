@@ -3,10 +3,12 @@ import { basename, extname, join, relative } from "node:path";
 import {
   CORE_ONTOLOGY,
   createOntology,
+  createSensitivityPolicy,
   EdgeTypeSchema,
   NodeSchema,
   OntologyExtensionSchema,
   parseScope,
+  SensitivityConfigSchema,
   type Edge,
   type EdgeType,
   type Extractor,
@@ -14,6 +16,7 @@ import {
   type NodeType,
   type Ontology,
   type Scope,
+  type SensitivityPolicy,
 } from "@graph-warden/core";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
@@ -173,6 +176,13 @@ function nodeType(frontmatter: Frontmatter, ontology: Ontology): NodeType {
 //   edgeTypes: [OWNS, RUNS_ON]
 export async function readOntology(path: string): Promise<Ontology> {
   return createOntology(OntologyExtensionSchema.parse(parseYaml(await readFile(path, "utf8")) ?? {}));
+}
+
+// The sensitivity of each source, from a YAML file (issue #28):
+//   default: internal
+//   confidential: [docs:hr, "github:acme/payroll*"]
+export async function readSensitivity(path: string): Promise<SensitivityPolicy> {
+  return createSensitivityPolicy(SensitivityConfigSchema.parse(parseYaml(await readFile(path, "utf8")) ?? {}));
 }
 
 // The documents of a git repository, for the ingester. References are kept whatever their target:

@@ -15,3 +15,4 @@ export * from "./ingestion.js";
 export * from "./revalidation.js";
 export * from "./impact.js";
 export * from "./erasure.js";
+export * from "./routing.js";

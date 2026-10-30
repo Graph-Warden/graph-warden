@@ -10,6 +10,8 @@ import type { LLMProvider } from "@graph-warden/core";
 // between <think> tags: it is not part of the answer and is dropped.
 
 export const DEFAULT_BASE_URL = "https://api.openai.com/v1";
+// Ollama's OpenAI-compatible API on its default port: the default local model (issue #28).
+export const LOCAL_BASE_URL = "http://localhost:11434/v1";
 
 export interface OpenAICompatibleOptions {
   // No default: a model name means nothing outside the server it is served by.
