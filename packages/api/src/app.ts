@@ -27,6 +27,8 @@ import {
 } from "@graph-warden/core";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import { z } from "zod";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { createMcpServer } from "./mcp.js";
 import { CrossSite, registerWeb, type Sessions, type WebOptions } from "./web.js";
 
 // The API (proposal 0003): the one place readers reach the graph. Every route below `/v1` takes a
@@ -243,6 +245,27 @@ export function buildApi(options: ApiOptions): FastifyInstance {
     }
     out.end();
   });
+
+  // MCP over Streamable HTTP, stateless: each request carries its bearer token, gets its own
+  // server bound to that principal, and the server is gone with the response.
+  app.post("/mcp", async (request, reply) => {
+    const principal = await principalOf(request);
+    const server = createMcpServer(options.reader, principal);
+    // No session id generator: stateless.
+    const transport = new StreamableHTTPServerTransport({ enableJsonResponse: true });
+    reply.hijack();
+    reply.raw.on("close", () => {
+      void transport.close();
+      void server.close();
+    });
+    // The SDK's optional callbacks are typed without exactOptionalPropertyTypes.
+    await server.connect(transport as Parameters<typeof server.connect>[0]);
+    await transport.handleRequest(request.raw, reply.raw, request.body);
+  });
+  // Without sessions there is no stream to open or session to end.
+  for (const method of ["GET", "DELETE"] as const) {
+    app.route({ method, url: "/mcp", handler: async (_request, reply) => reply.code(405).header("allow", "POST").send({ error: "method not allowed" }) });
+  }
 
   app.get("/v1/audit", async (request) => {
     const principal = await principalOf(request);
