@@ -18,9 +18,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@anthropic-ai/google-cloud-sdk": "^1.1.1",
-    "@anthropic-ai/sdk": "^1.3.0",
-    "@anthropic-ai/vertex-sdk": "^1.1.0",
+    "@anthropic-ai/google-cloud-sdk": "catalog:",
+    "@anthropic-ai/sdk": "catalog:",
+    "@anthropic-ai/vertex-sdk": "catalog:",
     "@graph-warden/core": "workspace:*"
   }
 }

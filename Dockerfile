@@ -3,10 +3,10 @@
 FROM node:24-slim AS build
 WORKDIR /src
 RUN corepack enable
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json tsconfig.base.json ./
 COPY packages ./packages
 RUN pnpm install --frozen-lockfile --ignore-scripts \
- && pnpm -r build \
+ && pnpm build \
  && pnpm --filter @graph-warden/api deploy --prod --legacy /out/api \
  && pnpm --filter @graph-warden/cli deploy --prod --legacy /out/cli \
  && pnpm --filter @graph-warden/worker deploy --prod --legacy /out/worker

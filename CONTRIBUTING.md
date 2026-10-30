@@ -18,6 +18,10 @@ pnpm install
 pnpm typecheck && pnpm lint && pnpm test
 ```
 
+Builds and typechecks run through [Turborepo](https://turborepo.com) (`turbo.json`): each package after the packages it depends on, and a package whose sources did not change is restored from the cache (`.turbo/`).
+
+Every external dependency has one version for the whole repository, in the `catalog:` of `pnpm-workspace.yaml`; packages ask for `"<name>": "catalog:"`. The catalog is strict: add or bump a version there, then `pnpm install`, and commit the lockfile with it (CI installs with `--frozen-lockfile`).
+
 `pnpm install` also installs two git hooks: `pre-commit` lints the staged files, `commit-msg` checks Conventional Commits and the sign-off. CI runs the same checks, so `--no-verify` only delays the failure.
 
 ## Rules for code
