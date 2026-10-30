@@ -51,6 +51,10 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
+      # The same suite with every store on RDF (Oxigraph, in process).
+      - run: pnpm test
+        env:
+          GWARDEN_TEST_STORE: rdf
 
   conventional-commits:
     if: github.event_name == 'pull_request'

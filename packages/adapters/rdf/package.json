@@ -1,0 +1,26 @@
+{
+  "name": "@graph-warden/rdf",
+  "version": "0.0.0",
+  "description": "GraphStore for Graph-Warden on an RDF triplestore through SPARQL 1.1 (Fuseki, GraphDB, Oxigraph, Neptune).",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@graph-warden/core": "workspace:*"
+  },
+  "devDependencies": {
+    "oxigraph": "catalog:"
+  }
+}

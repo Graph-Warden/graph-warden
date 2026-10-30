@@ -178,7 +178,8 @@ describe("pull, for any sequence of writes", () => {
       }),
       { numRuns: 1000 },
     );
-  });
+    // A thousand runs take seconds on a triplestore (GWARDEN_TEST_STORE=rdf).
+  }, 60_000);
 
   it("drops the edges of a node deleted and recreated between two pulls", async () => {
     const store = memoryStore();

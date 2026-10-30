@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import neo4j, { type Driver } from "neo4j-driver";
-import type { AuditEntry, Node } from "@graph-warden/core";
+import { checkStore, type AuditEntry, type Node } from "@graph-warden/core";
 import { createNeo4jAuditLog, createNeo4jEventLog, createNeo4jIngestionState, createNeo4jStaleMarks, createNeo4jStore, ensureConstraints } from "../src/index.js";
 
 // Runs against a throwaway database: every test wipes it. Never point NEO4J_TEST_URI at a
@@ -51,6 +51,15 @@ describe.skipIf(uri === undefined)("Neo4j adapter", () => {
   beforeEach(() => driver.executeQuery("MATCH (n) DETACH DELETE n"));
 
   describe("GraphStore", () => {
+    it("passes the store conformance suite", async () => {
+      expect(
+        await checkStore(async () => {
+          await driver.executeQuery("MATCH (n) DETACH DELETE n");
+          return store();
+        }),
+      ).toEqual([]);
+    });
+
     it("stores and returns nodes with their scope and provenance", async () => {
       await store().upsertNodes([decision, concept, module_]);
       expect(await store().getNode("adr-0002")).toEqual(decision);

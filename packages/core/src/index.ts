@@ -20,3 +20,4 @@ export * from "./conformance.js";
 export * from "./redaction.js";
 export * from "./agent-sessions.js";
 export * from "./connector.js";
+export * from "./store-conformance.js";
