@@ -37,6 +37,8 @@ export interface Repository {
   read(sha: string, path: string): Promise<string>;
   // The full commit message.
   message(sha: string): Promise<string>;
+  // The patch from `from` to `to`; without `from`, the patch of the commit `to` on its first parent.
+  diff(from: string | undefined, to: string): Promise<string>;
 }
 
 // Port for the last commit ingested per repository.
@@ -90,6 +92,10 @@ export interface RepositoryConfig {
 
 export interface IngestedCommit {
   readonly sha: string;
+  // The commit's `Change` node.
+  readonly change: string;
+  // Nodes of the files the commit changed, written or removed.
+  readonly changed: readonly string[];
   readonly upserted: number;
   readonly deleted: number;
 }
@@ -202,7 +208,8 @@ export function createIngester(options: IngesterOptions): Ingester {
     await writer.deleteEdges(stale);
     await writer.upsertEdges(edges);
     for (const id of removed) await writer.deleteNode(id);
-    return { sha, upserted: nodes.length, deleted: removed.length };
+    const touched = nodes.filter((node) => changed.has(node.provenance.path)).map((node) => node.id);
+    return { sha, change: change.id, changed: [...touched, ...removed], upserted: nodes.length, deleted: removed.length };
   }
 }
 

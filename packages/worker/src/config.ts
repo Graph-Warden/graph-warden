@@ -26,6 +26,16 @@ const EnvSchema = z.object({
   GITHUB_WEBHOOK_SECRET: setting.pipe(z.string().min(16).optional()),
   GWARDEN_PUSH_TOKEN: setting.pipe(z.string().min(16).optional()),
   GWARDEN_POLL_SECONDS: z.coerce.number().int().nonnegative().default(0),
+  // The model that revalidates knowledge after each commit (proposal 0005), as for the API's
+  // /v1/ask: none, claude or openai, with the same settings. None: nothing is revalidated.
+  GWARDEN_LLM: z.enum(["none", "claude", "openai"]).default("none"),
+  GWARDEN_LLM_PLATFORM: z.enum(["anthropic", "google-cloud", "vertex"]).default("anthropic"),
+  GWARDEN_LLM_MODEL: setting,
+  GWARDEN_LLM_BASE_URL: setting.pipe(z.url({ protocol: /^https?$/ }).optional()),
+  OPENAI_API_KEY: setting,
+  // Knowledge further than this many hops from a change is marked stale and revalidated on its
+  // first read instead.
+  GWARDEN_REVALIDATE_DEPTH: z.coerce.number().int().nonnegative().default(3),
 });
 
 // - name: github:acme/shop        provenance source of its nodes; matches GitHub webhooks of acme/shop
@@ -73,6 +83,9 @@ export async function loadConfig(env: NodeJS.ProcessEnv): Promise<WorkerConfig> 
   if (twice !== undefined) throw new Error(`${settings.GWARDEN_REPOSITORIES}: ${twice} is listed twice`);
   if (settings.GITHUB_WEBHOOK_SECRET === undefined && settings.GWARDEN_PUSH_TOKEN === undefined && settings.GWARDEN_POLL_SECONDS === 0) {
     throw new Error("No trigger: set GITHUB_WEBHOOK_SECRET, GWARDEN_PUSH_TOKEN or GWARDEN_POLL_SECONDS");
+  }
+  if (settings.GWARDEN_LLM === "openai" && settings.GWARDEN_LLM_MODEL === undefined) {
+    throw new Error("GWARDEN_LLM=openai needs GWARDEN_LLM_MODEL, the name of the model on its server");
   }
   const ontology = settings.GWARDEN_ONTOLOGY === undefined ? CORE_ONTOLOGY : await readOntology(settings.GWARDEN_ONTOLOGY);
   return { ...settings, repositories, ontology };

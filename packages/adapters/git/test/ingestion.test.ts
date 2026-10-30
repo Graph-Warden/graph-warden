@@ -118,6 +118,7 @@ describe("git ingestion", () => {
     const graph = await snapshot();
     expect(graph.nodes.has("b")).toBe(false);
     expect(graph.edges.filter((e) => e.type !== "MODIFIES")).toEqual([]);
+    expect(await createGitRepository(dir).diff(undefined, head)).toContain("-# B");
   });
 
   it("narrows a derived document to the readers of its sources", async () => {
