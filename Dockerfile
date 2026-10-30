@@ -15,6 +15,9 @@ ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=build /out/api ./api
 COPY --from=build /out/cli ./cli
+# The web app, served by the API when GWARDEN_WEB_SECRET is set.
+COPY --from=build /src/packages/web/dist ./web
+ENV GWARDEN_WEB_DIR=/app/web
 RUN printf '#!/bin/sh\nexec node /app/cli/dist/main.js "$@"\n' > /usr/local/bin/gwarden && chmod +x /usr/local/bin/gwarden
 USER node
 EXPOSE 8080

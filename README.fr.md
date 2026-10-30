@@ -177,6 +177,21 @@ Type adr-0007-cursor-pagination to confirm:
 
 Seuls les membres d'un groupe d'écrivains peuvent supprimer ou enregistrer des réponses, et seulement ce qu'ils peuvent lire. Si le graphe a changé entre l'aperçu et la confirmation, rien n'est supprimé.
 
+## Dans le navigateur
+
+L'API sert aussi une application web : chaque nœud comme une page (titre, scope, provenance, texte, ce dont il dérive et ce qui pointe vers lui), la recherche, le graphe lui-même, les questions, et des pages wiki écrites dans le navigateur. Elle montre ce que son utilisateur peut lire, rien d'autre, et se met à jour quand le graphe change. Dans la démo, ouvrez http://localhost:8080 et connectez-vous avec un jeton de `examples/shop/users.yaml`.
+
+<p align="center"><img src="docs/assets/web-1-page.png" alt="La page de la synthèse d'impact des leads : scope teams:bff,front-a,front-b, sa provenance, son texte, et les trois documents dont elle dérive" width="900"></p>
+
+Le même graphe, pour Lea (toutes les équipes) et pour Bob (BFF seulement) :
+
+<p align="center">
+  <img src="docs/assets/web-2-graph.png" alt="Le graphe de Lea : neuf nœuds, toutes équipes confondues" width="49%">
+  <img src="docs/assets/web-3-graph-bob.png" alt="Le graphe de Bob : trois nœuds, l'endpoint, le service BFF et la décision" width="49%">
+</p>
+
+La connexion passe par votre fournisseur d'identité ; le navigateur ne détient jamais de jeton. Les pages wiki suivent les mêmes règles que le reste : seuls les rédacteurs les enregistrent, seulement dans un scope qu'ils lisent, et un enregistrement fait par-dessus une version plus récente d'un autre est refusé au lieu de l'écraser.
+
 ## Ce qui le distingue
 
 Les bases de graphe ont déjà un contrôle d'accès par rôle, et les bibliothèques de mémoire d'agent cloisonnent déjà les souvenirs par utilisateur. Ce qu'elles laissent ouvert, c'est ce qui se passe entre l'agent et la connaissance :
@@ -196,9 +211,10 @@ Les bases de graphe ont déjà un contrôle d'accès par rôle, et les biblioth�
 - `gwarden pull` vers un cache SQLite local qui ne contient que ce que l'utilisateur peut voir ;
 - `gwarden ask`, des réponses tirées des nœuds lisibles, par Claude, enregistrées comme nœuds dérivés sur demande ;
 - `gwarden delete`, qui suit `DERIVED_FROM`, montré puis confirmé ;
+- une application web : pages, recherche, graphe (Sigma.js), questions, suppression et pages wiki, à jour en direct via SSE ;
 - une démo `docker compose` et un déploiement Cloud Run.
 
-**Pas encore :** la revalidation des scopes dérivés quand une source ou un groupe change, l'effacement d'une source entière, MCP, le flux SSE en direct, la compilation par LLM et la vue web. La conception est arrêtée dans [`docs/proposals`](docs/proposals) ; le travail est suivi dans les [issues](https://github.com/Graph-Warden/graph-warden/issues).
+**Pas encore :** la revalidation des scopes dérivés quand une source ou un groupe change, l'effacement d'une source entière, MCP, la compilation par LLM, et le voyage dans le temps dans l'application web. La conception est arrêtée dans [`docs/proposals`](docs/proposals) ; le travail est suivi dans les [issues](https://github.com/Graph-Warden/graph-warden/issues).
 
 ---
 
@@ -232,11 +248,11 @@ flowchart LR
 
     API -- REST --> C1[vos outils]
     API -- MCP --> C2["Claude Code, Cursor,<br/>LibreChat, Open WebUI"]
-    API -- SSE --> C3[vue web du graphe]
+    API -- SSE --> C3[application web]
     C4["CLI gwarden<br/>+ cache local"] -- pull --> API
 ```
 
-Aujourd'hui : l'ingestion de documents par le CLI, Neo4j, l'API REST, les fournisseurs d'identité, `gwarden pull`, et les réponses aux questions par Claude. Prévu : la file, la compilation par LLM, les webhooks, MCP et SSE.
+Aujourd'hui : l'ingestion de documents par le CLI, Neo4j, l'API REST, les fournisseurs d'identité, `gwarden pull`, les réponses aux questions par Claude, et l'application web, en direct via SSE. Prévu : la file, la compilation par LLM, les webhooks et MCP.
 
 - **Le graphe est la source de vérité**, jamais les fichiers dont il est construit. Il vit sur un serveur : Neo4j en local (`pnpm db:up`) ou un déploiement hébergé, d'où `gwarden pull` ne récupère que ce que l'utilisateur peut voir.
 - **Un seul écrivain, ingestion ordonnée** *(conception)* : seul le merge sur `main` écrit les nœuds partagés, dans l'ordre des commits, et rejouer un webhook ne crée aucun doublon ([proposal 0004](docs/proposals/0004-single-writer-ordered-ingestion.md)).
@@ -451,10 +467,10 @@ Réglages de l'API pour les écritures : `GWARDEN_WRITERS` (groupes autorisés �
 | `packages/adapters/documents` | Documents Markdown, JSON et YAML en nœuds et arêtes typées, avec leur texte | M1, première tranche |
 | `packages/adapters/anthropic` | `LLMProvider` sur Claude | première tranche |
 | `packages/cli` | `gwarden ingest`, `traverse`, `audit`, `pull`, `cache`, `ask`, `delete` ; plus tard `forget`, impact de PR | M0–M2 |
-| `packages/api` | REST avec OpenAPI, seul point d'accès des lecteurs au graphe ; webhooks plus tard | M2, première tranche |
+| `packages/api` | REST avec OpenAPI, seul point d'accès des lecteurs au graphe ; connexion des navigateurs, flux SSE, pages wiki ; webhooks plus tard | M2, première tranche |
 | `packages/mcp` | Serveur MCP | M2, prévu |
 | `packages/worker` | Consommateur de la file d'ingestion, appels LLM | M1, prévu |
-| `packages/web` | Vue du graphe (Sigma.js), en direct via SSE | M2, prévu |
+| `packages/web` | Application web : pages, recherche, graphe (Sigma.js), questions, pages wiki, en direct via SSE ([proposal 0012](docs/proposals/0012-web-app-stream-and-wiki-pages.md)) | M2, première tranche |
 | `packages/adapters/*` | Autres sources, fournisseurs LLM, stockages, files, analyseurs | M1+ |
 
 ```mermaid
@@ -471,6 +487,7 @@ flowchart TB
     neo4j --> core
     identity --> core
     memory[adapters/memory] --> core
+    web[web] -. HTTP .-> api
     core(["core<br/>domaine + ports, sans I/O"])
 ```
 

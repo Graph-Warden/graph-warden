@@ -175,6 +175,21 @@ Type adr-0007-cursor-pagination to confirm:
 
 Only members of a writer group may delete or save answers, and only what they may read. If the graph changed between the preview and the confirmation, nothing is deleted.
 
+## In the browser
+
+The API also serves a web app: each node as a page (title, scope, provenance, text, what it derives from and what links to it), search, the graph itself, questions, and wiki pages written in the browser. It shows what its user may read, nothing else, and updates as the graph changes. In the demo, open http://localhost:8080 and sign in with a token from `examples/shop/users.yaml`.
+
+<p align="center"><img src="docs/assets/web-1-page.png" alt="The page of the leads' impact summary: scope teams:bff,front-a,front-b, its provenance, its text, and the three documents it derives from" width="900"></p>
+
+The same graph, for Lea (every team) and for Bob (BFF only):
+
+<p align="center">
+  <img src="docs/assets/web-2-graph.png" alt="Lea's graph: nine nodes across every team" width="49%">
+  <img src="docs/assets/web-3-graph-bob.png" alt="Bob's graph: three nodes, the endpoint, the BFF service and the decision" width="49%">
+</p>
+
+Signing in goes through your identity provider; the browser never holds a token. Wiki pages follow the same rules as everything else: only writers save them, only into a scope they read, and a save made over someone else's newer version is refused instead of overwriting it.
+
 ## How it differs
 
 Graph databases already have role-based access, and agent-memory libraries already scope memories by user. What they leave open is what happens between the agent and the knowledge:
@@ -194,9 +209,10 @@ Graph databases already have role-based access, and agent-memory libraries alrea
 - `gwarden pull` into a local SQLite cache holding only what the user may see;
 - `gwarden ask`, answers from readable nodes with Claude, filed back as derived nodes on request;
 - `gwarden delete`, following `DERIVED_FROM`, shown then confirmed;
+- a web app: pages, search, the graph (Sigma.js), questions, deletion and wiki pages, updated live over SSE;
 - a `docker compose` demo and a Cloud Run deployment.
 
-**Not yet:** revalidating derived scopes when a source or a group changes, erasing a whole source, MCP, the live SSE stream, LLM compilation and the web view. The design for all of it is settled in [`docs/proposals`](docs/proposals); the work is tracked in [issues](https://github.com/Graph-Warden/graph-warden/issues).
+**Not yet:** revalidating derived scopes when a source or a group changes, erasing a whole source, MCP, LLM compilation, and time travel in the web app. The design for all of it is settled in [`docs/proposals`](docs/proposals); the work is tracked in [issues](https://github.com/Graph-Warden/graph-warden/issues).
 
 ---
 
@@ -230,11 +246,11 @@ flowchart LR
 
     API -- REST --> C1[your tools]
     API -- MCP --> C2["Claude Code, Cursor,<br/>LibreChat, Open WebUI"]
-    API -- SSE --> C3[web graph view]
+    API -- SSE --> C3[web app]
     C4["gwarden CLI<br/>+ local cache"] -- pull --> API
 ```
 
-Today: document ingestion through the CLI, Neo4j, the REST API, identity providers, `gwarden pull`, and questions answered by Claude. Planned: the queue, LLM compilation, webhooks, MCP and SSE.
+Today: document ingestion through the CLI, Neo4j, the REST API, identity providers, `gwarden pull`, questions answered by Claude, and the web app, live over SSE. Planned: the queue, LLM compilation, webhooks and MCP.
 
 - **The graph is the source of truth**, never the files it was built from. It lives in a server: Neo4j locally (`pnpm db:up`) or a hosted deployment, from which `gwarden pull` fetches only what the user may see.
 - **Single writer, ordered ingestion** *(design)*: only the merge on `main` writes shared nodes, in commit order, and replaying a webhook creates no duplicates ([proposal 0004](docs/proposals/0004-single-writer-ordered-ingestion.md)).
@@ -449,10 +465,10 @@ The API settings for writes: `GWARDEN_WRITERS` (groups that may delete and save 
 | `packages/adapters/documents` | Markdown, JSON and YAML documents as nodes and typed edges, with their text | M1, first slice |
 | `packages/adapters/anthropic` | `LLMProvider` on Claude | first slice |
 | `packages/cli` | `gwarden ingest`, `traverse`, `audit`, `pull`, `cache`, `ask`, `delete`; later `forget`, PR impact | M0–M2 |
-| `packages/api` | REST with OpenAPI, the only place readers reach the graph; webhooks later | M2, first slice |
+| `packages/api` | REST with OpenAPI, the only place readers reach the graph; browser sign-in, SSE stream, wiki pages; webhooks later | M2, first slice |
 | `packages/mcp` | MCP server | M2, planned |
 | `packages/worker` | Ingestion queue consumer, LLM calls | M1, planned |
-| `packages/web` | Graph view (Sigma.js), live over SSE | M2, planned |
+| `packages/web` | Web app: pages, search, graph (Sigma.js), questions, wiki pages, live over SSE ([proposal 0012](docs/proposals/0012-web-app-stream-and-wiki-pages.md)) | M2, first slice |
 | `packages/adapters/*` | More sources, LLM providers, stores, queues, analyzers | M1+ |
 
 ```mermaid
@@ -469,6 +485,7 @@ flowchart TB
     neo4j --> core
     identity --> core
     memory[adapters/memory] --> core
+    web[web] -. HTTP .-> api
     core(["core<br/>domain + ports, no I/O"])
 ```
 

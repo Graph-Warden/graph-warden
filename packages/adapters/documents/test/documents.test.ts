@@ -17,7 +17,17 @@ describe("parsePage", () => {
       links: ["traversal", "audit"],
       references: [],
       body: "# Scopes\nSee [[traversal]], [[traversal|the walk]] and [[audit#Entries]].",
+      title: "Scopes",
     });
+  });
+
+  it("takes the title field, else the first heading, else none", () => {
+    expect(parsePage("a.md", "---\ntitle: ADR 7\n---\n# Heading\n").title).toBe("ADR 7");
+    expect(parsePage("a.md", "Intro\n\n## Sub\n# Main title #\n").title).toBe("Main title");
+    expect(parsePage("a.md", "No heading.").title).toBeUndefined();
+    expect(parsePage("a.yaml", "title: Orders API\n").title).toBe("Orders API");
+    const { nodes } = toGraph([parsePage("a.md", "# A page")], { source: "docs", defaultScope: { kind: "shared" } });
+    expect(nodes[0]?.title).toBe("A page");
   });
 
   it("keeps the text as the body: below the frontmatter, or the body field of JSON and YAML", () => {

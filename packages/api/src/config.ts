@@ -9,6 +9,7 @@ import {
 } from "@graph-warden/identity";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
+import type { WebLogin, WebOptions } from "./web.js";
 
 // Configuration from the environment, validated once at start-up: a missing or contradictory
 // setting stops the API instead of leaving it half secured.
@@ -59,14 +60,42 @@ const CommonSchema = z.object({
   // credentials of the environment.
   GWARDEN_LLM: z.enum(["none", "claude"]).default("none"),
   GWARDEN_LLM_MODEL: z.string().min(1).optional(),
+  // The web app (proposal 0012): on when a session secret is set. Browsers sign in with the
+  // identity provider (OIDC authorization code; Google for google), or with a demo token.
+  GWARDEN_WEB_SECRET: z.string().min(32).optional(),
+  GWARDEN_PUBLIC_URL: z.url().default("http://localhost:8080"),
+  GWARDEN_WEB_DIR: z.string().min(1).optional(),
+  // The OAuth client browsers sign in with; its ID tokens must be accepted by the identity
+  // provider, so its id defaults to OIDC_AUDIENCE or GOOGLE_CLIENT_ID.
+  WEB_OIDC_CLIENT_ID: z.string().min(1).optional(),
+  WEB_OIDC_CLIENT_SECRET: z.string().min(1).optional(),
 });
 
-export type Config = z.infer<typeof CommonSchema> & { readonly identity: IdentityProvider; readonly identityKind: string };
+export type Config = z.infer<typeof CommonSchema> & {
+  readonly identity: IdentityProvider;
+  readonly identityKind: string;
+  readonly web?: WebOptions;
+};
 
 export async function loadConfig(env: NodeJS.ProcessEnv): Promise<Config> {
   const common = CommonSchema.parse(env);
   const settings = EnvSchema.parse(env);
-  return { ...common, identity: await identityFrom(settings), identityKind: settings.GWARDEN_IDENTITY };
+  const web = common.GWARDEN_WEB_SECRET === undefined ? undefined : webFrom(common, settings, common.GWARDEN_WEB_SECRET);
+  return { ...common, identity: await identityFrom(settings), identityKind: settings.GWARDEN_IDENTITY, ...(web === undefined ? {} : { web }) };
+}
+
+function webFrom(common: z.infer<typeof CommonSchema>, settings: z.infer<typeof EnvSchema>, secret: string): WebOptions {
+  const secretFor = (clientId: string) => {
+    if (common.WEB_OIDC_CLIENT_SECRET === undefined) throw new Error("The web app needs WEB_OIDC_CLIENT_SECRET to sign users in");
+    return { clientId: common.WEB_OIDC_CLIENT_ID ?? clientId, clientSecret: common.WEB_OIDC_CLIENT_SECRET };
+  };
+  const login: WebLogin =
+    settings.GWARDEN_IDENTITY === "demo"
+      ? { kind: "demo" }
+      : settings.GWARDEN_IDENTITY === "oidc"
+        ? { kind: "oidc", issuer: settings.OIDC_ISSUER, ...secretFor(settings.OIDC_AUDIENCE) }
+        : { kind: "oidc", issuer: "https://accounts.google.com", ...secretFor(settings.GOOGLE_CLIENT_ID) };
+  return { secret, publicUrl: common.GWARDEN_PUBLIC_URL, login, ...(common.GWARDEN_WEB_DIR === undefined ? {} : { dir: common.GWARDEN_WEB_DIR }) };
 }
 
 async function identityFrom(settings: z.infer<typeof EnvSchema>): Promise<IdentityProvider> {

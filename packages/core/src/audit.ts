@@ -1,7 +1,9 @@
 import { z } from "zod";
 import { EdgeTypeSchema, type Node } from "./ontology.js";
-import type { Principal } from "./scope.js";
+import { canRead, type Principal } from "./scope.js";
+import { NotFound } from "./deletion.js";
 import { computeDelta, type Delta, type EventLog } from "./events.js";
+import { retrieve, type RetrieveOptions } from "./search.js";
 import type { GraphStore } from "./store.js";
 import { traverse, type TraversalOptions } from "./traversal.js";
 
@@ -38,6 +40,9 @@ export const AuditEntrySchema = z.discriminatedUnion("action", [
     })
     .readonly(),
   z.object({ ...common, action: z.literal("pull"), after: z.number().int().nonnegative() }).readonly(),
+  // One node read by id: `returned` is empty when it is unknown or unreadable.
+  z.object({ ...common, action: z.literal("read"), target: z.string().min(1) }).readonly(),
+  z.object({ ...common, action: z.literal("search"), query: z.string().min(1) }).readonly(),
   // Reading the audit log is itself recorded: it says who looked at who saw what. So is a refused
   // attempt, marked `denied`.
   z
@@ -67,6 +72,17 @@ export const AuditEntrySchema = z.discriminatedUnion("action", [
       denied: z.literal(true).optional(),
     })
     .readonly(),
+  // A wiki page written through the API (proposal 0012): `returned` is the page when it was saved,
+  // `created` marks a new one, `denied` an attempt refused for want of rights.
+  z
+    .object({
+      ...common,
+      action: z.literal("edit"),
+      target: z.string().min(1),
+      created: z.literal(true).optional(),
+      denied: z.literal(true).optional(),
+    })
+    .readonly(),
 ]);
 
 export type AuditEntry = z.infer<typeof AuditEntrySchema>;
@@ -79,9 +95,17 @@ export interface AuditLog {
 }
 
 export interface Reader {
+  // One node; rejects with `NotFound` when it is unknown or unreadable, which look alike.
+  node(principal: Principal, id: string): Promise<Node>;
+  // The readable nodes matching a query, best first.
+  search(principal: Principal, query: string, options?: RetrieveOptions): Promise<readonly Node[]>;
   traverse(principal: Principal, start: string, options?: TraversalOptions): Promise<readonly Node[]>;
   // What changed since the cursor, as the principal may see it. Needs an event log.
   pull(principal: Principal, after: number): Promise<Delta>;
+  // `pull` for a client that keeps asking (the web app's stream, proposal 0012): undefined while
+  // the log has nothing after the cursor, and recorded only when the delta hands the principal
+  // something, so that an idle open tab does not fill the audit log.
+  changes(principal: Principal, after: number): Promise<Delta | undefined>;
   // The audit log, for members of an auditor group only (`Forbidden` otherwise).
   auditTrail(principal: Principal, filter?: { readonly user?: string }): Promise<readonly AuditEntry[]>;
 }
@@ -110,6 +134,20 @@ export function createReader(store: GraphStore, audit: AuditLog, options: Reader
   const record = recorder(audit, now);
 
   return {
+    async node(principal, id) {
+      const node = await store.getNode(id);
+      const readable = node !== undefined && canRead(principal, node.scope) ? node : undefined;
+      await record({ action: "read", target: id, returned: readable === undefined ? [] : [id] }, principal);
+      if (readable === undefined) throw new NotFound(`No node ${id}`);
+      return readable;
+    },
+
+    async search(principal, query, options = {}) {
+      const found = retrieve(await store.snapshot(), principal, query, options);
+      await record({ action: "search", query, returned: found.map((node) => node.id) }, principal);
+      return found;
+    },
+
     async traverse(principal, start, traversal = {}) {
       const reached = traverse(await store.snapshot(), principal, start, traversal);
       await record(
@@ -129,6 +167,15 @@ export function createReader(store: GraphStore, audit: AuditLog, options: Reader
       if (events === undefined) throw new Error("This reader has no event log to pull from");
       const delta = await computeDelta(await store.snapshot(), events, principal, after);
       await record({ action: "pull", after, returned: [...delta.nodes.map((node) => node.id), ...delta.removed] }, principal);
+      return delta;
+    },
+
+    async changes(principal, after) {
+      if (events === undefined) throw new Error("This reader has no event log to pull from");
+      if ((await events.since(after)).length === 0) return undefined;
+      const delta = await computeDelta(await store.snapshot(), events, principal, after);
+      const returned = [...delta.nodes.map((node) => node.id), ...delta.removed];
+      if (returned.length > 0) await record({ action: "pull", after, returned }, principal);
       return delta;
     },
 

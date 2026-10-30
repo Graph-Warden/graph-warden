@@ -4,12 +4,17 @@ import {
   EdgeSchema,
   EdgeTypeSchema,
   Forbidden,
+  Invalid,
   NotFound,
+  NodeTypeSchema,
+  pageVersion,
+  Stale,
   parseScope,
   Unreachable,
   type Asker,
   type DeletionPlan,
   type Editor,
+  type Pages,
   NodeSchema,
   PullResponseSchema,
   Unauthenticated,
@@ -19,6 +24,7 @@ import {
 } from "@graph-warden/core";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import { z } from "zod";
+import { CrossSite, registerWeb, type Sessions, type WebOptions } from "./web.js";
 
 // The API (proposal 0003): the one place readers reach the graph. Every route below `/v1` takes a
 // bearer token, turns it into a principal through the identity provider, and reads through the
@@ -32,8 +38,15 @@ export interface ApiOptions {
   readonly identity: IdentityProvider;
   // Deletion; without it, the deletion routes answer 501.
   readonly editor?: Editor;
+  // Wiki pages; without it, PUT /v1/pages answers 501.
+  readonly pages?: Pages;
   // Questions; without a model configured, /v1/ask answers 501.
   readonly asker?: Asker;
+  // The web app and browser sessions (proposal 0012); without it, only bearer tokens are accepted.
+  readonly web?: WebOptions;
+  // How often /v1/stream looks for changes, and how long one connection lasts before the client
+  // reconnects from its last cursor (which also checks its token again).
+  readonly stream?: { readonly intervalMs?: number; readonly maxSeconds?: number };
   readonly logger?: boolean;
 }
 
@@ -46,8 +59,10 @@ const TraverseQuery = z.object({
     .optional(),
 });
 const PullQuery = z.object({ after: z.coerce.number().int().nonnegative().default(0) });
+const LastEventId = z.coerce.number().int().nonnegative().optional();
 const AuditQuery = z.object({ user: z.string().min(1).optional() });
 const DeleteQuery = z.object({ confirm: z.string().min(1) });
+const SearchQuery = z.object({ q: z.string().min(1).max(500), limit: z.coerce.number().int().min(1).max(50).default(20) });
 const AskBody = z.object({
   question: z.string().min(1).max(4000),
   from: z.string().min(1).optional(),
@@ -55,6 +70,14 @@ const AskBody = z.object({
   save: z.boolean().default(false),
   scope: z.string().min(1).optional(),
 });
+
+const PageBody = z.object({
+  title: z.string().min(1).max(300),
+  body: z.string().max(200_000),
+  scope: z.string().min(1),
+  type: NodeTypeSchema.optional(),
+});
+const quoted = (version: string) => `"${version}"`;
 
 const PrincipalResponse = PullResponseSchema.unwrap().shape.principal;
 const NodesResponse = z.object({ nodes: z.array(NodeSchema) });
@@ -73,13 +96,17 @@ class NotConfigured extends Error {}
 
 class BadRequest extends Error {}
 
+class PreconditionRequired extends Error {}
+
 export function buildApi(options: ApiOptions): FastifyInstance {
   const app = Fastify({ logger: options.logger ?? false });
 
+  const sessions: Sessions | undefined = options.web === undefined ? undefined : registerWeb(app, options.identity, options.web);
   const principalOf = async (request: FastifyRequest): Promise<Principal> => {
     const header = request.headers.authorization;
-    const token = header?.startsWith("Bearer ") ? header.slice("Bearer ".length).trim() : "";
-    if (token === "") throw new Unauthenticated("A bearer token is required");
+    const bearer = header?.startsWith("Bearer ") ? header.slice("Bearer ".length).trim() : "";
+    const token = bearer !== "" ? bearer : await sessions?.token(request);
+    if (token === undefined || token === "") throw new Unauthenticated("A bearer token or a session is required");
     return options.identity.principalFor(token);
   };
   const parse = <T>(schema: z.ZodType<T>, value: unknown): T => {
@@ -95,13 +122,18 @@ export function buildApi(options: ApiOptions): FastifyInstance {
       return reply.code(401).header("www-authenticate", "Bearer").send({ error: "unauthenticated" });
     }
     if (error instanceof Forbidden) return reply.code(403).send({ error: "forbidden" });
+    if (error instanceof CrossSite) return reply.code(403).send({ error: "forbidden", detail: `writes with a session need ${"x-requested-with: gwarden"}` });
     if (error instanceof Unreachable) {
       return reply.code(403).send({ error: "forbidden", detail: "the deletion would change nodes you may not read" });
     }
     if (error instanceof NotFound) return reply.code(404).send({ error: "not found" });
     if (error instanceof Conflict) return reply.code(409).send({ error: "conflict", detail: error.message });
     if (error instanceof NotConfigured) return reply.code(501).send({ error: "not configured", detail: error.message });
-    if (error instanceof BadRequest) return reply.code(400).send({ error: "bad request", detail: error.message });
+    if (error instanceof BadRequest || error instanceof Invalid) return reply.code(400).send({ error: "bad request", detail: error.message });
+    if (error instanceof Stale) return reply.code(412).send({ error: "precondition failed", detail: error.message });
+    if (error instanceof PreconditionRequired) {
+      return reply.code(428).send({ error: "precondition required", detail: "send If-Match with the version edited, or If-None-Match: * for a new page" });
+    }
     request.log.error(error);
     return reply.code(500).send({ error: "internal error" });
   });
@@ -110,6 +142,40 @@ export function buildApi(options: ApiOptions): FastifyInstance {
   app.get("/openapi.json", async () => openApi);
 
   app.get("/v1/me", async (request) => PrincipalResponse.parse(await principalOf(request)));
+
+  // The ETag is the version a page edit must name in If-Match.
+  app.get<{ Params: { id: string } }>("/v1/nodes/:id", async (request, reply) => {
+    const principal = await principalOf(request);
+    const node = NodeSchema.parse(await options.reader.node(principal, request.params.id));
+    void reply.header("etag", quoted(pageVersion(node)));
+    return node;
+  });
+
+  app.put<{ Params: { id: string } }>("/v1/pages/:id", async (request, reply) => {
+    const principal = await principalOf(request);
+    if (options.pages === undefined) throw new NotConfigured("pages are not enabled on this API");
+    const body = parse(PageBody, request.body);
+    let scope;
+    try {
+      scope = parseScope(body.scope);
+    } catch (error) {
+      throw new BadRequest(`scope: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    const match = request.headers["if-match"];
+    const expected = request.headers["if-none-match"] === "*" ? null : typeof match === "string" ? match.replace(/^(W\/)?"|"$/g, "") : undefined;
+    if (expected === undefined) throw new PreconditionRequired();
+    const saved = await options.pages.save(principal, request.params.id, { title: body.title, body: body.body, scope, ...(body.type === undefined ? {} : { type: body.type }) }, expected);
+    return reply
+      .code(saved.created ? 201 : 200)
+      .header("etag", quoted(saved.version))
+      .send({ node: NodeSchema.parse(saved.node), version: saved.version });
+  });
+
+  app.get("/v1/search", async (request) => {
+    const principal = await principalOf(request);
+    const { q, limit } = parse(SearchQuery, request.query);
+    return { nodes: await options.reader.search(principal, q, { limit }) };
+  });
 
   app.get<{ Params: { id: string } }>("/v1/nodes/:id/neighbours", async (request) => {
     const principal = await principalOf(request);
@@ -127,6 +193,44 @@ export function buildApi(options: ApiOptions): FastifyInstance {
     const { after } = parse(PullQuery, request.query);
     const delta = await options.reader.pull(principal, after);
     return PullResponseSchema.parse({ principal, delta });
+  });
+
+  // Server-sent events: one `delta` event per change in what the caller may read, with the cursor
+  // as event id, so that a browser reconnecting sends it back as Last-Event-ID. The caller is
+  // resolved again before each delta, and the stream ends when its token no longer is valid.
+  const { intervalMs = 2000, maxSeconds = 300 } = options.stream ?? {};
+  app.get("/v1/stream", async (request, reply) => {
+    let principal = await principalOf(request);
+    const resumed = parse(LastEventId, request.headers["last-event-id"]);
+    let after = resumed ?? parse(PullQuery, request.query).after;
+    reply.hijack();
+    const out = reply.raw;
+    out.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive", "x-accel-buffering": "no" });
+    out.write(`retry: ${intervalMs}\n\n`);
+    let open = true;
+    request.raw.on("close", () => (open = false));
+    const until = Date.now() + maxSeconds * 1000;
+    let quiet = 0;
+    while (open && Date.now() < until) {
+      try {
+        const delta = await options.reader.changes(principal, after);
+        if (delta !== undefined) {
+          principal = await principalOf(request);
+          after = delta.cursor;
+          out.write(`id: ${after}\nevent: delta\ndata: ${JSON.stringify(PullResponseSchema.parse({ principal, delta }))}\n\n`);
+        } else if ((quiet += intervalMs) >= 25_000) {
+          // Keeps proxies from closing an idle connection.
+          out.write(": idle\n\n");
+          quiet = 0;
+        }
+      } catch (error) {
+        if (!(error instanceof Unauthenticated)) request.log.error(error);
+        out.write(`event: ${error instanceof Unauthenticated ? "signed-out" : "error"}\ndata: {}\n\n`);
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    }
+    out.end();
   });
 
   app.get("/v1/audit", async (request) => {
@@ -174,6 +278,21 @@ const errors = {
   "401": { description: "Missing, invalid or expired token" },
 };
 
+const DELETE_NODE = {
+  summary: "Delete a node as shown by its deletion plan",
+  parameters: [
+    { name: "id", in: "path", required: true, schema: { type: "string" } },
+    { name: "confirm", in: "query", required: true, schema: { type: "string" }, description: "The digest of the plan shown" },
+  ],
+  responses: {
+    "200": { description: "What was deleted", content: json(DeletionResponse) },
+    ...errors,
+    "403": { description: "Not a writer, or the deletion would change nodes the caller may not read" },
+    "404": { description: "Unknown or unreadable node" },
+    "409": { description: "The graph changed since the plan was shown" },
+  },
+};
+
 export const openApi = {
   openapi: "3.1.0",
   info: {
@@ -187,6 +306,44 @@ export const openApi = {
   paths: {
     "/healthz": { get: { summary: "Liveness", security: [], responses: { "200": { description: "Up" } } } },
     "/v1/me": { get: { summary: "The principal the token stands for", responses: { "200": { description: "Principal", content: json(PrincipalResponse) }, ...errors } } },
+    "/v1/nodes/{id}": {
+      get: {
+        summary: "One node, title and text included",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        responses: { "200": { description: "The node", content: json(NodeSchema) }, ...errors, "404": { description: "Unknown or unreadable node" } },
+      },
+      delete: DELETE_NODE,
+    },
+    "/v1/pages/{id}": {
+      put: {
+        summary: "Create or edit a wiki page, for members of a writer group",
+        parameters: [
+          { name: "id", in: "path", required: true, schema: { type: "string" } },
+          { name: "If-Match", in: "header", schema: { type: "string" }, description: "The ETag of the page edited" },
+          { name: "If-None-Match", in: "header", schema: { type: "string", enum: ["*"] }, description: "For a page that must not exist yet" },
+        ],
+        requestBody: { required: true, content: json(PageBody) },
+        responses: {
+          "200": { description: "The page saved, and its new version (also the ETag)" },
+          "201": { description: "The page created" },
+          ...errors,
+          "403": { description: "Not in a writer group" },
+          "409": { description: "The id is taken by a node that is not an editable page, or the scope of a page others derive from changed" },
+          "412": { description: "The page changed since the version named" },
+          "428": { description: "Neither If-Match nor If-None-Match" },
+        },
+      },
+    },
+    "/v1/search": {
+      get: {
+        summary: "Readable nodes matching words, best first: id and title weigh more than text",
+        parameters: [
+          { name: "q", in: "query", required: true, schema: { type: "string" } },
+          { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 50, default: 20 } },
+        ],
+        responses: { "200": { description: "Matching nodes", content: json(NodesResponse) }, ...errors },
+      },
+    },
     "/v1/nodes/{id}/neighbours": {
       get: {
         summary: "Nodes reachable from a node, as the caller may see them",
@@ -206,6 +363,16 @@ export const openApi = {
         responses: { "200": { description: "Delta and the principal it was computed for", content: json(PullResponseSchema) }, ...errors },
       },
     },
+    "/v1/stream": {
+      get: {
+        summary: "Server-sent events: a delta event each time what the caller may read changes",
+        parameters: [
+          { name: "after", in: "query", schema: { type: "integer", minimum: 0, default: 0 } },
+          { name: "Last-Event-ID", in: "header", schema: { type: "integer", minimum: 0 }, description: "Overrides after when reconnecting" },
+        ],
+        responses: { "200": { description: "text/event-stream of delta events, data as for /v1/pull" }, ...errors },
+      },
+    },
     "/v1/audit": {
       get: {
         summary: "The audit log, for members of an auditor group",
@@ -222,22 +389,6 @@ export const openApi = {
           ...errors,
           "403": { description: "Not a writer, or the deletion would change nodes the caller may not read" },
           "404": { description: "Unknown or unreadable node" },
-        },
-      },
-    },
-    "/v1/nodes/{id}": {
-      delete: {
-        summary: "Delete a node as shown by its deletion plan",
-        parameters: [
-          { name: "id", in: "path", required: true, schema: { type: "string" } },
-          { name: "confirm", in: "query", required: true, schema: { type: "string" }, description: "The digest of the plan shown" },
-        ],
-        responses: {
-          "200": { description: "What was deleted", content: json(DeletionResponse) },
-          ...errors,
-          "403": { description: "Not a writer, or the deletion would change nodes the caller may not read" },
-          "404": { description: "Unknown or unreadable node" },
-          "409": { description: "The graph changed since the plan was shown" },
         },
       },
     },

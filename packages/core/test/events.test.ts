@@ -17,6 +17,30 @@ function setup() {
 
 const ids = (delta: Delta) => ({ nodes: delta.nodes.map((n) => n.id).sort(), edges: delta.edges.length, removed: [...delta.removed].sort() });
 
+describe("changes, for clients that keep asking", () => {
+  it("records nothing while nothing changed, or nothing the principal may read", async () => {
+    const { writer, reader, audit } = setup();
+    await writer.upsertNodes([node("app", shared)]);
+    const { cursor } = await reader.pull(alice, 0);
+    const recorded = audit.written.length;
+    expect(await reader.changes(alice, cursor)).toBeUndefined();
+    await writer.upsertNodes([node("secret", bff)]);
+    const hidden = await reader.changes(alice, cursor);
+    expect(hidden && ids(hidden)).toEqual({ nodes: [], edges: 0, removed: [] });
+    expect(hidden?.cursor).toBe(cursor + 1);
+    expect(audit.written).toHaveLength(recorded);
+  });
+
+  it("sends and records what changed in the principal's view", async () => {
+    const { writer, reader, audit } = setup();
+    const { cursor } = await reader.pull(alice, 0);
+    await writer.upsertNodes([node("app", shared)]);
+    const delta = await reader.changes(alice, cursor);
+    expect(delta && ids(delta)).toEqual({ nodes: ["app"], edges: 0, removed: [] });
+    expect(audit.written.at(-1)).toMatchObject({ action: "pull", after: cursor, returned: ["app"] });
+  });
+});
+
 describe("pull", () => {
   it("sends the readable part of the graph from cursor 0", async () => {
     const { writer, reader } = setup();
