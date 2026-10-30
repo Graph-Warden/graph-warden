@@ -10,6 +10,9 @@ export default defineConfig({
       "@graph-warden/core": source("packages/core/src/index.ts"),
       "@graph-warden/documents": source("packages/adapters/documents/src/index.ts"),
       "@graph-warden/neo4j": source("packages/adapters/neo4j/src/index.ts"),
+      "@graph-warden/memory": source("packages/adapters/memory/src/index.ts"),
+      "@graph-warden/git": source("packages/adapters/git/src/index.ts"),
+      "@graph-warden/redis": source("packages/adapters/redis/src/index.ts"),
     },
   },
   test: {

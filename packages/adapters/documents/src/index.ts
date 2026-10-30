@@ -9,6 +9,7 @@ import {
   parseScope,
   type Edge,
   type EdgeType,
+  type Extractor,
   type Node,
   type NodeType,
   type Ontology,
@@ -122,6 +123,10 @@ function toPage(path: string, fields: unknown, links: readonly string[], text?: 
 export function toGraph(pages: readonly Page[], options: DocumentOptions): { nodes: Node[]; edges: Edge[] } {
   const kept = pages.filter(options.include ?? (() => true));
   const names = new Set(kept.map((page) => page.name));
+  return toNodes(kept, options, (name) => names.has(name));
+}
+
+function toNodes(kept: readonly Page[], options: DocumentOptions, known: (name: string) => boolean): { nodes: Node[]; edges: Edge[] } {
   const nodes = kept.map((page) =>
     NodeSchema.parse({
       id: page.name,
@@ -138,7 +143,7 @@ export function toGraph(pages: readonly Page[], options: DocumentOptions): { nod
     const typed = new Set(page.references.filter((r) => r.type !== "REFERENCES").map((r) => r.to));
     const unique = new Map<string, Edge>();
     for (const { type, to } of [...page.references, ...page.links.map((to): Reference => ({ type: "REFERENCES", to }))]) {
-      if (to === page.name || !names.has(to)) continue;
+      if (to === page.name || !known(to)) continue;
       if (type === "REFERENCES" && typed.has(to)) continue;
       unique.set(`${type} ${to}`, { type, from: page.name, to });
     }
@@ -168,4 +173,26 @@ function nodeType(frontmatter: Frontmatter, ontology: Ontology): NodeType {
 //   edgeTypes: [OWNS, RUNS_ON]
 export async function readOntology(path: string): Promise<Ontology> {
   return createOntology(OntologyExtensionSchema.parse(parseYaml(await readFile(path, "utf8")) ?? {}));
+}
+
+// The documents of a git repository, for the ingester. References are kept whatever their target:
+// it may be a document the commit did not change, and the ingester drops those to nothing.
+// A document without a `scope:` field takes the repository's scope unless `defaultScope` says
+// otherwise.
+export interface DocumentExtractorOptions {
+  readonly include?: (path: string) => boolean;
+  readonly defaultScope?: Scope;
+  readonly ontology?: Ontology;
+}
+
+export function createDocumentExtractor(options: DocumentExtractorOptions = {}): Extractor {
+  const { include = () => true, defaultScope, ...rest } = options;
+  return {
+    matches: (path) => EXTENSIONS.some((extension) => path.endsWith(extension)) && include(path),
+    async extract(files, snapshot) {
+      const pages = files.map((file) => parsePage(file.path, file.text));
+      const { nodes, edges } = toNodes(pages, { ...rest, source: snapshot.repo.name, defaultScope: defaultScope ?? snapshot.repo.scope }, () => true);
+      return { nodes: nodes.map(({ provenance, ...node }) => ({ ...node, path: provenance.path })), edges };
+    },
+  };
 }

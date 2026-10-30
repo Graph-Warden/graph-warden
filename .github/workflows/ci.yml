@@ -30,8 +30,16 @@ jobs:
         options: >-
           --health-cmd "wget -q --spider http://127.0.0.1:7474 || exit 1"
           --health-interval 5s --health-timeout 3s --health-retries 30
+      # Throwaway Redis for the ingestion queue tests.
+      redis:
+        image: redis:7.4-alpine
+        ports:
+          - 6380:6379
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 2s --health-timeout 2s --health-retries 30
     env:
       NEO4J_TEST_URI: bolt://localhost:7688
+      REDIS_TEST_URL: redis://localhost:6380
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
