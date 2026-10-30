@@ -19,8 +19,8 @@
   },
   "dependencies": {
     "@graph-warden/core": "workspace:*",
-    "google-auth-library": "^10.9.1",
-    "jose": "^6.2.14",
-    "zod": "^4.6.7"
+    "google-auth-library": "catalog:",
+    "jose": "catalog:",
+    "zod": "catalog:"
   }
 }

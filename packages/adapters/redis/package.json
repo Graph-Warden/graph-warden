@@ -10,13 +10,15 @@
       "default": "./dist/index.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@graph-warden/core": "workspace:*",
-    "ioredis": "~5.11.0"
+    "ioredis": "catalog:"
   }
 }

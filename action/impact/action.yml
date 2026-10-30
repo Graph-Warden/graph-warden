@@ -43,7 +43,7 @@ runs:
     # gwarden is built from the sources of the action's own ref.
     - shell: bash
       working-directory: ${{ github.action_path }}/../..
-      run: corepack enable && pnpm install --frozen-lockfile --ignore-scripts && pnpm -r build
+      run: corepack enable && pnpm install --frozen-lockfile --ignore-scripts && pnpm build
     - shell: bash
       env:
         NEO4J_URI: ${{ inputs.neo4j-uri }}

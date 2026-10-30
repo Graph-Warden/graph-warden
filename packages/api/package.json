@@ -19,20 +19,20 @@
     "start": "node dist/main.js"
   },
   "dependencies": {
-    "@fastify/cookie": "^11.1.5",
-    "@fastify/static": "^10.1.8",
+    "@fastify/cookie": "catalog:",
+    "@fastify/static": "catalog:",
     "@graph-warden/anthropic": "workspace:*",
     "@graph-warden/core": "workspace:*",
     "@graph-warden/documents": "workspace:*",
     "@graph-warden/identity": "workspace:*",
     "@graph-warden/neo4j": "workspace:*",
     "@graph-warden/openai": "workspace:*",
-    "@modelcontextprotocol/sdk": "1.32.1",
-    "fastify": "^5.12.7",
-    "jose": "^6.2.14",
-    "neo4j-driver": "^6.2.0",
-    "yaml": "^2.9.1",
-    "zod": "^4.6.7"
+    "@modelcontextprotocol/sdk": "catalog:",
+    "fastify": "catalog:",
+    "jose": "catalog:",
+    "neo4j-driver": "catalog:",
+    "yaml": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@graph-warden/memory": "workspace:*"

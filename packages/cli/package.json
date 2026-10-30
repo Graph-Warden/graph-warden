@@ -24,12 +24,12 @@
     "@graph-warden/openai": "workspace:*",
     "@graph-warden/openapi": "workspace:*",
     "@graph-warden/typescript": "workspace:*",
-    "neo4j-driver": "^6.2.0",
-    "zod": "^4.6.7"
+    "neo4j-driver": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
-    "@types/jsonld": "1.5.15",
-    "fast-xml-parser": "5.11.2",
-    "jsonld": "9.0.0"
+    "@types/jsonld": "catalog:",
+    "fast-xml-parser": "catalog:",
+    "jsonld": "catalog:"
   }
 }
