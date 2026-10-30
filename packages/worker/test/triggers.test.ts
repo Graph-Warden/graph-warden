@@ -27,6 +27,25 @@ const push = (overrides: object = {}) =>
   JSON.stringify({ ref: "refs/heads/main", after: SHA, repository: { full_name: "acme/shop" }, ...overrides });
 const sign = (body: string, secret = SECRET) => `sha256=${createHmac("sha256", secret).update(body).digest("hex")}`;
 
+describe("GitLab webhook", () => {
+  const merge = (overrides: object = {}) =>
+    JSON.stringify({ object_kind: "merge_request", project: { path_with_namespace: "acme/shop" }, object_attributes: { action: "merge", target_branch: "main", merge_commit_sha: SHA, ...overrides } });
+  const send = (app: ReturnType<typeof buildTriggers>, payload: string, token = SECRET) =>
+    app.inject({ method: "POST", url: "/webhooks/gitlab", headers: { "content-type": "application/json", "x-gitlab-token": token, "x-gitlab-event": "Merge Request Hook" }, payload });
+
+  it("queues the merge commit of a merge request into the watched branch, with the right token only", async () => {
+    const queue = recordingQueue();
+    const app = buildTriggers({ queue, repositories: [{ name: "gitlab:acme/shop", branch: "main" }], gitlabSecret: SECRET });
+    expect((await send(app, merge(), "wrong-token-of-same-size!")).statusCode).toBe(401);
+    expect((await send(app, merge({ action: "open" }))).statusCode).toBe(202);
+    expect((await send(app, merge({ target_branch: "dev" }))).statusCode).toBe(202);
+    expect((await send(app, merge())).statusCode).toBe(202);
+    expect(queue.jobs).toEqual([`gitlab:acme/shop ${SHA}`]);
+    const off = buildTriggers({ queue, repositories: [] });
+    expect((await send(off, merge())).statusCode).toBe(404);
+  });
+});
+
 describe("GitHub webhook", () => {
   const setup = () => {
     const queue = recordingQueue();

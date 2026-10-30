@@ -15,6 +15,9 @@ export default defineConfig({
       "@graph-warden/redis": source("packages/adapters/redis/src/index.ts"),
       "@graph-warden/typescript": source("packages/adapters/typescript/src/index.ts"),
       "@graph-warden/openapi": source("packages/adapters/openapi/src/index.ts"),
+      "@graph-warden/gitlab": source("packages/adapters/gitlab/src/index.ts"),
+      "@graph-warden/jira": source("packages/adapters/jira/src/index.ts"),
+      "@graph-warden/confluence": source("packages/adapters/confluence/src/index.ts"),
     },
   },
   test: {

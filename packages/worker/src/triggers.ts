@@ -1,12 +1,14 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { IngestionQueue } from "@graph-warden/core";
+import { gitlabEvent } from "@graph-warden/gitlab";
 import Fastify, { type FastifyInstance } from "fastify";
 import { z } from "zod";
 
 // Three ways to learn that a repository moved (issue #5), all feeding the same queue, so that no
 // deployment needs a tunnel to the worker:
 // - a GitHub webhook, when GitHub can reach the worker: its signature is checked against the
-//   shared secret before anything in it is read;
+//   shared secret before anything in it is read; or a GitLab one (issue #19), push or merge
+//   request, carrying its secret in X-Gitlab-Token;
 // - a push from CI, when it cannot: a step on a self-hosted runner inside the network (the
 //   published action in `action/ingest`) posts the repository and sha with a token;
 // - polling, when nothing can reach the worker: it fetches each clone and compares the branch.
@@ -14,7 +16,7 @@ import { z } from "zod";
 // commit it ingested, so a missed or repeated notification loses or duplicates nothing.
 
 export interface WatchedRepository {
-  // `github:acme/shop`: a GitHub webhook for acme/shop is matched to it.
+  // `github:acme/shop` (or `gitlab:acme/shop`): a webhook for acme/shop is matched to it.
   readonly name: string;
   readonly branch: string;
 }
@@ -24,6 +26,8 @@ export interface TriggerOptions {
   readonly repositories: readonly WatchedRepository[];
   // The webhook's secret; without it, the webhook route answers 404.
   readonly webhookSecret?: string;
+  // The GitLab webhook's secret token; without it, the GitLab route answers 404.
+  readonly gitlabSecret?: string;
   // The token CI pushes with; without it, the push route answers 404.
   readonly pushToken?: string;
   readonly logger?: boolean;
@@ -55,7 +59,7 @@ const sameSecret = (expected: string, given: string) => {
 };
 
 export function buildTriggers(options: TriggerOptions): FastifyInstance {
-  const { queue, repositories, webhookSecret, pushToken } = options;
+  const { queue, repositories, webhookSecret, gitlabSecret, pushToken } = options;
   const app = Fastify({ logger: options.logger ?? false });
   const byName = new Map(repositories.map((repo) => [repo.name, repo]));
 
@@ -83,6 +87,26 @@ export function buildTriggers(options: TriggerOptions): FastifyInstance {
     }
     await queue.enqueue(repo.name, push.data.after);
     return reply.code(202).send({ queued: { repo: repo.name, sha: push.data.after } });
+  });
+
+  app.post("/webhooks/gitlab", async (request, reply) => {
+    if (gitlabSecret === undefined) return reply.code(404).send();
+    const given = request.headers["x-gitlab-token"];
+    if (typeof given !== "string" || !sameSecret(gitlabSecret, given)) return reply.code(401).send({ error: "invalid token" });
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse((request.body as Buffer).toString("utf8"));
+    } catch {
+      return reply.code(400).send({ error: "invalid JSON" });
+    }
+    const event = gitlabEvent(parsed);
+    if (event === undefined) return reply.code(202).send({ ignored: `event ${String(request.headers["x-gitlab-event"])}` });
+    const repo = byName.get(`gitlab:${event.project}`);
+    if (repo === undefined) return reply.code(202).send({ ignored: "repository not watched" });
+    if (event.branch !== repo.branch) return reply.code(202).send({ ignored: `branch ${event.branch}` });
+    if (!SHA.safeParse(event.sha).success) return reply.code(202).send({ ignored: "no commit" });
+    await queue.enqueue(repo.name, event.sha);
+    return reply.code(202).send({ queued: { repo: repo.name, sha: event.sha } });
   });
 
   app.post("/v1/jobs", async (request, reply) => {

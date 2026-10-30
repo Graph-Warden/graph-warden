@@ -192,6 +192,19 @@ importers:
         specifier: workspace:*
         version: link:../../core
 
+  packages/adapters/confluence:
+    dependencies:
+      '@graph-warden/core':
+        specifier: workspace:*
+        version: link:../../core
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.7
+    devDependencies:
+      '@graph-warden/memory':
+        specifier: workspace:*
+        version: link:../memory
+
   packages/adapters/documents:
     dependencies:
       '@graph-warden/core':
@@ -217,6 +230,19 @@ importers:
         specifier: workspace:*
         version: link:../memory
 
+  packages/adapters/gitlab:
+    dependencies:
+      '@graph-warden/core':
+        specifier: workspace:*
+        version: link:../../core
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.7
+    devDependencies:
+      '@graph-warden/memory':
+        specifier: workspace:*
+        version: link:../memory
+
   packages/adapters/identity:
     dependencies:
       '@graph-warden/core':
@@ -231,6 +257,19 @@ importers:
       zod:
         specifier: 'catalog:'
         version: 4.6.7
+
+  packages/adapters/jira:
+    dependencies:
+      '@graph-warden/core':
+        specifier: workspace:*
+        version: link:../../core
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.7
+    devDependencies:
+      '@graph-warden/memory':
+        specifier: workspace:*
+        version: link:../memory
 
   packages/adapters/memory:
     dependencies:
@@ -473,6 +512,9 @@ importers:
       '@graph-warden/anthropic':
         specifier: workspace:*
         version: link:../adapters/anthropic
+      '@graph-warden/confluence':
+        specifier: workspace:*
+        version: link:../adapters/confluence
       '@graph-warden/core':
         specifier: workspace:*
         version: link:../core
@@ -482,6 +524,12 @@ importers:
       '@graph-warden/git':
         specifier: workspace:*
         version: link:../adapters/git
+      '@graph-warden/gitlab':
+        specifier: workspace:*
+        version: link:../adapters/gitlab
+      '@graph-warden/jira':
+        specifier: workspace:*
+        version: link:../adapters/jira
       '@graph-warden/memory':
         specifier: workspace:*
         version: link:../adapters/memory
