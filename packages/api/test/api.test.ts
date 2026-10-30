@@ -2,7 +2,7 @@ import { writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { createAsker, createEditor, createPages, createReader, createRouter, createSensitivityPolicy, createWriter, type LLMProvider, type Node, type Scope } from "@graph-warden/core";
+import { createAgentSessions, createAsker, createEditor, createPages, createReader, createRouter, createSensitivityPolicy, createWriter, type LLMProvider, type Node, type Scope } from "@graph-warden/core";
 import { createDemoIdentity } from "@graph-warden/identity";
 import { createMemoryAuditLog, createMemoryEventLog, createMemoryStore } from "@graph-warden/memory";
 import { buildApi, loadConfig } from "../src/index.js";
@@ -56,6 +56,8 @@ describe("API", () => {
       "/v1/me",
       "/v1/ontology",
       "/v1/nodes/{id}",
+      "/v1/agent-sessions",
+      "/v1/agent-sessions/{id}/promotion",
       "/v1/pages/{id}",
       "/v1/search",
       "/v1/nodes/{id}/neighbours",
@@ -314,6 +316,39 @@ describe("API writes", () => {
     const filed = (await call("POST", "/v1/ask", writerTokens.lea, { question: "pagination", save: true, scope: "shared" })).json();
     expect(filed.saved.scope).toEqual({ kind: "team", team: "bff" });
     expect((await call("POST", "/v1/ask", writerTokens.lea, { question: "x", scope: "nope:" })).statusCode).toBe(400);
+  });
+
+  it("captures agent sessions private to the caller, previewed and promoted only by them", async () => {
+    const store = createMemoryStore();
+    const events = createMemoryEventLog();
+    const audit = createMemoryAuditLog();
+    const writer = createWriter(store, events);
+    const identity = createDemoIdentity([
+      { token: writerTokens.lea, user: "lea", teams: ["bff"] },
+      { token: writerTokens.bob, user: "bob", teams: ["bff"] },
+    ]);
+    const app = buildApi({ reader: createReader(store, audit, { events }), agentSessions: createAgentSessions(store, writer, audit), identity });
+    const call = (method: "GET" | "POST", url: string, token: string, payload?: object) =>
+      app.inject({ method, url, headers: { authorization: `Bearer ${token}` }, ...(payload === undefined ? {} : { payload }) });
+    const secret = "AKIAIOSFODNN7EXAMPLE";
+
+    // A scope in the capture is refused, not applied.
+    expect((await call("POST", "/v1/agent-sessions", writerTokens.lea, { id: "s1", transcript: secret, scope: "shared" })).statusCode).toBe(400);
+    const captured = await call("POST", "/v1/agent-sessions", writerTokens.lea, { id: "s1", title: "Keys", transcript: `export AWS_ACCESS_KEY_ID=${secret}` });
+    expect(captured.statusCode).toBe(201);
+    const id = captured.json().node.id;
+    const url = `/v1/agent-sessions/${encodeURIComponent(id)}/promotion`;
+    expect((await call("GET", `/v1/nodes/${encodeURIComponent(id)}`, writerTokens.bob)).statusCode).toBe(404);
+    expect((await call("GET", url, writerTokens.bob)).statusCode).toBe(404);
+
+    const preview = (await call("GET", url, writerTokens.lea)).json();
+    expect(preview.text).toBe("export AWS_ACCESS_KEY_ID=[REDACTED:aws-key]");
+    expect((await call("POST", url, writerTokens.lea, { scope: "team:bff", digest: "wrong" })).statusCode).toBe(409);
+    expect((await call("POST", url, writerTokens.lea, { scope: "team:payments", digest: preview.digest })).statusCode).toBe(403);
+    expect((await call("POST", url, writerTokens.lea, { scope: "team:bff", digest: preview.digest })).statusCode).toBe(200);
+    const seen = await call("GET", `/v1/nodes/${encodeURIComponent(id)}`, writerTokens.bob);
+    expect(seen.statusCode).toBe(200);
+    expect(seen.body).not.toContain(secret);
   });
 
   it("answers 501 when no model is configured", async () => {

@@ -17,3 +17,5 @@ export * from "./impact.js";
 export * from "./erasure.js";
 export * from "./routing.js";
 export * from "./conformance.js";
+export * from "./redaction.js";
+export * from "./agent-sessions.js";

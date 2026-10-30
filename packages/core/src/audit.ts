@@ -55,6 +55,20 @@ export const AuditEntrySchema = z.discriminatedUnion("action", [
       planned: z.literal(true).optional(),
     })
     .readonly(),
+  // A coding-agent session captured, private to its author (issue #27).
+  z.object({ ...common, action: z.literal("capture"), target: z.string().min(1) }).readonly(),
+  // A session promoted to `scope` after redaction; `planned` marks the preview, `denied` a scope
+  // its author could not read.
+  z
+    .object({
+      ...common,
+      action: z.literal("promote"),
+      target: z.string().min(1),
+      scope: z.string().min(1),
+      planned: z.literal(true).optional(),
+      denied: z.literal(true).optional(),
+    })
+    .readonly(),
   // Where a request to a model went (issue #28): `sources` are the provenance sources of its
   // content, `confidential` those that kept it local. `denied` when no model could take it.
   z

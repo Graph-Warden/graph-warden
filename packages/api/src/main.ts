@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { createClaudeProvider } from "@graph-warden/anthropic";
-import { createAsker, createEditor, createPages, createReader, createRevalidator, createWriter, routeModels } from "@graph-warden/core";
+import { createAsker, createEditor, createPages, createReader, createRevalidator, createAgentSessions, createWriter, routeModels } from "@graph-warden/core";
 import { readSensitivity } from "@graph-warden/documents";
 import { createNeo4jAuditLog, createNeo4jEventLog, createNeo4jStaleMarks, createNeo4jStore, ensureConstraints } from "@graph-warden/neo4j";
 import { createOpenAICompatibleProvider, LOCAL_BASE_URL } from "@graph-warden/openai";
@@ -48,11 +48,13 @@ const reader = createReader(store, audit, {
 });
 const editor = createEditor(store, writer, audit, { writers });
 const pages = createPages(store, writer, audit, { writers });
+const agentSessions = createAgentSessions(store, writer, audit);
 const asker = llm === undefined ? undefined : createAsker(store, writer, audit, llm, { writers });
 const app = buildApi({
   reader,
   editor,
   pages,
+  agentSessions,
   ontology: config.ontology,
   ...(asker === undefined ? {} : { asker }),
   ...(config.web === undefined ? {} : { web: config.web }),

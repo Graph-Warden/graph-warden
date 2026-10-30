@@ -30,6 +30,9 @@ The words below are used with this meaning in code, proposals, issues and review
 | Local model | A model run where the graph runs (Ollama, vLLM; `GWARDEN_LOCAL_LLM_MODEL`), as opposed to a remote provider. |
 | Router | The `LLMProvider` sending each request to the local or the remote model from the sources of its content (`createRouter`), auditing each decision as a `route` entry. A request naming no sources stays local. |
 | Export | The graph a user may read, pulled from scratch through the API and written as Markdown, JSON-LD or GraphML (`gwarden export`). |
+| Agent session | A coding-agent session captured as a `Session` node, private to its author (`gwarden agent-session capture`). Not the browser's sign-in session. |
+| Promotion | Publishing an agent session to a team or shared scope: its author previews it redacted, then promotes exactly that text, named by its digest. |
+| Redaction | Replacing secrets and personal data in a text by `[REDACTED:<kind>]` (`redact`). |
 | Folder file | A `.gwarden.yaml` in a folder of documents declaring `scope:` for every document in it and below, unless a nearer folder file or the document's own `scope:` says otherwise. |
 | Source conformance suite | What every source adapter guarantees of what it gives (`checkSource`): valid, unique nodes of the ontology; no dangling edge; provenance naming the source and a file; the default scope for content declaring none; the same graph whatever the order files are read in. |
 | Audit entry | A record of a read made on behalf of a user. |
