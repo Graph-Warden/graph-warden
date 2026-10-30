@@ -84,6 +84,10 @@ services:
       GWARDEN_DEMO: i-understand-anyone-with-a-token-is-that-user
       GWARDEN_DEMO_USERS: /demo/users.yaml
       GWARDEN_AUDITORS: auditors
+      GWARDEN_WRITERS: dev-leads
+      # Set to claude, with ANTHROPIC_API_KEY, for gwarden ask.
+      GWARDEN_LLM: ${GWARDEN_LLM:-none}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     volumes:
       - ./examples/shop:/demo:ro
     healthcheck:

@@ -94,6 +94,28 @@ describe.skipIf(uri === undefined)("Neo4j adapter", () => {
       expect(graph.edges).toEqual([]);
     });
 
+    it("deletes edges and keeps their nodes", async () => {
+      await store().upsertNodes([decision, module_, concept]);
+      await store().upsertEdges([
+        { type: "DECIDES", from: "adr-0002", to: "app" },
+        { type: "DERIVED_FROM", from: "scopes", to: "app" },
+      ]);
+      await store().deleteEdges([
+        { type: "DERIVED_FROM", from: "scopes", to: "app" },
+        { type: "IMPORTS", from: "app", to: "scopes" },
+      ]);
+      const graph = await store().snapshot();
+      expect(graph.nodes.size).toBe(3);
+      expect(graph.edges).toEqual([{ type: "DECIDES", from: "adr-0002", to: "app" }]);
+    });
+
+    it("keeps a node's body", async () => {
+      await store().upsertNodes([{ ...concept, body: "# Scopes\n\nChecked on every hop." }]);
+      expect((await store().getNode("scopes"))?.body).toBe("# Scopes\n\nChecked on every hop.");
+      await store().upsertNodes([concept]);
+      expect(await store().getNode("scopes")).toEqual(concept);
+    });
+
     it("rejects invalid nodes and dangling edges", async () => {
       const unscoped = { ...decision, scope: undefined } as unknown as Node;
       await expect(store().upsertNodes([unscoped])).rejects.toThrow();
@@ -188,6 +210,12 @@ describe.skipIf(uri === undefined)("Neo4j adapter", () => {
         ),
       );
       expect((await events().since(0)).map((e) => e.seq)).toEqual(Array.from({ length: 20 }, (_, i) => i + 1));
+    });
+
+    it("indexes a deleted edge under both its ends", async () => {
+      await events().append([{ kind: "edge-deleted", edge: { type: "DERIVED_FROM", from: "s", to: "a" } }]);
+      expect(await events().history("a", 1)).toEqual([{ seq: 1, kind: "edge-deleted", edge: { type: "DERIVED_FROM", from: "s", to: "a" } }]);
+      expect(await events().history("s", 1)).toHaveLength(1);
     });
 
     it("keeps events out of the graph", async () => {

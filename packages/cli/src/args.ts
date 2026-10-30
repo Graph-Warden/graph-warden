@@ -12,6 +12,8 @@ export const USAGE = `Usage:
   gwarden audit [--api <url> --token <token>] [--user <user>]
   gwarden pull --api <url> --token <token> [--cache <file>]
   gwarden cache [--cache <file>]
+  gwarden ask "<question>" --api <url> --token <token> [--from <node-id>] [--save [--scope <scope>]]
+  gwarden delete <node-id> --api <url> --token <token> [--confirm <node-id>]
 
 Scopes: shared, team:<name>, teams:<a>,<b> (members of every team), private:<user>. A document without a scope: field is private to the
 ingesting --user unless --default-scope says otherwise. Every traverse is recorded in the audit log, which
@@ -25,7 +27,13 @@ NEO4J_PASSWORD (see .env.example).
 Readers go through the API, as the user their token stands for: --api and --token, or GWARDEN_API and
 GWARDEN_TOKEN. pull fetches what changed since the last pull into a local SQLite cache (default
 ~/.graph-warden/cache.db); cache lists it, offline. Without an API, ingest, traverse and audit talk to
-Neo4j directly: that is for whoever operates the graph, and traverse then needs --user and --team.`;
+Neo4j directly: that is for whoever operates the graph, and traverse then needs --user and --team.
+
+ask answers from the nodes the token's user may read, citing them; --from anchors it on a node.
+--save files the answer as a node derived from every node the model read, private to the user
+unless --scope declares a wider one (narrowed to the readers of all its sources). delete shows
+what would go (the node, and the nodes derived only from what is deleted) and asks you to type the
+node id; --confirm <node-id> types it for you, in scripts. Both need a writer group to write.`;
 
 export interface Remote {
   readonly api: string;
@@ -64,7 +72,20 @@ export type Command =
   | {
       readonly name: "cache";
       readonly cache: string;
-    };
+    }
+  | ({
+      readonly name: "ask";
+      readonly question: string;
+      readonly from?: string;
+      readonly save: boolean;
+      readonly scope?: string;
+    } & Remote)
+  | ({
+      readonly name: "delete";
+      readonly id: string;
+      // The node id typed in advance, for scripts; without it, delete asks for it.
+      readonly confirm?: string;
+    } & Remote);
 
 export function parseCommand(argv: readonly string[]): Command {
   const [name, ...rest] = argv;
@@ -83,6 +104,10 @@ export function parseCommand(argv: readonly string[]): Command {
       api: { type: "string" },
       token: { type: "string" },
       cache: { type: "string" },
+      from: { type: "string" },
+      save: { type: "boolean", default: false },
+      scope: { type: "string" },
+      confirm: { type: "string" },
     },
   });
   const cache = values.cache ?? join(homedir(), ".graph-warden", "cache.db");
@@ -102,6 +127,20 @@ export function parseCommand(argv: readonly string[]): Command {
   if (target === undefined) throw new Error(USAGE);
 
   switch (name) {
+    case "ask": {
+      if (values.scope !== undefined && !values.save) throw new Error("--scope needs --save");
+      if (values.scope !== undefined) parseScope(values.scope);
+      return {
+        name,
+        question: positionals.join(" "),
+        save: values.save,
+        ...(values.from === undefined ? {} : { from: values.from }),
+        ...(values.scope === undefined ? {} : { scope: values.scope }),
+        ...remote(),
+      };
+    }
+    case "delete":
+      return { name, id: target, ...(values.confirm === undefined ? {} : { confirm: values.confirm }), ...remote() };
     case "ingest": {
       if (values.source === undefined) throw new Error("--source is required");
       if (values.user === undefined) throw new Error("--user is required");

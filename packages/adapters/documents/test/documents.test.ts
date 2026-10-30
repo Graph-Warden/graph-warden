@@ -16,7 +16,17 @@ describe("parsePage", () => {
       frontmatter: { theme: "dev", tags: ["a", "b"] },
       links: ["traversal", "audit"],
       references: [],
+      body: "# Scopes\nSee [[traversal]], [[traversal|the walk]] and [[audit#Entries]].",
     });
+  });
+
+  it("keeps the text as the body: below the frontmatter, or the body field of JSON and YAML", () => {
+    expect(parsePage("a.md", "---\ntype: Module\n---\n\nText.\n").body).toBe("Text.");
+    expect(parsePage("a.md", "---\ntype: Module\n---\n").body).toBeUndefined();
+    expect(parsePage("a.json", '{"body": " Text. "}').body).toBe("Text.");
+    expect(parsePage("a.yaml", "body: 3\n").body).toBeUndefined();
+    const { nodes } = toGraph([parsePage("a.md", "Text.")], { source: "docs", defaultScope: { kind: "shared" } });
+    expect(nodes[0]?.body).toBe("Text.");
   });
 
   it("accepts a page without frontmatter", () => {
@@ -35,8 +45,8 @@ describe("toGraph", () => {
   it("keeps only the included pages, with their type, scope and provenance", () => {
     const { nodes } = toGraph(pages, options);
     expect(nodes).toEqual([
-      { id: "a", type: "Concept", scope: { kind: "private", user: "me" }, provenance: { source: "docs:test", path: "a.md" } },
-      { id: "b", type: "Source", scope: { kind: "team", team: "bff" }, provenance: { source: "docs:test", path: "b.md" } },
+      { id: "a", type: "Concept", scope: { kind: "private", user: "me" }, provenance: { source: "docs:test", path: "a.md" }, body: "[[b]] [[c]] [[a]] [[missing]]" },
+      { id: "b", type: "Source", scope: { kind: "team", team: "bff" }, provenance: { source: "docs:test", path: "b.md" }, body: "[[a]]" },
     ]);
   });
 

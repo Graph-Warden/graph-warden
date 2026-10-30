@@ -2,7 +2,7 @@ import { writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { createReader, createWriter, type Node, type Scope } from "@graph-warden/core";
+import { createAsker, createEditor, createReader, createWriter, type LLMProvider, type Node, type Scope } from "@graph-warden/core";
 import { createDemoIdentity } from "@graph-warden/identity";
 import { createMemoryAuditLog, createMemoryEventLog, createMemoryStore } from "@graph-warden/memory";
 import { buildApi, loadConfig } from "../src/index.js";
@@ -51,7 +51,16 @@ describe("API", () => {
     const { get } = await setup();
     expect((await get("/healthz")).json()).toEqual({ ok: true });
     const spec = (await get("/openapi.json")).json();
-    expect(Object.keys(spec.paths)).toEqual(["/healthz", "/v1/me", "/v1/nodes/{id}/neighbours", "/v1/pull", "/v1/audit"]);
+    expect(Object.keys(spec.paths)).toEqual([
+      "/healthz",
+      "/v1/me",
+      "/v1/nodes/{id}/neighbours",
+      "/v1/pull",
+      "/v1/audit",
+      "/v1/nodes/{id}/deletion",
+      "/v1/nodes/{id}",
+      "/v1/ask",
+    ]);
   });
 
   it("gives each caller only what their groups allow", async () => {
@@ -102,6 +111,79 @@ describe("API", () => {
       { action: "audit", principal: { user: "dpo" }, user: "bob" },
     ]);
     expect(all[2]).not.toHaveProperty("denied");
+  });
+});
+
+describe("API writes", () => {
+  const writerTokens = { lea: "lea-writer-0123456789", bob: "bob-writer-0123456789", carl: "carl-reader-0123456789" };
+
+  async function writes(options: { llm?: LLMProvider } = {}) {
+    const store = createMemoryStore();
+    const events = createMemoryEventLog();
+    const audit = createMemoryAuditLog();
+    const writer = createWriter(store, events);
+    await writer.upsertNodes([
+      { ...node("adr", { kind: "team", team: "bff" }), body: "Orders pagination moves to cursors." },
+      node("checkout", { kind: "team", team: "front" }),
+      node("summary", { kind: "team", team: "bff" }),
+      node("impact", { kind: "teams", teams: ["bff", "front"] }),
+    ]);
+    await writer.upsertEdges([
+      { type: "DERIVED_FROM", from: "summary", to: "adr" },
+      { type: "DERIVED_FROM", from: "impact", to: "adr" },
+      { type: "DERIVED_FROM", from: "impact", to: "checkout" },
+    ]);
+    const identity = createDemoIdentity([
+      { token: writerTokens.lea, user: "lea", teams: ["bff", "front", "writers"] },
+      { token: writerTokens.bob, user: "bob", teams: ["bff", "writers"] },
+      { token: writerTokens.carl, user: "carl", teams: ["bff", "front"] },
+    ]);
+    const editor = createEditor(store, writer, audit, { writers: ["writers"] });
+    const asker = options.llm === undefined ? undefined : createAsker(store, writer, audit, options.llm, { writers: ["writers"] });
+    const app = buildApi({ reader: createReader(store, audit, { events }), editor, ...(asker === undefined ? {} : { asker }), identity });
+    const call = (method: "GET" | "DELETE" | "POST", url: string, token: string, payload?: object) =>
+      app.inject({ method, url, headers: { authorization: `Bearer ${token}` }, ...(payload === undefined ? {} : { payload }) });
+    return { call, store };
+  }
+
+  it("shows a deletion, then makes it only with the digest of what was shown", async () => {
+    const { call, store } = await writes();
+    const plan = (await call("GET", "/v1/nodes/adr/deletion", writerTokens.lea)).json();
+    expect(plan.deleted.map((n: Node) => n.id)).toEqual(["adr", "summary"]);
+    expect(plan.detached).toEqual([{ type: "DERIVED_FROM", from: "impact", to: "adr" }]);
+
+    expect((await call("DELETE", "/v1/nodes/adr", writerTokens.lea)).statusCode).toBe(400);
+    expect((await call("DELETE", "/v1/nodes/adr?confirm=stale", writerTokens.lea)).statusCode).toBe(409);
+    const done = await call("DELETE", `/v1/nodes/adr?confirm=${plan.digest}`, writerTokens.lea);
+    expect(done.statusCode).toBe(200);
+    expect([...(await store.snapshot()).nodes.keys()].sort()).toEqual(["checkout", "impact"]);
+  });
+
+  it("refuses readers who are not writers, and writers whose deletion reaches what they may not read", async () => {
+    const { call } = await writes();
+    expect((await call("GET", "/v1/nodes/adr/deletion", writerTokens.carl)).statusCode).toBe(403);
+    const reach = await call("GET", "/v1/nodes/adr/deletion", writerTokens.bob);
+    expect(reach.statusCode).toBe(403);
+    expect(reach.body).not.toMatch(/impact/);
+    expect((await call("GET", "/v1/nodes/checkout/deletion", writerTokens.bob)).statusCode).toBe(404);
+  });
+
+  it("answers a question from what the caller may read, and files it on request", async () => {
+    const llm: LLMProvider = { complete: async ({ prompt }) => (prompt.includes('id="adr"') ? "Cursors, see [[adr]]." : "No idea.") };
+    const { call } = await writes({ llm });
+    const answer = (await call("POST", "/v1/ask", writerTokens.carl, { question: "How is pagination done?" })).json();
+    expect(answer).toMatchObject({ answer: "Cursors, see [[adr]].", sources: [{ id: "adr" }] });
+    expect(answer).not.toHaveProperty("saved");
+
+    expect((await call("POST", "/v1/ask", writerTokens.carl, { question: "pagination", save: true })).statusCode).toBe(403);
+    const filed = (await call("POST", "/v1/ask", writerTokens.lea, { question: "pagination", save: true, scope: "shared" })).json();
+    expect(filed.saved.scope).toEqual({ kind: "team", team: "bff" });
+    expect((await call("POST", "/v1/ask", writerTokens.lea, { question: "x", scope: "nope:" })).statusCode).toBe(400);
+  });
+
+  it("answers 501 when no model is configured", async () => {
+    const { call } = await writes();
+    expect((await call("POST", "/v1/ask", writerTokens.lea, { question: "pagination" })).statusCode).toBe(501);
   });
 });
 

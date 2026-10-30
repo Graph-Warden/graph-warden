@@ -15,6 +15,13 @@ The words below are used with this meaning in code, proposals, issues and review
 | Author | The principal a node is derived for. Must be able to read every source. |
 | Traversal | Walking edges from a node. Scopes are checked on every hop, not only on the result. |
 | Erasure | Removal of a source and of everything derived from it (`gwarden forget`). |
+| Body | A node's text: what `ask` reads and what a filed answer holds. |
+| Deletion plan | What deleting a node would do: the nodes removed (it, and the derived nodes left without a source), the `DERIVED_FROM` edges detached, and a digest. A deletion is made only with the digest of a plan that still matches the graph (proposal 0011). |
+| Detach | Remove a `DERIVED_FROM` edge from a node that keeps other sources. The node keeps its scope. |
+| Editor | The only way to delete on behalf of a principal (`createEditor`): checks the writer groups and the scopes, audits, then writes. |
+| Writer group | A group whose members may delete nodes and file answers (`GWARDEN_WRITERS`). |
+| Asker | The use case answering a question (`createAsker`): retrieves readable nodes, audits them, hands them to the model, and files the answer if asked. |
+| LLM provider | The port (`LLMProvider`) for a language model. |
 | Audit entry | A record of a read made on behalf of a user. |
 | Event log | The append-only port (`EventLog`) recording every write to the graph with a sequence number. Pulls read it to know what changed since a cursor. |
 | Writer | The only way to write the graph (`createWriter`): every write lands in the store and then in the event log. |

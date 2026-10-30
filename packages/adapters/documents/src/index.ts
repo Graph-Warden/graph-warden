@@ -29,6 +29,8 @@ export interface Page {
   readonly frontmatter: Frontmatter;
   readonly links: readonly string[];
   readonly references: readonly Reference[];
+  // The text: a Markdown page below its frontmatter, the `body` field of a JSON or YAML document.
+  readonly body?: string;
 }
 
 export interface Reference {
@@ -68,7 +70,8 @@ export function parsePage(path: string, text: string): Page {
   if (extension === ".md") {
     const match = FRONTMATTER.exec(text);
     const links = [...text.matchAll(WIKILINK)].map((link) => (link[1] ?? "").trim());
-    return toPage(path, match?.[1] === undefined ? {} : parse(path, "YAML", () => parseYaml(match[1] ?? "")), [...new Set(links)]);
+    const fields = match?.[1] === undefined ? {} : parse(path, "YAML", () => parseYaml(match[1] ?? ""));
+    return toPage(path, fields, [...new Set(links)], text.slice(match?.[0].length ?? 0));
   }
   if (extension === ".json") return toPage(path, parse(path, "JSON", () => JSON.parse(text)), []);
   if (extension === ".yaml" || extension === ".yml") return toPage(path, parse(path, "YAML", () => parseYaml(text)), []);
@@ -83,7 +86,7 @@ function parse(path: string, format: string, read: () => unknown): unknown {
   }
 }
 
-function toPage(path: string, fields: unknown, links: readonly string[]): Page {
+function toPage(path: string, fields: unknown, links: readonly string[], text?: string): Page {
   if (fields !== null && fields !== undefined && (typeof fields !== "object" || Array.isArray(fields))) {
     throw new Error(`${path}: a document must be an object of fields`);
   }
@@ -95,7 +98,8 @@ function toPage(path: string, fields: unknown, links: readonly string[]): Page {
   const id = frontmatter.id;
   if (id !== undefined && (typeof id !== "string" || id === "")) throw new Error(`${path}: id must be a non-empty string`);
   const name = id ?? basename(path, extname(path));
-  return { name, path, frontmatter, links, references: references.data };
+  const body = (text ?? (typeof frontmatter.body === "string" ? frontmatter.body : "")).trim();
+  return { name, path, frontmatter, links, references: references.data, ...(body === "" ? {} : { body }) };
 }
 
 export function toGraph(pages: readonly Page[], options: DocumentOptions): { nodes: Node[]; edges: Edge[] } {
@@ -109,6 +113,7 @@ export function toGraph(pages: readonly Page[], options: DocumentOptions): { nod
         ? parseScope(page.frontmatter.scope)
         : options.defaultScope,
       provenance: { source: options.source, path: page.path },
+      ...(page.body === undefined ? {} : { body: page.body }),
     }),
   );
   const edges = kept.flatMap((page) => {

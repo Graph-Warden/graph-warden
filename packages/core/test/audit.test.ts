@@ -26,7 +26,7 @@ const graph = createGraph(
 
 function storeOf(g: Graph): GraphStore {
   const unused = () => Promise.reject(new Error("read-only test store"));
-  return { upsertNodes: unused, upsertEdges: unused, getNode: unused, deleteNode: unused, snapshot: () => Promise.resolve(g) };
+  return { upsertNodes: unused, upsertEdges: unused, getNode: unused, deleteNode: unused, deleteEdges: unused, snapshot: () => Promise.resolve(g) };
 }
 
 function memoryLog(): AuditLog & { readonly written: AuditEntry[] } {

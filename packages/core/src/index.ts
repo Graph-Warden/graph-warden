@@ -6,3 +6,6 @@ export * from "./audit.js";
 export * from "./derivation.js";
 export * from "./events.js";
 export * from "./identity.js";
+export * from "./deletion.js";
+export * from "./editor.js";
+export * from "./ask.js";

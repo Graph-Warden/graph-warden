@@ -24,3 +24,4 @@ A proposal normally goes `to be reviewed` → `accepted` → `in progress` → `
 | [0008](0008-apache-2.md) | Apache-2.0 license | done |
 | [0009](0009-domain-driven-design.md) | Domain-driven design, preferred not mandated | done |
 | [0010](0010-identity-groups-and-derived-scopes.md) | Rights come from the identity provider; derived nodes require every source team | to be reviewed |
+| [0011](0011-ask-and-governed-deletion.md) | Questions answered from the graph, and deletion that follows derivation | to be reviewed |
