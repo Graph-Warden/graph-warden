@@ -8,6 +8,7 @@ import {
   type Edge,
   type EventLog,
   type GraphStore,
+  type IngestionState,
   type Node,
   type Scope,
 } from "@graph-warden/core";
@@ -19,7 +20,7 @@ import neo4j, { type Driver, type Record as Neo4jRecord } from "neo4j-driver";
 
 // Labels of the adapter's own nodes. A node type of the same name would put a graph node among
 // them, in the audit log or the event log: the ontology may extend the types, not these.
-export const RESERVED_LABELS = ["Node", "Counter", "AuditEntry", "Event"] as const;
+export const RESERVED_LABELS = ["Node", "Counter", "AuditEntry", "Event", "Ingestion"] as const;
 
 export async function ensureConstraints(driver: Driver): Promise<void> {
   // Community edition: uniqueness only. Existence of scope and provenance is enforced by the
@@ -29,6 +30,7 @@ export async function ensureConstraints(driver: Driver): Promise<void> {
   await driver.executeQuery("CREATE CONSTRAINT audit_seq IF NOT EXISTS FOR (e:AuditEntry) REQUIRE e.seq IS UNIQUE");
   await driver.executeQuery("CREATE CONSTRAINT event_seq IF NOT EXISTS FOR (e:Event) REQUIRE e.seq IS UNIQUE");
   await driver.executeQuery("CREATE INDEX event_node IF NOT EXISTS FOR (e:Event) ON (e.node)");
+  await driver.executeQuery("CREATE CONSTRAINT ingestion_repo IF NOT EXISTS FOR (i:Ingestion) REQUIRE i.repo IS UNIQUE");
 }
 
 export function createNeo4jStore(driver: Driver): GraphStore {
@@ -167,6 +169,19 @@ export function createNeo4jEventLog(driver: Driver): EventLog {
         "MATCH (e:Event) WHERE e.seq <= $upTo AND (e.node = $id OR e.from = $id OR e.to = $id) RETURN e ORDER BY e.seq",
         { id, upTo: neo4j.int(upTo) },
       ),
+  };
+}
+
+// The last commit ingested per repository, as (:Ingestion {repo, sha}) outside the :Node label.
+export function createNeo4jIngestionState(driver: Driver): IngestionState {
+  return {
+    async last(repo) {
+      const { records } = await driver.executeQuery("MATCH (i:Ingestion {repo: $repo}) RETURN i.sha AS sha", { repo });
+      return records[0]?.get("sha") as string | undefined;
+    },
+    async record(repo, sha) {
+      await driver.executeQuery("MERGE (i:Ingestion {repo: $repo}) SET i.sha = $sha", { repo, sha });
+    },
   };
 }
 

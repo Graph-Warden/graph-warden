@@ -36,3 +36,10 @@ The words below are used with this meaning in code, proposals, issues and review
 | Port | An interface declared in `core` (`GraphStore`, `AuditLog`, `LLMProvider`). |
 | Adapter | A package that implements a port for a concrete technology. |
 | Graph store | The port (`GraphStore`) that persists nodes and edges. Stores never filter by scope; the domain does. |
+| Ingester | The use case bringing a repository's graph up to a commit (`createIngester`): walks the first-parent history from the last commit ingested and ingests each commit from its diff, in git order (proposal 0004). |
+| Ingestion job | "This repository has reached this commit". Jobs need no order and may repeat: a commit behind the last ingested one is a no-op. |
+| Ingestion queue | The port (`IngestionQueue`) holding ingestion jobs. Handles one repository's jobs one at a time across workers; a job leaves it only once handled. |
+| Ingestion state | The port (`IngestionState`) recording the last commit ingested per repository. |
+| Repository | The port (`Repository`) for a git repository: ancestry, first-parent commits, changed files, file contents. |
+| Extractor | Turns the files a commit changed into nodes and edges (documents, TypeScript imports, OpenAPI specs). |
+| Change | The node of one ingested commit. It `MODIFIES` the nodes of the files it touched; its id is `<repo>@<sha>`. |

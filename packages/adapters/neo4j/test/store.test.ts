@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import neo4j, { type Driver } from "neo4j-driver";
 import type { AuditEntry, Node } from "@graph-warden/core";
-import { createNeo4jAuditLog, createNeo4jEventLog, createNeo4jStore, ensureConstraints } from "../src/index.js";
+import { createNeo4jAuditLog, createNeo4jEventLog, createNeo4jIngestionState, createNeo4jStore, ensureConstraints } from "../src/index.js";
 
 // Runs against a throwaway database: every test wipes it. Never point NEO4J_TEST_URI at a
 // database you care about. `docker compose --profile test up -d --wait neo4j-test` starts one on
@@ -231,6 +231,19 @@ describe.skipIf(uri === undefined)("Neo4j adapter", () => {
 
     it("keeps events out of the graph", async () => {
       await events().append([{ kind: "node-deleted", id: "a" }]);
+      expect((await store().snapshot()).nodes.size).toBe(0);
+    });
+  });
+
+  describe("IngestionState", () => {
+    it("records the last commit ingested per repository, outside the graph", async () => {
+      const state = createNeo4jIngestionState(driver);
+      expect(await state.last("github:acme/shop")).toBeUndefined();
+      await state.record("github:acme/shop", "5a03dc8");
+      await state.record("github:acme/shop", "6b1f74f");
+      await state.record("github:acme/bff", "2fdd496");
+      expect(await state.last("github:acme/shop")).toBe("6b1f74f");
+      expect(await state.last("github:acme/bff")).toBe("2fdd496");
       expect((await store().snapshot()).nodes.size).toBe(0);
     });
   });

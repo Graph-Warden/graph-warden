@@ -33,6 +33,19 @@ services:
       timeout: 3s
       retries: 30
 
+  # Throwaway Redis for the ingestion queue tests: `docker compose --profile test up -d --wait
+  # redis-test`, then REDIS_TEST_URL=redis://localhost:6380.
+  redis-test:
+    image: redis:7.4-alpine
+    profiles: [test]
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
   # Demo (issue #3): `docker compose --profile demo up -d --build --wait`, then
   # `examples/shop/demo.sh`. Its own database in memory, seeded with examples/shop, and the API with
   # demo tokens, bound to localhost only: anyone holding a demo token is that user.
