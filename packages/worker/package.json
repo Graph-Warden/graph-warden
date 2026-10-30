@@ -20,6 +20,7 @@
     "@graph-warden/git": "workspace:*",
     "@graph-warden/memory": "workspace:*",
     "@graph-warden/neo4j": "workspace:*",
+    "@graph-warden/openapi": "workspace:*",
     "@graph-warden/redis": "workspace:*",
     "@graph-warden/typescript": "workspace:*",
     "fastify": "^5.12.7",

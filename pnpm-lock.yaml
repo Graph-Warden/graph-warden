@@ -121,6 +121,28 @@ importers:
         specifier: workspace:*
         version: link:../../core
 
+  packages/adapters/openapi:
+    dependencies:
+      '@graph-warden/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@graph-warden/typescript':
+        specifier: workspace:*
+        version: link:../typescript
+      typescript:
+        specifier: ~5.9.3
+        version: 5.9.3
+      yaml:
+        specifier: ^2.9.1
+        version: 2.9.1
+    devDependencies:
+      '@graph-warden/git':
+        specifier: workspace:*
+        version: link:../git
+      '@graph-warden/memory':
+        specifier: workspace:*
+        version: link:../memory
+
   packages/adapters/redis:
     dependencies:
       '@graph-warden/core':
@@ -282,6 +304,9 @@ importers:
       '@graph-warden/neo4j':
         specifier: workspace:*
         version: link:../adapters/neo4j
+      '@graph-warden/openapi':
+        specifier: workspace:*
+        version: link:../adapters/openapi
       '@graph-warden/redis':
         specifier: workspace:*
         version: link:../adapters/redis

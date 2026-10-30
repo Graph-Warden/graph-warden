@@ -1,7 +1,7 @@
 import { createGraph, type Graph } from "./traversal.js";
 import { deriveScopes } from "./derivation.js";
 import type { Writer } from "./events.js";
-import type { Edge, Node } from "./ontology.js";
+import type { Edge, EdgeType, Node } from "./ontology.js";
 import type { Principal, Scope } from "./scope.js";
 import type { GraphStore } from "./store.js";
 
@@ -66,6 +66,9 @@ export interface Snapshot {
 // files the commit did not change, when a change elsewhere alters them (a tsconfig.json changes how
 // every import resolves): their edges are replaced too.
 export interface Extractor {
+  // The edge types it gives. Edges of these types from the nodes it returns are replaced by what it
+  // returns; other extractors' edges from the same nodes are left alone. All types by default.
+  readonly edgeTypes?: readonly EdgeType[];
   matches(path: string): boolean;
   extract(files: readonly SourceFile[], snapshot: Snapshot): Promise<Extraction>;
 }
@@ -147,18 +150,23 @@ export function createIngester(options: IngesterOptions): Ingester {
     };
     const upserted = changes.filter((change) => change.status === "upserted").map((change) => change.path);
 
-    const nodes: Node[] = [];
+    const extractedNodes = new Map<string, Node>();
     const extracted: Edge[] = [];
+    // Per extractor, the nodes it extracted again and the edge types it owns on them.
+    const owners: { covered: ReadonlySet<string>; types?: ReadonlySet<EdgeType> }[] = [];
     for (const extractor of extractors) {
       const paths = upserted.filter((path) => extractor.matches(path));
       if (paths.length === 0) continue;
       const files = await Promise.all(paths.map(async (path) => ({ path, text: await snapshot.read(path) })));
       const extraction = await extractor.extract(files, snapshot);
       for (const { path, ...node } of extraction.nodes) {
-        nodes.push({ ...node, provenance: { source: config.name, path, sha } });
+        extractedNodes.set(node.id, { ...node, provenance: { source: config.name, path, sha } });
       }
-      extracted.push(...extraction.edges);
+      const covered = new Set(extraction.nodes.map((node) => node.id));
+      extracted.push(...extraction.edges.filter((edge) => covered.has(edge.from) && (extractor.edgeTypes?.includes(edge.type) ?? true)));
+      owners.push({ covered, ...(extractor.edgeTypes === undefined ? {} : { types: new Set(extractor.edgeTypes) }) });
     }
+    const nodes = [...extractedNodes.values()];
 
     const before = await store.snapshot();
     const changed = new Set(changes.map((change) => change.path));
@@ -180,12 +188,14 @@ export function createIngester(options: IngesterOptions): Ingester {
     const exists = (id: string) => kept.has(id) || id === change.id || (before.nodes.has(id) && !gone.has(id));
     const key = (edge: Edge) => `${edge.type} ${edge.from} ${edge.to}`;
     const edges = uniqueEdges([
-      ...extracted.filter((edge) => kept.has(edge.from) && exists(edge.to)),
+      ...extracted.filter((edge) => exists(edge.to)),
       ...nodes.filter((node) => changed.has(node.provenance.path)).map((node): Edge => ({ type: "MODIFIES", from: change.id, to: node.id })),
     ]);
-    // The edges a changed file had and no longer has. Edges into its nodes belong to other files.
+    // The edges an extracted node had and no longer has, among those its extractors own. Edges into
+    // it belong to other nodes.
     const fresh = new Set(edges.map(key));
-    const stale = before.edges.filter((edge) => kept.has(edge.from) && !fresh.has(key(edge)));
+    const ownedByExtractor = (edge: Edge) => owners.some((owner) => owner.covered.has(edge.from) && (owner.types?.has(edge.type) ?? true));
+    const stale = before.edges.filter((edge) => ownedByExtractor(edge) && !fresh.has(key(edge)));
 
     const derived = narrow(before, all, edges, gone, stale, config.author);
     await writer.upsertNodes(derived);

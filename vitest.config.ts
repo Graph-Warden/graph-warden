@@ -14,6 +14,7 @@ export default defineConfig({
       "@graph-warden/git": source("packages/adapters/git/src/index.ts"),
       "@graph-warden/redis": source("packages/adapters/redis/src/index.ts"),
       "@graph-warden/typescript": source("packages/adapters/typescript/src/index.ts"),
+      "@graph-warden/openapi": source("packages/adapters/openapi/src/index.ts"),
     },
   },
   test: {

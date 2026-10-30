@@ -4,6 +4,7 @@ import { createDocumentExtractor } from "@graph-warden/documents";
 import { createGitRepository } from "@graph-warden/git";
 import { createMemoryQueue } from "@graph-warden/memory";
 import { createNeo4jEventLog, createNeo4jIngestionState, createNeo4jStore, ensureConstraints } from "@graph-warden/neo4j";
+import { createOpenApiExtractor } from "@graph-warden/openapi";
 import { createRedisQueue } from "@graph-warden/redis";
 import { createTypeScriptExtractor } from "@graph-warden/typescript";
 import { Redis } from "ioredis";
@@ -24,7 +25,7 @@ const ingester = createIngester({
   repositories: new Map(
     [...clones.values()].map((repo) => [repo.name, { config: { name: repo.name, scope: repo.scope, author: repo.author }, repository: repo.git }]),
   ),
-  extractors: [createDocumentExtractor({ ontology: config.ontology }), createTypeScriptExtractor()],
+  extractors: [createDocumentExtractor({ ontology: config.ontology }), createTypeScriptExtractor(), createOpenApiExtractor()],
 });
 
 const redis = config.REDIS_URL === undefined ? undefined : new Redis(config.REDIS_URL);

@@ -21,18 +21,23 @@ const CONFIG = /(?:^|\/)(?:tsconfig[^/]*\.json|jsconfig\.json|package\.json|pnpm
 
 export const moduleId = (repo: string, path: string): string => `${repo}:${path}`;
 
+// The node of a source file, the same whichever extractor reads the file.
+export const moduleNode = (snapshot: Snapshot, path: string) =>
+  ({ id: moduleId(snapshot.repo.name, path), type: "Module", scope: snapshot.repo.scope, title: path, path }) as const;
+
 export interface TypeScriptOptions {
   // Files to read; all source files by default. Generated or vendored code may be left out.
   readonly include?: (path: string) => boolean;
 }
 
-const isSource = (path: string) => SOURCE.test(path) && !DECLARATION.test(path) && !path.split("/").includes("node_modules");
+export const isSource = (path: string) => SOURCE.test(path) && !DECLARATION.test(path) && !path.split("/").includes("node_modules");
 const isConfig = (path: string) => CONFIG.test(path) && !path.split("/").includes("node_modules");
 
 export function createTypeScriptExtractor(options: TypeScriptOptions = {}): Extractor {
   const { include = () => true } = options;
   const wanted = (path: string) => isSource(path) && include(path);
   return {
+    edgeTypes: ["IMPORTS"],
     matches: (path) => wanted(path) || isConfig(path),
     async extract(files, snapshot) {
       const all = await snapshot.files();
@@ -49,7 +54,7 @@ export function createTypeScriptExtractor(options: TypeScriptOptions = {}): Extr
         }
       }
       return {
-        nodes: changed.map((path) => ({ id: moduleId(repo, path), type: "Module", scope: snapshot.repo.scope, title: path, path })),
+        nodes: changed.map((path) => moduleNode(snapshot, path)),
         edges,
       };
     },
