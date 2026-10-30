@@ -25,6 +25,7 @@ import {
   type IdentityProvider,
   type Principal,
   type Reader,
+  type AgentSessions,
 } from "@graph-warden/core";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import { z } from "zod";
@@ -46,6 +47,8 @@ export interface ApiOptions {
   readonly editor?: Editor;
   // Wiki pages; without it, PUT /v1/pages answers 501.
   readonly pages?: Pages;
+  // Coding-agent sessions (issue #27); without it, /v1/agent-sessions answers 501.
+  readonly agentSessions?: AgentSessions;
   // Questions; without a model configured, /v1/ask answers 501.
   readonly asker?: Asker;
   // The types the graph accepts, the core ones by default: the writer's, shown at /v1/ontology.
@@ -85,6 +88,10 @@ const PageBody = z.object({
   scope: z.string().min(1),
   type: NodeTypeSchema.optional(),
 });
+const SessionBody = z
+  .object({ id: z.string().min(1).max(128), title: z.string().max(300).optional(), transcript: z.string().max(2_000_000) })
+  .strict();
+const PromotionBody = z.object({ scope: z.string().min(1), digest: z.string().min(1) }).strict();
 const quoted = (version: string) => `"${version}"`;
 
 const PrincipalResponse = PullResponseSchema.unwrap().shape.principal;
@@ -185,6 +192,34 @@ export function buildApi(options: ApiOptions): FastifyInstance {
       .code(saved.created ? 201 : 200)
       .header("etag", quoted(saved.version))
       .send({ node: NodeSchema.parse(saved.node), version: saved.version });
+  });
+
+  // A session is captured private to the caller, whatever the request says: the body has no
+  // scope (and is strict, so one is refused). Only its author previews and promotes it.
+  const agentSessions = () => {
+    if (options.agentSessions === undefined) throw new NotConfigured("agent sessions are not enabled on this API");
+    return options.agentSessions;
+  };
+  app.post("/v1/agent-sessions", async (request, reply) => {
+    const principal = await principalOf(request);
+    const body = parse(SessionBody, request.body);
+    const node = await agentSessions().capture(principal, { id: body.id, transcript: body.transcript, ...(body.title === undefined ? {} : { title: body.title }) });
+    return reply.code(201).send({ node: NodeSchema.parse(node) });
+  });
+  app.get<{ Params: { id: string } }>("/v1/agent-sessions/:id/promotion", async (request) => {
+    const principal = await principalOf(request);
+    return agentSessions().preview(principal, request.params.id);
+  });
+  app.post<{ Params: { id: string } }>("/v1/agent-sessions/:id/promotion", async (request) => {
+    const principal = await principalOf(request);
+    const body = parse(PromotionBody, request.body);
+    let scope;
+    try {
+      scope = parseScope(body.scope);
+    } catch (error) {
+      throw new BadRequest(`scope: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    return { node: NodeSchema.parse(await agentSessions().promote(principal, request.params.id, scope, body.digest)) };
   });
 
   app.get("/v1/search", async (request) => {
@@ -353,6 +388,26 @@ export const openApi = {
         responses: { "200": { description: "The node", content: json(NodeSchema) }, ...errors, "404": { description: "Unknown or unreadable node" } },
       },
       delete: DELETE_NODE,
+    },
+    "/v1/agent-sessions": {
+      post: {
+        summary: "Capture a coding-agent session, private to the caller",
+        requestBody: { required: true, content: json(SessionBody) },
+        responses: { "201": { description: "The session node" }, ...errors, "409": { description: "The session was promoted" } },
+      },
+    },
+    "/v1/agent-sessions/{id}/promotion": {
+      get: {
+        summary: "The session redacted of secrets and personal data, as a promotion would publish it",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        responses: { "200": { description: "Redacted text, findings by kind, digest" }, ...errors },
+      },
+      post: {
+        summary: "Promote a session to a scope the caller reads, with the digest of its preview",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        requestBody: { required: true, content: json(PromotionBody) },
+        responses: { "200": { description: "The promoted session" }, ...errors, "409": { description: "The session changed since its preview, or is already promoted" } },
+      },
     },
     "/v1/pages/{id}": {
       put: {

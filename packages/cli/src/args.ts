@@ -19,6 +19,9 @@ export const USAGE = `Usage:
   gwarden ask "<question>" --api <url> --token <token> [--from <node-id>] [--save [--scope <scope>]]
   gwarden delete <node-id> --api <url> --token <token> [--confirm <node-id>]
   gwarden forget <source> --user <user> [--team <team>]... [--confirm <source>]
+  gwarden agent-session capture [--transcript <file.jsonl> --id <id>] --api <url> --token <token>
+  gwarden agent-session preview <session-id> --api <url> --token <token>
+  gwarden agent-session promote <session-id> --scope <scope> --digest <digest> --api <url> --token <token>
   gwarden impact <repo-dir> --source <name> --base <ref> [--head <ref>] [--scope <scope>] [--team <team>]...
                  [--comment <owner/repo>#<number>]
 
@@ -54,6 +57,11 @@ too. Those are written again from their other sources by the model of GWARDEN_LL
 with GWARDEN_LLM_MODEL, GWARDEN_LLM_BASE_URL, OPENAI_API_KEY as for the API), or deleted without one.
 It shows what goes and asks you to type the source; --confirm types it, in scripts. The erasure is
 audited as --user.
+
+agent-session capture files a coding-agent session as a Session node private to the token's user.
+Without --transcript it reads a Claude Code hook's JSON on stdin (session_id, transcript_path): add it
+as a SessionEnd hook, see docs/agent-sessions.md. preview shows the session redacted of secrets and
+personal data, with its digest; promote publishes exactly that text to --scope, which you must read.
 
 impact ingests the commits from --base to --head (HEAD by default) of a clone into a copy of the
 graph read from Neo4j, never the graph itself, and prints the endpoints they touch, the modules
@@ -128,6 +136,9 @@ export type Command =
       readonly reader: Principal;
       readonly comment?: { readonly repo: string; readonly pull: number };
     }
+  | ({ readonly name: "agent-session"; readonly action: "capture"; readonly transcript?: string; readonly id?: string } & Remote)
+  | ({ readonly name: "agent-session"; readonly action: "preview"; readonly id: string } & Remote)
+  | ({ readonly name: "agent-session"; readonly action: "promote"; readonly id: string; readonly scope: string; readonly digest: string } & Remote)
   | ({
       readonly name: "delete";
       readonly id: string;
@@ -163,6 +174,9 @@ export function parseCommand(argv: readonly string[]): Command {
       watch: { type: "boolean", default: false },
       interval: { type: "string" },
       format: { type: "string" },
+      transcript: { type: "string" },
+      id: { type: "string" },
+      digest: { type: "string" },
       out: { type: "string" },
     },
   });
@@ -187,6 +201,21 @@ export function parseCommand(argv: readonly string[]): Command {
     if (format !== "markdown" && format !== "jsonld" && format !== "graphml") throw new Error("--format must be markdown, jsonld or graphml");
     if (format === "markdown" && out === undefined) throw new Error("--out is required for markdown: the directory to write the files to");
     return { name, format, ...(out === undefined ? {} : { out }), ...remote() };
+  }
+  if (name === "agent-session") {
+    const [action, id] = positionals;
+    if (action === "capture") {
+      if ((values.transcript === undefined) !== (values.id === undefined)) throw new Error("--transcript and --id go together; without them, the hook's JSON is read on stdin");
+      return { name, action, ...(values.transcript === undefined ? {} : { transcript: values.transcript }), ...(values.id === undefined ? {} : { id: values.id }), ...remote() };
+    }
+    if (id === undefined) throw new Error(USAGE);
+    if (action === "preview") return { name, action, id, ...remote() };
+    if (action === "promote") {
+      if (values.scope === undefined || values.digest === undefined) throw new Error("promote needs --scope and --digest, from preview");
+      parseScope(values.scope);
+      return { name, action, id, scope: values.scope, digest: values.digest, ...remote() };
+    }
+    throw new Error("agent-session takes capture, preview or promote");
   }
   if (name === "audit") return { name, through: through(), ...(values.user === undefined ? {} : { user: values.user }) };
 

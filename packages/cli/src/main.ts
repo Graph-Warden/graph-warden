@@ -39,12 +39,14 @@ import { createOpenAICompatibleProvider, LOCAL_BASE_URL } from "@graph-warden/op
 import neo4j from "neo4j-driver";
 import { z } from "zod";
 import { parseCommand, type Command, type Remote } from "./args.js";
+import { HookInput, readStdin, readTranscript } from "./agent-session.js";
 import { toGraphML, toJsonLd, toMarkdown } from "./export.js";
 import { formatImpact, packageNames, postComment, pullRequestImpact } from "./impact.js";
 
 async function run(command: Command): Promise<void> {
   if (command.name === "pull") return pull(command);
   if (command.name === "export") return exportGraph(command);
+  if (command.name === "agent-session") return agentSession(command);
   if (command.name === "cache") return listCache(command.cache);
   if (command.name === "ask") return ask(command);
   if (command.name === "show") return show(command);
@@ -253,6 +255,10 @@ function describe(entry: AuditEntry): string {
       return `${entry.planned === true ? "forget preview" : "forget"} ${entry.source} -> ${count(entry.returned.length, "node")} deleted, ${entry.recompiled.length} recompiled`;
     case "related":
       return `related ${entry.targets.join(", ")} -> ${count(entry.returned.length, "node")}`;
+    case "capture":
+      return `capture ${entry.target}`;
+    case "promote":
+      return `promote ${entry.target} to ${entry.scope}${entry.planned === true ? " (preview)" : ""}${entry.denied === true ? " DENIED" : ""}`;
     case "route":
       return `route ${entry.sources.join(", ") || "(unnamed sources)"} -> ${entry.model} model${entry.denied === true ? " DENIED, no local model" : ""}`;
     case "ask": {
@@ -301,6 +307,40 @@ async function pullOnce(command: Extract<Command, { name: "pull" }>): Promise<vo
     );
   } finally {
     cache.close();
+  }
+}
+
+async function agentSession(command: Extract<Command, { name: "agent-session" }>): Promise<void> {
+  const path = (id: string) => `/v1/agent-sessions/${encodeURIComponent(id)}/promotion`;
+  switch (command.action) {
+    case "capture": {
+      // From a Claude Code hook: its JSON names the session and its transcript.
+      const source =
+        command.transcript !== undefined && command.id !== undefined
+          ? { id: command.id, path: command.transcript }
+          : (({ session_id, transcript_path }) => ({ id: session_id, path: transcript_path }))(HookInput.parse(JSON.parse(await readStdin())));
+      const { title, transcript } = await readTranscript(source.path);
+      const { node } = z
+        .object({ node: NodeSchema })
+        .parse(await fetchJson(command, "/v1/agent-sessions", { method: "POST", body: { id: source.id, transcript, ...(title === undefined ? {} : { title }) } }));
+      console.error(`Captured ${node.id}, private to you. Promote it with: gwarden agent-session preview ${node.id}`);
+      return;
+    }
+    case "preview": {
+      const preview = z
+        .object({ id: z.string(), text: z.string(), findings: z.record(z.string(), z.number()), digest: z.string() })
+        .parse(await fetchJson(command, path(command.id)));
+      console.log(preview.text);
+      const found = Object.entries(preview.findings).map(([kind, n]) => `${n} ${kind}`);
+      console.error(`\nRedacted: ${found.length === 0 ? "nothing" : found.join(", ")}. Read the text above, then publish exactly it with:`);
+      console.error(`  gwarden agent-session promote ${preview.id} --scope <scope> --digest ${preview.digest}`);
+      return;
+    }
+    case "promote": {
+      const { node } = z.object({ node: NodeSchema }).parse(await fetchJson(command, path(command.id), { method: "POST", body: { scope: command.scope, digest: command.digest } }));
+      console.log(`Promoted ${node.id} to ${formatScope(node.scope)}.`);
+      return;
+    }
   }
 }
 
