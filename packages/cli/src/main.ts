@@ -41,7 +41,7 @@ async function run(command: Command): Promise<void> {
         const writer = createWriter(store, createNeo4jEventLog(driver));
         await writer.upsertNodes(nodes);
         await writer.upsertEdges(read.edges);
-        console.log(`Ingested ${nodes.length} nodes and ${read.edges.length} edges from ${command.source}.`);
+        console.log(`Ingested ${count(nodes.length, "node")} and ${count(read.edges.length, "edge")} from ${command.source}.`);
         for (const node of narrowed) console.log(`Narrowed ${node.id} to ${formatScope(node.scope)}, the readers of all its sources.`);
         break;
       }
@@ -66,7 +66,7 @@ async function run(command: Command): Promise<void> {
 
 function printNodes(nodes: readonly Node[], user: string): void {
   for (const node of nodes) console.log(`${node.type.padEnd(9)} ${node.id}  [${formatScope(node.scope)}]`);
-  console.log(`${nodes.length} nodes reachable as ${user}.`);
+  console.log(`${count(nodes.length, "node")} reachable as ${user}.`);
 }
 
 function printAudit(entries: readonly AuditEntry[]): void {
@@ -75,7 +75,7 @@ function printAudit(entries: readonly AuditEntry[]): void {
     const teams = principal.teams.length === 0 ? "" : ` (${principal.teams.join(", ")})`;
     console.log(`${entry.at}  ${principal.user}${teams}  ${describe(entry)}`);
   }
-  console.log(`${entries.length} audit entries.`);
+  console.log(`${count(entries.length, "audit entry", "audit entries")}.`);
 }
 
 async function traverseRemote(command: Extract<Command, { name: "traverse" }>, remote: Remote): Promise<void> {
@@ -95,6 +95,8 @@ async function auditRemote(command: Extract<Command, { name: "audit" }>, remote:
   printAudit(z.object({ entries: z.array(AuditEntrySchema) }).parse(await fetchJson(remote, `/v1/audit${query}`)).entries);
 }
 
+const count = (n: number, one: string, many = `${one}s`): string => `${n} ${n === 1 ? one : many}`;
+
 const MeSchema = PullResponseSchema.unwrap().shape.principal;
 
 function describe(entry: AuditEntry): string {
@@ -106,10 +108,10 @@ function describe(entry: AuditEntry): string {
         ...(options.maxDepth === undefined ? [] : [`depth ${options.maxDepth}`]),
         ...(options.edgeTypes ?? []),
       ].join(" ");
-      return `traverse ${entry.start} [${how}] -> ${entry.returned.length} nodes`;
+      return `traverse ${entry.start} [${how}] -> ${count(entry.returned.length, "node")}`;
     }
     case "pull":
-      return `pull after ${entry.after} -> ${entry.returned.length} nodes`;
+      return `pull after ${entry.after} -> ${count(entry.returned.length, "node")}`;
     case "audit":
       return `audit${entry.user === undefined ? "" : ` of ${entry.user}`}${entry.denied === true ? " DENIED" : ""}`;
   }
@@ -133,8 +135,8 @@ async function pull(command: Extract<Command, { name: "pull" }>): Promise<void> 
     cache.apply(command.api, principal, delta);
     console.log(
       `Pulled as ${principal.user}${after === 0 ? " from scratch" : ` since ${after}`}: ` +
-        `${delta.nodes.length} nodes, ${delta.edges.length} edges, ${delta.removed.length} removed. ` +
-        `Cache: ${cache.nodes().length} nodes, ${cache.edgeCount()} edges, cursor ${delta.cursor}.`,
+        `${count(delta.nodes.length, "node")}, ${count(delta.edges.length, "edge")}, ${delta.removed.length} removed. ` +
+        `Cache: ${count(cache.nodes().length, "node")}, ${count(cache.edgeCount(), "edge")}, cursor ${delta.cursor}.`,
     );
   } finally {
     cache.close();
@@ -151,7 +153,7 @@ async function listCache(path: string): Promise<void> {
   const cache = await openCache(path);
   try {
     for (const node of cache.nodes()) console.log(`${node.type.padEnd(9)} ${node.id}  [${formatScope(node.scope)}]`);
-    console.log(`${cache.nodes().length} nodes, ${cache.edgeCount()} edges in ${path}.`);
+    console.log(`${count(cache.nodes().length, "node")}, ${count(cache.edgeCount(), "edge")} in ${path}.`);
   } finally {
     cache.close();
   }
