@@ -91,7 +91,8 @@ describe("TypeScript imports", () => {
         `${id("apps/bff/src/server.ts")} -> ${id("apps/bff/src/routes/recommendations.ts")}`,
       ]),
     );
-  });
+    // Runs tsc once per project.
+  }, 30_000);
 
   it("replaces the imports of a changed file, and follows a changed tsconfig everywhere", async () => {
     const { store, ingest } = setup();
