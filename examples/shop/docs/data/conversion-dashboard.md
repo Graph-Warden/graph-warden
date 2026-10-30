@@ -1,5 +1,5 @@
 ---
-type: Module
+type: Dashboard
 scope: team:data
 references:
   - { type: CONSUMES, to: customer-360 }

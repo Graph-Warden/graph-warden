@@ -1,4 +1,4 @@
-import { formatScope as coreFormatScope, NodeTypeSchema, type Delta, type Node, type Scope } from "@graph-warden/core";
+import { CORE_NODE_TYPES, formatScope as coreFormatScope, type Delta, type Node, type Scope } from "@graph-warden/core";
 import { describe, expect, it } from "vitest";
 import { applyDelta, empty, filterNodes, formatScope, incoming, neighbourhood, NODE_TYPES, outgoing } from "../src/graph.js";
 
@@ -74,7 +74,7 @@ describe("the web copy of the readable graph", () => {
   });
 
   it("agrees with core on node types and scope names", () => {
-    expect([...NODE_TYPES]).toEqual(NodeTypeSchema.options);
+    expect([...NODE_TYPES]).toEqual([...CORE_NODE_TYPES]);
     const scopes: Scope[] = [{ kind: "shared" }, { kind: "team", team: "a" }, { kind: "teams", teams: ["a", "b"] }, { kind: "private", user: "u" }];
     for (const scope of scopes) expect(formatScope(scope)).toBe(coreFormatScope(scope));
   });

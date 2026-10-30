@@ -21,8 +21,17 @@ export function Editor({ id, principal }: { id?: string; principal: Principal })
   const [body, setBody] = useState("");
   const [scope, setScope] = useState(`private:${principal.user}`);
   const [type, setType] = useState<NodeType>("Concept");
+  // The core types until the API answers with the organisation's too.
+  const [types, setTypes] = useState<readonly NodeType[]>(NODE_TYPES);
   const [error, setError] = useState<string>();
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    api.ontology().then(
+      (ontology) => setTypes(ontology.nodeTypes),
+      () => undefined,
+    );
+  }, []);
 
   useEffect(() => {
     if (id === undefined) return;
@@ -88,7 +97,7 @@ export function Editor({ id, principal }: { id?: string; principal: Principal })
         <label>
           Type
           <select value={type} onChange={(event) => setType(event.target.value as NodeType)}>
-            {NODE_TYPES.map((option) => (
+            {types.map((option) => (
               <option key={option} value={option}>
                 {option}
               </option>

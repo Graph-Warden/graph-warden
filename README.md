@@ -13,7 +13,7 @@
 
 Graph-Warden collects what teams already write (repositories, API specs, docs, agent sessions), links it into one typed graph, and lets AI agents query it. Every query is made on behalf of a person, returns only what that person may see, and is recorded.
 
-> Status: **pre-alpha**, milestone M0. Nothing here is ready for production. See [what works today](#what-works-today) and the [roadmap](docs/ROADMAP.md).
+> Status: **alpha**. Milestone M0 is done; M1 and M2 are in progress. Nothing here is ready for production. See [what works today](#what-works-today) and the [roadmap](docs/ROADMAP.md).
 
 **Reading guide.** The [first part](#part-1--the-product) is for anyone deciding whether this is useful: the problem, who it is for, a demo. The [second part](#part-2--under-the-hood) is for anyone building or running it: architecture, how a read is checked, how to run it.
 
@@ -21,12 +21,13 @@ Graph-Warden collects what teams already write (repositories, API specs, docs, a
 |---|---|
 | [The problem](#the-problem) | [Architecture](#architecture) |
 | [An example](#an-example-one-endpoint-four-teams) | [Scopes](#scopes) |
-| [What it guarantees](#what-it-guarantees) | [Anatomy of a read](#anatomy-of-a-read) |
-| [Who it is for](#who-it-is-for) | [Derived scopes](#derived-scopes) |
-| [See it run](#see-it-run) | [Asking the graph](#asking-the-graph) |
-| [Ask and delete](#ask-and-delete) | [Deleting a node](#deleting-a-node) |
-| [How it differs](#how-it-differs) | [Quick start](#quick-start) |
-| [What works today](#what-works-today) | [Repository layout](#repository-layout) |
+| [What it guarantees](#what-it-guarantees) | [The ontology](#the-ontology) |
+| [Who it is for](#who-it-is-for) | [Anatomy of a read](#anatomy-of-a-read) |
+| [See it run](#see-it-run) | [Derived scopes](#derived-scopes) |
+| [Ask and delete](#ask-and-delete) | [Asking the graph](#asking-the-graph) |
+| [How it differs](#how-it-differs) | [Deleting a node](#deleting-a-node) |
+| [What works today](#what-works-today) | [Quick start](#quick-start) |
+| | [Repository layout](#repository-layout) |
 | | [Contributing](#contributing) |
 
 ---
@@ -245,13 +246,13 @@ Graph databases already have role-based access, and agent-memory libraries alrea
 
 ## What works today
 
-- the typed ontology (Zod) and a Neo4j graph store;
+- the typed ontology (Zod), extended by configuration with an organisation's own types, and a Neo4j graph store;
 - ingestion of Markdown, JSON and YAML documents with typed references, private by default;
 - traversal with scopes checked on every hop; derived documents readable only by those who read all their sources;
 - a REST API whose identities and groups come from an OIDC provider or Google with Cloud Identity;
 - an audit entry for every read, question and deletion;
 - `gwarden pull` into a local SQLite cache holding only what the user may see;
-- `gwarden ask`, answers from readable nodes with Claude (Claude API, Vertex AI, or Google Cloud with no API key), filed back as derived nodes on request;
+- `gwarden ask`, answers from readable nodes with Claude (Claude API, Vertex AI, or Google Cloud with no API key) or any OpenAI-compatible model, local ones included, filed back as derived nodes on request;
 - `gwarden delete`, following `DERIVED_FROM`, shown then confirmed;
 - a web app: pages, search, the graph (Sigma.js), questions, deletion and wiki pages, updated live over SSE;
 - a `docker compose` demo and a Cloud Run deployment.
@@ -314,6 +315,17 @@ Every node carries exactly one scope:
 | `private:alice` | Alice only |
 
 Groups come from the identity provider, nested groups resolved. Oversight belongs there, not in Graph-Warden: a `dev-leads` group nested in every team group lets leads read across teams. See [proposal 0002](docs/proposals/0002-one-graph-many-scopes.md) and [proposal 0010](docs/proposals/0010-identity-groups-and-derived-scopes.md).
+
+## The ontology
+
+Nodes and edges are typed. The core types are what the domain relies on: `Module`, `Endpoint`, `Decision`, `Concept`, `Incident`, `Team`, `Person`, `Session`, `Source`, `Change`; `IMPORTS`, `EXPOSES`, `CONSUMES`, `DECIDES`, `DERIVED_FROM`, `CAUSES`, `FIXES` and a few more. An organisation adds its own in a YAML file named by `GWARDEN_ONTOLOGY`, read by the API and by `gwarden ingest`:
+
+```yaml
+nodeTypes: [Microservice, Dataset, Dashboard]
+edgeTypes: [OWNS, RUNS_ON]
+```
+
+The ontology stays closed: a node or edge of a type it does not have is refused on write, so a typo never becomes a new kind of thing. Types are added, never removed. A node type is PascalCase, an edge type UPPER_SNAKE_CASE; the Neo4j store also refuses the names of its own labels (`Node`, `AuditEntry`, `Event`, `Counter`). The demo declares `Dataset` and `Dashboard` for the Data team ([`examples/shop/ontology.yaml`](examples/shop/ontology.yaml)); `GET /v1/ontology` lists the types in use. See [proposal 0001](docs/proposals/0001-typescript-and-zod.md).
 
 ## Anatomy of a read
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EdgeSchema, NodeSchema } from "../src/index.js";
+import { checkOntology, CORE_ONTOLOGY, createOntology, EdgeSchema, NodeSchema, OutsideOntology } from "../src/index.js";
 
 const decision = {
   id: "adr-0002",
@@ -30,8 +30,11 @@ describe("NodeSchema", () => {
     expect(NodeSchema.safeParse(without(decision, "provenance")).success).toBe(false);
   });
 
-  it("rejects a type outside the ontology", () => {
-    expect(NodeSchema.safeParse({ ...decision, type: "Microservice" }).success).toBe(false);
+  it("reads any well-formed type, and no other: the ontology is checked on write", () => {
+    expect(NodeSchema.safeParse({ ...decision, type: "Microservice" }).success).toBe(true);
+    for (const type of ["microservice", "Micro service", "Micro`) DETACH DELETE n //", ""]) {
+      expect(NodeSchema.safeParse({ ...decision, type }).success).toBe(false);
+    }
   });
 
   it("rejects a malformed scope", () => {
@@ -50,13 +53,35 @@ describe("EdgeSchema", () => {
     expect(EdgeSchema.safeParse({ type: "DERIVED_FROM", from: "concept-1", to: "adr-0002" }).success).toBe(true);
   });
 
-  it("rejects an edge type outside the ontology", () => {
-    expect(EdgeSchema.safeParse({ type: "LIKES", from: "a", to: "b" }).success).toBe(false);
+  it("reads any well-formed type, and no other", () => {
+    expect(EdgeSchema.safeParse({ type: "RUNS_ON", from: "a", to: "b" }).success).toBe(true);
+    for (const type of ["likes", "RUNS-ON", "X]->(b) DELETE b //"]) expect(EdgeSchema.safeParse({ type, from: "a", to: "b" }).success).toBe(false);
   });
 });
 
 describe("REFERENCES", () => {
   it("links two documents without a stronger relation", () => {
     expect(EdgeSchema.safeParse({ type: "REFERENCES", from: "note-a", to: "note-b" }).success).toBe(true);
+  });
+});
+
+describe("ontology", () => {
+  it("is closed by default", () => {
+    expect(() => checkOntology(CORE_ONTOLOGY, [{ id: "orders", type: "Microservice" }])).toThrow(OutsideOntology);
+    expect(() => checkOntology(CORE_ONTOLOGY, [], [{ type: "OWNS", from: "a", to: "b" }])).toThrow(/OWNS/);
+    expect(() => checkOntology(CORE_ONTOLOGY, [{ id: "adr", type: "Decision" }], [{ type: "DECIDES", from: "a", to: "b" }])).not.toThrow();
+  });
+
+  it("is extended by configuration, and keeps the core types", () => {
+    const ontology = createOntology({ nodeTypes: ["Microservice", "Decision"], edgeTypes: ["OWNS"] });
+    expect(ontology.nodeTypes).toEqual([...CORE_ONTOLOGY.nodeTypes, "Microservice"]);
+    expect(ontology.edgeTypes).toContain("DERIVED_FROM");
+    expect(() => checkOntology(ontology, [{ id: "orders", type: "Microservice" }], [{ type: "OWNS", from: "a", to: "b" }])).not.toThrow();
+  });
+
+  it("refuses a malformed extension", () => {
+    expect(() => createOntology({ nodeTypes: ["micro service"] })).toThrow();
+    expect(() => createOntology({ edgeTypes: ["owns"] })).toThrow();
+    expect(() => createOntology({ types: ["X"] } as never)).toThrow();
   });
 });

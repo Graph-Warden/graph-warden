@@ -1,4 +1,4 @@
-import type { Delta, Edge, Node, NodeType, Principal } from "@graph-warden/core";
+import type { Delta, Edge, Node, NodeType, Ontology, Principal } from "@graph-warden/core";
 
 // Calls to the API on the app's own origin, with the session cookie. Writes carry the header the
 // API requires of cookie-authenticated writes (proposal 0012).
@@ -60,6 +60,7 @@ export const api = {
   signInDemo: (token: string) => call<Principal>("/auth/demo", { method: "POST", body: { token } }),
   signOut: () => call<{ ok: true }>("/auth/logout", { method: "POST" }),
   me: () => call<Principal>("/v1/me"),
+  ontology: () => call<Ontology>("/v1/ontology"),
   pull: (after: number) => call<{ principal: Principal; delta: Delta }>(`/v1/pull?after=${after}`),
   ask: (question: string, options: { from?: string; save?: boolean; scope?: string } = {}) =>
     call<Answer>("/v1/ask", { method: "POST", body: { question, ...options } }),

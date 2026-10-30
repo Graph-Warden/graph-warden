@@ -2,13 +2,13 @@ import { useEffect, useMemo, useRef } from "react";
 import Graph from "graphology";
 import forceAtlas2 from "graphology-layout-forceatlas2";
 import Sigma from "sigma";
-import type { NodeType } from "@graph-warden/core";
+import type { CoreNodeType, NodeType } from "@graph-warden/core";
 import { nameOf, neighbourhood, type Store } from "../graph.js";
 import { pageHref } from "../markdown.js";
 import { graphHref } from "../route.js";
 
-// One colour per node type, readable on both themes.
-const COLOURS: Record<NodeType, string> = {
+// One colour per core node type, readable on both themes; the organisation's types share one.
+const COLOURS: Record<CoreNodeType, string> = {
   Source: "#8a8a80",
   Change: "#b07d2b",
   Module: "#3f7cac",
@@ -20,6 +20,7 @@ const COLOURS: Record<NodeType, string> = {
   Person: "#4a9bb0",
   Session: "#7a7a72",
 };
+const colour = (type: NodeType): string => (COLOURS as Record<string, string>)[type] ?? "#a0763a";
 
 // A stable starting position per id, so that the same graph is laid out the same way each time.
 function seed(id: string): [number, number] {
@@ -48,7 +49,7 @@ export function GraphView({ store, focus }: { store: Store; focus?: string }) {
         y,
         label: nameOf(node),
         size: (node.id === focus ? 12 : 6) + Math.min(degree.get(node.id) ?? 0, 10),
-        color: COLOURS[node.type],
+        color: colour(node.type),
       });
     }
     for (const edge of edges) {
@@ -93,7 +94,7 @@ export function GraphView({ store, focus }: { store: Store; focus?: string }) {
       <ul className="legend">
         {types.map((type) => (
           <li key={type}>
-            <span className="dot" style={{ background: COLOURS[type] }} /> {type}
+            <span className="dot" style={{ background: colour(type) }} /> {type}
           </li>
         ))}
       </ul>

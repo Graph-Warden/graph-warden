@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { Forbidden, recorder, type AuditLog } from "./audit.js";
 import { Conflict } from "./editor.js";
 import type { Writer } from "./events.js";
-import { NodeTypeSchema, type Edge, type Node, type NodeType } from "./ontology.js";
+import type { Edge, Node, NodeType } from "./ontology.js";
 import { canRead, formatScope, type Principal, type Scope } from "./scope.js";
 import type { GraphStore } from "./store.js";
 
@@ -87,7 +87,8 @@ export function createPages(store: GraphStore, writer: Writer, audit: AuditLog, 
         await record(denied, principal);
         throw new Invalid(`${principal.user} could not read a page scoped ${formatScope(draft.scope)}`);
       }
-      const type = NodeTypeSchema.parse(draft.type ?? "Concept");
+      const type = draft.type ?? "Concept";
+      if (!writer.ontology.nodeTypes.includes(type)) throw new Invalid(`node type ${type} is not in the ontology`);
       const graph = await store.snapshot();
       const current = graph.nodes.get(id);
       // A node the author may not read and a node that is not a page are refused alike.

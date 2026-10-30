@@ -54,6 +54,7 @@ describe("API", () => {
     expect(Object.keys(spec.paths)).toEqual([
       "/healthz",
       "/v1/me",
+      "/v1/ontology",
       "/v1/nodes/{id}",
       "/v1/pages/{id}",
       "/v1/search",
@@ -100,7 +101,7 @@ describe("API", () => {
   it("rejects invalid parameters", async () => {
     const { get } = await setup();
     expect((await get("/v1/nodes/app/neighbours?direction=up", tokens.lea)).statusCode).toBe(400);
-    expect((await get("/v1/nodes/app/neighbours?edge=LIKES", tokens.lea)).statusCode).toBe(400);
+    expect((await get("/v1/nodes/app/neighbours?edge=likes", tokens.lea)).statusCode).toBe(400);
     expect((await get("/v1/pull?after=-1", tokens.lea)).statusCode).toBe(400);
   });
 
@@ -294,6 +295,24 @@ describe("loadConfig", () => {
     await expect(loadConfig({ ...demo, GWARDEN_LLM_PLATFORM: "copilot" })).rejects.toThrow();
     const config = await loadConfig({ ...demo, GWARDEN_LLM_PLATFORM: "vertex", CLOUD_ML_REGION: "global" });
     expect(config.GWARDEN_LLM_PLATFORM).toBe("vertex");
+  });
+
+  it("reads the organisation's ontology from GWARDEN_ONTOLOGY, and serves it", async () => {
+    const users = join(tmpdir(), `gw-users-ontology-${process.pid}.yaml`);
+    await writeFile(users, `- { token: ${tokens.lea}, user: lea, teams: [bff] }\n`);
+    const demo = { ...base, GWARDEN_IDENTITY: "demo", GWARDEN_DEMO_USERS: users, GWARDEN_DEMO: "i-understand-anyone-with-a-token-is-that-user" };
+    expect((await loadConfig(demo)).ontology.nodeTypes).not.toContain("Microservice");
+    const file = join(tmpdir(), `gw-ontology-${process.pid}.yaml`);
+    await writeFile(file, "nodeTypes: [Microservice]\nedgeTypes: [OWNS]\n");
+    const config = await loadConfig({ ...demo, GWARDEN_ONTOLOGY: file });
+    expect(config.ontology.nodeTypes).toContain("Microservice");
+    await writeFile(file, "nodeTypes: [micro service]\n");
+    await expect(loadConfig({ ...demo, GWARDEN_ONTOLOGY: file })).rejects.toThrow();
+
+    const app = buildApi({ reader: createReader(createMemoryStore(), createMemoryAuditLog()), identity: config.identity, ontology: config.ontology });
+    const response = await app.inject({ method: "GET", url: "/v1/ontology", headers: { authorization: `Bearer ${tokens.lea}` } });
+    expect(response.json()).toMatchObject({ nodeTypes: expect.arrayContaining(["Decision", "Microservice"]), edgeTypes: expect.arrayContaining(["OWNS"]) });
+    expect((await app.inject({ method: "GET", url: "/v1/ontology" })).statusCode).toBe(401);
   });
 
   it("needs a model, and a key or a server, for an OpenAI-compatible API", async () => {

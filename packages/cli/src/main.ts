@@ -3,6 +3,8 @@ import { createInterface } from "node:readline/promises";
 import {
   createGraph,
   createReader,
+  checkOntology,
+  CORE_ONTOLOGY,
   createWriter,
   deriveScopes,
   formatScope,
@@ -13,7 +15,7 @@ import {
   type AuditEntry,
   type Node,
 } from "@graph-warden/core";
-import { readDocuments } from "@graph-warden/documents";
+import { readDocuments, readOntology } from "@graph-warden/documents";
 import { createNeo4jAuditLog, createNeo4jEventLog, createNeo4jStore, ensureConstraints } from "@graph-warden/neo4j";
 import neo4j from "neo4j-driver";
 import { z } from "zod";
@@ -38,13 +40,17 @@ async function run(command: Command): Promise<void> {
     switch (command.name) {
       case "ingest": {
         await ensureConstraints(driver);
-        const read = await readDocuments(command.dir, command);
+        // The organisation's types, if it declared any (GWARDEN_ONTOLOGY, the same file as the API's).
+        const ontology = process.env.GWARDEN_ONTOLOGY ? await readOntology(process.env.GWARDEN_ONTOLOGY) : CORE_ONTOLOGY;
+        const read = await readDocuments(command.dir, { ...command, ontology });
         // A document derived from others is never readable by someone who cannot read its sources.
         const ids = read.nodes.map((node) => node.id);
         const nodes = deriveScopes(createGraph(read.nodes, read.edges), command.author, ids);
         const narrowed = nodes.filter((node, i) => formatScope(node.scope) !== formatScope(read.nodes[i]?.scope ?? node.scope));
         // Through the writer, so that every change lands in the event log that pulls read.
-        const writer = createWriter(store, createNeo4jEventLog(driver));
+        const writer = createWriter(store, createNeo4jEventLog(driver), { ontology });
+        // Checked before writing anything, so that an unknown edge type leaves no half ingestion.
+        checkOntology(ontology, nodes, read.edges);
         await writer.upsertNodes(nodes);
         await writer.upsertEdges(read.edges);
         console.log(`Ingested ${count(nodes.length, "node")} and ${count(read.edges.length, "edge")} from ${command.source}.`);

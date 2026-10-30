@@ -122,6 +122,9 @@ importers:
       '@graph-warden/core':
         specifier: workspace:*
         version: link:../core
+      '@graph-warden/documents':
+        specifier: workspace:*
+        version: link:../adapters/documents
       '@graph-warden/identity':
         specifier: workspace:*
         version: link:../adapters/identity

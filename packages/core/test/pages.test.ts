@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Conflict, createPages, createWriter, Forbidden, Invalid, pageVersion, Stale, wikilinks, type Node, type Principal, type Scope } from "../src/index.js";
+import { Conflict, createOntology, createPages, createWriter, Forbidden, Invalid, pageVersion, Stale, wikilinks, type Node, type Principal, type Scope } from "../src/index.js";
 import { memoryAudit, memoryEvents, memoryStore } from "./memory.js";
 
 const lea: Principal = { user: "lea", teams: ["writers", "bff", "front"] };
@@ -75,6 +75,17 @@ describe("wiki pages", () => {
     await writer.upsertEdges([{ type: "DERIVED_FROM", from: "summary", to: "p" }]);
     await expect(pages.save(lea, "p", { title: "P", body: "", scope: front }, page.version)).rejects.toThrow(Conflict);
     await expect(pages.save(lea, "p", { title: "P2", body: "edited", scope: shared }, page.version)).resolves.toMatchObject({ created: false });
+  });
+
+  it("saves a page of a type the organisation added, and of no type outside the ontology", async () => {
+    const { pages } = await setup();
+    await expect(pages.save(bob, "p", { title: "P", body: "", scope: shared, type: "Microservice" }, null)).rejects.toThrow(Invalid);
+    const store = memoryStore();
+    const extended = createPages(store, createWriter(store, memoryEvents(), { ontology: createOntology({ nodeTypes: ["Microservice"] }) }), memoryAudit(), {
+      writers: ["writers"],
+    });
+    const saved = await extended.save(bob, "p", { title: "P", body: "", scope: shared, type: "Microservice" }, null);
+    expect(saved.node.type).toBe("Microservice");
   });
 
   it("reads links as the documents adapter does", () => {

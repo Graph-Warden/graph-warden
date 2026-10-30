@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import fc from "fast-check";
-import { canRead, createReader, createWriter, type Delta, type Edge, type Node, type Principal, type Scope } from "../src/index.js";
+import { canRead, createOntology, createReader, createWriter, OutsideOntology, type Delta, type Edge, type Node, type Principal, type Scope } from "../src/index.js";
 import { memoryAudit, memoryEvents, memoryStore } from "./memory.js";
 
 const node = (id: string, scope: Scope): Node => ({ id, type: "Concept", scope, provenance: { source: "docs", path: id } });
@@ -96,6 +96,21 @@ describe("pull", () => {
 // For any sequence of writes and pulls: no delta names a node the principal cannot read now and
 // could not read at its cursor, and a cache that applies every delta ends up holding exactly the
 // part of the graph the principal may read.
+describe("writer", () => {
+  it("writes only the types of its ontology, and nothing of a refused batch", async () => {
+    const store = memoryStore();
+    const writer = createWriter(store, memoryEvents());
+    const service = { ...node("orders", shared), type: "Microservice" };
+    await expect(writer.upsertNodes([node("adr", shared), service])).rejects.toThrow(OutsideOntology);
+    expect(await store.getNode("adr")).toBeUndefined();
+    const extended = createWriter(store, memoryEvents(), { ontology: createOntology({ nodeTypes: ["Microservice"], edgeTypes: ["OWNS"] }) });
+    await extended.upsertNodes([node("team", shared), service]);
+    await extended.upsertEdges([{ type: "OWNS", from: "team", to: "orders" }]);
+    await expect(writer.upsertEdges([{ type: "OWNS", from: "team", to: "orders" }])).rejects.toThrow(/OWNS/);
+    expect((await store.snapshot()).edges).toEqual([{ type: "OWNS", from: "team", to: "orders" }]);
+  });
+});
+
 describe("pull, for any sequence of writes", () => {
   const nodeIds = ["n0", "n1", "n2", "n3", "n4"];
   const scope: fc.Arbitrary<Scope> = fc.oneof(

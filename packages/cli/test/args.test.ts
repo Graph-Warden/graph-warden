@@ -57,7 +57,7 @@ describe("traverse", () => {
   it("rejects a bad direction, depth or edge type", () => {
     expect(() => parseCommand(["traverse", "x", "--user", "a", "--direction", "up"])).toThrow(/direction/);
     expect(() => parseCommand(["traverse", "x", "--user", "a", "--depth", "0"])).toThrow(/depth/);
-    expect(() => parseCommand(["traverse", "x", "--user", "a", "--edge", "LIKES"])).toThrow();
+    expect(() => parseCommand(["traverse", "x", "--user", "a", "--edge", "likes"])).toThrow();
   });
 
   it("requires a user", () => {
