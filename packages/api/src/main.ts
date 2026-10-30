@@ -2,6 +2,7 @@
 import { createClaudeProvider } from "@graph-warden/anthropic";
 import { createAsker, createEditor, createPages, createReader, createWriter } from "@graph-warden/core";
 import { createNeo4jAuditLog, createNeo4jEventLog, createNeo4jStore, ensureConstraints } from "@graph-warden/neo4j";
+import { createOpenAICompatibleProvider } from "@graph-warden/openai";
 import neo4j from "neo4j-driver";
 import { buildApi } from "./app.js";
 import { loadConfig } from "./config.js";
@@ -24,7 +25,13 @@ const llm =
         platform: config.GWARDEN_LLM_PLATFORM,
         ...(config.GWARDEN_LLM_MODEL === undefined ? {} : { model: config.GWARDEN_LLM_MODEL }),
       })
-    : undefined;
+    : config.GWARDEN_LLM === "openai" && config.GWARDEN_LLM_MODEL !== undefined
+      ? createOpenAICompatibleProvider({
+          model: config.GWARDEN_LLM_MODEL,
+          ...(config.GWARDEN_LLM_BASE_URL === undefined ? {} : { baseUrl: config.GWARDEN_LLM_BASE_URL }),
+          ...(config.OPENAI_API_KEY === undefined ? {} : { apiKey: config.OPENAI_API_KEY }),
+        })
+      : undefined;
 const asker = llm === undefined ? undefined : createAsker(store, writer, audit, llm, { writers });
 const app = buildApi({
   reader,

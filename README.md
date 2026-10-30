@@ -346,7 +346,7 @@ sequenceDiagram
     Asker-->>User: answer + nodes read
 ```
 
-Retrieval is done by the domain, not by the model, so the nodes an answer could draw on are known exactly. A saved answer is derived from **all** of them, cited or not: it is private to the asker by default, and `--scope shared` is narrowed to the readers of all its sources ([proposal 0011](docs/proposals/0011-ask-and-governed-deletion.md)). The model sits behind the `LLMProvider` port; the first adapter is Claude (`GWARDEN_LLM=claude`, default model `claude-opus-5-5`, credentials from the environment).
+Retrieval is done by the domain, not by the model, so the nodes an answer could draw on are known exactly. A saved answer is derived from **all** of them, cited or not: it is private to the asker by default, and `--scope shared` is narrowed to the readers of all its sources ([proposal 0011](docs/proposals/0011-ask-and-governed-deletion.md)). The model sits behind the `LLMProvider` port; it has two adapters: Claude (`GWARDEN_LLM=claude`, default model `claude-opus-5-5`, credentials from the environment) and any OpenAI-compatible API (`GWARDEN_LLM=openai`, `GWARDEN_LLM_MODEL`, `GWARDEN_LLM_BASE_URL` for Azure OpenAI, Mistral or a local Ollama, vLLM or LM Studio, `OPENAI_API_KEY` if the server asks for one).
 
 ## Deleting a node
 
@@ -448,7 +448,7 @@ gwarden ask "How does the orders pagination change?" --save --scope shared
 gwarden delete adr-0007-cursor-pagination                                 # shows, then asks you to type the id
 ```
 
-The API settings for writes: `GWARDEN_WRITERS` (groups that may delete and save answers), `GWARDEN_LLM=claude` and optionally `GWARDEN_LLM_MODEL`.
+The API settings for writes: `GWARDEN_WRITERS` (groups that may delete and save answers), `GWARDEN_LLM` (`claude` or `openai`), `GWARDEN_LLM_MODEL` and, for `openai`, `GWARDEN_LLM_BASE_URL`.
 
 ### Deploy on Google Cloud
 
@@ -464,6 +464,7 @@ The API settings for writes: `GWARDEN_WRITERS` (groups that may delete and save 
 | `packages/adapters/memory` | In-memory ports for tests and demos | done |
 | `packages/adapters/documents` | Markdown, JSON and YAML documents as nodes and typed edges, with their text | M1, first slice |
 | `packages/adapters/anthropic` | `LLMProvider` on Claude | first slice |
+| `packages/adapters/openai` | `LLMProvider` on any OpenAI-compatible API (OpenAI, Azure OpenAI, Mistral, Ollama, vLLM, LM Studio) | first slice |
 | `packages/cli` | `gwarden ingest`, `traverse`, `audit`, `pull`, `cache`, `ask`, `delete`; later `forget`, PR impact | M0–M2 |
 | `packages/api` | REST with OpenAPI, the only place readers reach the graph; browser sign-in, SSE stream, wiki pages; webhooks later | M2, first slice |
 | `packages/mcp` | MCP server | M2, planned |

@@ -348,7 +348,7 @@ sequenceDiagram
     Asker-->>User: réponse + nœuds lus
 ```
 
-La recherche est faite par le domaine, pas par le modèle : on sait donc exactement sur quels nœuds une réponse a pu s'appuyer. Une réponse enregistrée dérive de **tous**, cités ou non : elle est privée à qui pose la question par défaut, et `--scope shared` est restreint aux lecteurs de toutes ses sources ([proposal 0011](docs/proposals/0011-ask-and-governed-deletion.md)). Le modèle est derrière le port `LLMProvider` ; le premier adaptateur est Claude (`GWARDEN_LLM=claude`, modèle par défaut `claude-opus-5-5`, identifiants pris dans l'environnement).
+La recherche est faite par le domaine, pas par le modèle : on sait donc exactement sur quels nœuds une réponse a pu s'appuyer. Une réponse enregistrée dérive de **tous**, cités ou non : elle est privée à qui pose la question par défaut, et `--scope shared` est restreint aux lecteurs de toutes ses sources ([proposal 0011](docs/proposals/0011-ask-and-governed-deletion.md)). Le modèle est derrière le port `LLMProvider` ; il a deux adaptateurs : Claude (`GWARDEN_LLM=claude`, modèle par défaut `claude-opus-5-5`, identifiants pris dans l'environnement) et toute API compatible OpenAI (`GWARDEN_LLM=openai`, `GWARDEN_LLM_MODEL`, `GWARDEN_LLM_BASE_URL` pour Azure OpenAI, Mistral ou un Ollama, vLLM ou LM Studio local, `OPENAI_API_KEY` si le serveur en demande une).
 
 ## Supprimer un nœud
 
@@ -450,7 +450,7 @@ gwarden ask "Comment change la pagination des commandes ?" --save --scope shared
 gwarden delete adr-0007-cursor-pagination                                     # montre, puis demande de taper l'id
 ```
 
-Réglages de l'API pour les écritures : `GWARDEN_WRITERS` (groupes autorisés à supprimer et enregistrer des réponses), `GWARDEN_LLM=claude` et, en option, `GWARDEN_LLM_MODEL`.
+Réglages de l'API pour les écritures : `GWARDEN_WRITERS` (groupes autorisés à supprimer et enregistrer des réponses), `GWARDEN_LLM` (`claude` ou `openai`), `GWARDEN_LLM_MODEL` et, pour `openai`, `GWARDEN_LLM_BASE_URL`.
 
 ### Déployer sur Google Cloud
 
@@ -466,6 +466,7 @@ Réglages de l'API pour les écritures : `GWARDEN_WRITERS` (groupes autorisés �
 | `packages/adapters/memory` | Ports en mémoire pour les tests et les démos | fait |
 | `packages/adapters/documents` | Documents Markdown, JSON et YAML en nœuds et arêtes typées, avec leur texte | M1, première tranche |
 | `packages/adapters/anthropic` | `LLMProvider` sur Claude | première tranche |
+| `packages/adapters/openai` | `LLMProvider` sur toute API compatible OpenAI (OpenAI, Azure OpenAI, Mistral, Ollama, vLLM, LM Studio) | première tranche |
 | `packages/cli` | `gwarden ingest`, `traverse`, `audit`, `pull`, `cache`, `ask`, `delete` ; plus tard `forget`, impact de PR | M0–M2 |
 | `packages/api` | REST avec OpenAPI, seul point d'accès des lecteurs au graphe ; connexion des navigateurs, flux SSE, pages wiki ; webhooks plus tard | M2, première tranche |
 | `packages/mcp` | Serveur MCP | M2, prévu |

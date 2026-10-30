@@ -79,6 +79,9 @@ services:
         condition: service_completed_successfully
     ports:
       - "127.0.0.1:8080:8080"
+    # A model served on the host (Ollama, LM Studio) is at host.docker.internal, on Linux too.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       NEO4J_URI: bolt://neo4j-demo:7687
       NEO4J_PASSWORD: graph-warden
@@ -90,9 +93,14 @@ services:
       # The web app at http://localhost:8080, signed in with a demo token. Demo value only.
       GWARDEN_WEB_SECRET: demo-only-web-session-secret-change-me
       # Set to claude for questions: with ANTHROPIC_API_KEY, or on a Google platform (vertex,
-      # google-cloud) with your Google credentials mounted, see the volume below.
+      # google-cloud) with your Google credentials mounted, see the volume below. Or to openai,
+      # with GWARDEN_LLM_MODEL and OPENAI_API_KEY or GWARDEN_LLM_BASE_URL (an Ollama on the host:
+      # http://host.docker.internal:11434/v1).
       GWARDEN_LLM: ${GWARDEN_LLM:-none}
       GWARDEN_LLM_PLATFORM: ${GWARDEN_LLM_PLATFORM:-anthropic}
+      GWARDEN_LLM_MODEL: ${GWARDEN_LLM_MODEL:-}
+      GWARDEN_LLM_BASE_URL: ${GWARDEN_LLM_BASE_URL:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       CLOUD_ML_REGION: ${CLOUD_ML_REGION:-}
       ANTHROPIC_GOOGLE_CLOUD_WORKSPACE_ID: ${ANTHROPIC_GOOGLE_CLOUD_WORKSPACE_ID:-}

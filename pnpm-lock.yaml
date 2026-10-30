@@ -102,6 +102,12 @@ importers:
         specifier: ^6.2.0
         version: 6.2.0
 
+  packages/adapters/openai:
+    dependencies:
+      '@graph-warden/core':
+        specifier: workspace:*
+        version: link:../../core
+
   packages/api:
     dependencies:
       '@fastify/cookie':
@@ -122,6 +128,9 @@ importers:
       '@graph-warden/neo4j':
         specifier: workspace:*
         version: link:../adapters/neo4j
+      '@graph-warden/openai':
+        specifier: workspace:*
+        version: link:../adapters/openai
       fastify:
         specifier: ^5.12.7
         version: 5.12.7
