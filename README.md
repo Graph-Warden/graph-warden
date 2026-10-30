@@ -123,12 +123,48 @@ flowchart LR
     class LN private
 ```
 
+Three more teams, Shopping-Front, User and Data, share four contracts. Data's BigQuery table reads from all of them, the orders endpoint included:
+
+```mermaid
+flowchart LR
+    US["user-service<br/><i>team:user</i>"] -- EXPOSES --> UP["user-profile-api<br/><i>shared</i>"] & CE["consent-events<br/><i>shared</i>"]
+    A12["adr-0012-email-out-of-profile<br/><i>team:user</i>"] -- DECIDES --> UP
+    PP["product-page<br/><i>team:shopping-front</i>"] -- CONSUMES --> UP & RA["recommendations-api<br/><i>shared</i>"]
+    CA["cart<br/><i>team:shopping-front</i>"] -- CONSUMES --> UP & RA
+    WT["web-tracking<br/><i>team:shopping-front</i>"] -- EXPOSES --> CS["clickstream-events<br/><i>shared</i>"]
+    REL["release-2026-42<br/><i>team:shopping-front</i>"] -- MODIFIES --> WT
+    REL -- CAUSES --> INC["incident-208<br/><i>team:data</i>"]
+    C360["customer-360 (BigQuery)<br/><i>team:data</i>"] -- CONSUMES --> CS & CE & UP & O["orders-api<br/><i>shared</i>"]
+    RS["recommendations-service<br/><i>team:data</i>"] -- EXPOSES --> RA
+    RS -- CONSUMES --> C360
+    CD["conversion-dashboard<br/><i>team:data</i>"] -- CONSUMES --> C360
+    INC -- CAUSES --> CD
+    A3["adr-0003-versioned-clickstream<br/><i>shared</i>"] -- DECIDES --> CS
+    A3 -- FIXES --> INC
+    PV["profile-v2-impact<br/><i>teams:data,shopping-front,user</i>"] -- DERIVED_FROM --> A12 & PP & C360
+    ET["erasure-trail<br/><i>teams:data,user</i>"] -- DERIVED_FROM --> US & C360 & RS
+
+    classDef shared fill:#e7f5ea,stroke:#2f8a47,color:#123
+    classDef user fill:#e6f0fb,stroke:#2e6fb7,color:#123
+    classDef front fill:#f1eafb,stroke:#7d4fc0,color:#123
+    classDef data fill:#e8f6f8,stroke:#1f8a99,color:#123
+    classDef derived fill:#fff4e0,stroke:#d68910,color:#123
+    class UP,CE,RA,CS,O,A3 shared
+    class US,A12 user
+    class PP,CA,WT,REL front
+    class C360,RS,CD,INC data
+    class PV,ET derived
+```
+
 | Person | Groups (from the directory) |
 |---|---|
 | Bob | `dev`, `bff` |
 | Alice | `dev`, `front-a` |
 | Carla | `dev`, `front-c` |
 | Lea | `dev`, `dev-leads`, and through it every team group |
+| Marie | `dev`, `shopping-front` |
+| Yanis | `dev`, `user` |
+| Sofia | `dev`, `data` |
 | DPO | `auditors` |
 
 It needs only Docker:
@@ -150,7 +186,11 @@ examples/shop/demo.sh
 
 <p align="center"><img src="docs/assets/demo-3-pull.svg" alt="Alice pulls three nodes and two edges into a local cache" width="800"></p>
 
-**4. Every read is recorded.** Bob may not read the audit log, and his attempt is itself recorded. The DPO may.
+**4. An endpoint is a contract between teams.** Release 2026.42 of the web shop renamed `add_to_cart` to `cart_add`; Data's conversion funnel dropped 31% with flat sales (INC-208), and the two teams wrote ADR 0003, a versioned clickstream contract. Marie sees the release and the ADR, Sofia the incident and the ADR, neither the other team's document. Lea sees the whole chain.
+
+**5. Profile v2, across three teams.** ADR 0012 takes `email` out of the user profile after a GDPR audit finding. It breaks the product page's newsletter prefill and the CRM matching of `customer_360`. The leads' impact summary is derived from User, Shopping-Front and Data documents: Yanis, who wrote the ADR, is only in `user` and does not get it. `erasure-trail`, the answer to "where is an erased customer still?", is narrowed the same way to `teams:data,user`.
+
+**6. Every read is recorded.** Bob may not read the audit log, and his attempt is itself recorded. The DPO may.
 
 <p align="center"><img src="docs/assets/demo-4-audit.svg" alt="Bob is refused the audit log; the DPO reads every entry, including Bob's denied attempt" width="1050"></p>
 

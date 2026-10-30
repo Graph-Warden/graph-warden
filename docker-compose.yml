@@ -70,6 +70,7 @@ services:
     command: >-
       gwarden ingest /demo/docs --source docs:shop --user lea
       --team dev --team dev-leads --team bff --team front-a --team front-b --team front-c
+      --team shopping-front --team user --team data
 
   api:
     image: graph-warden:local
