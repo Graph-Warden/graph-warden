@@ -1,0 +1,27 @@
+{
+  "name": "@graph-warden/confluence",
+  "version": "0.0.0",
+  "description": "Confluence source for Graph-Warden: pages, scoped by space permissions and page restrictions, resynced apart from content.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@graph-warden/core": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@graph-warden/memory": "workspace:*"
+  }
+}

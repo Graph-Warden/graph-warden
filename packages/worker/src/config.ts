@@ -24,6 +24,7 @@ const EnvSchema = z.object({
   REDIS_URL: setting,
   // Triggers: each one is on when its setting is.
   GITHUB_WEBHOOK_SECRET: setting.pipe(z.string().min(16).optional()),
+  GITLAB_WEBHOOK_SECRET: setting.pipe(z.string().min(16).optional()),
   GWARDEN_PUSH_TOKEN: setting.pipe(z.string().min(16).optional()),
   GWARDEN_POLL_SECONDS: z.coerce.number().int().nonnegative().default(0),
   // The model that revalidates knowledge after each commit (proposal 0005), as for the API's
@@ -40,6 +41,8 @@ const EnvSchema = z.object({
   GWARDEN_LOCAL_LLM_MODEL: setting,
   GWARDEN_LOCAL_LLM_BASE_URL: setting.pipe(z.url({ protocol: /^https?$/ }).optional()),
   GWARDEN_SENSITIVITY: setting,
+  // API sources to sync, as a YAML file (see connectors.ts): Jira, Confluence, GitLab.
+  GWARDEN_CONNECTORS: setting,
   // Knowledge further than this many hops from a change is marked stale and revalidated on its
   // first read instead.
   GWARDEN_REVALIDATE_DEPTH: z.coerce.number().int().nonnegative().default(3),
@@ -88,8 +91,8 @@ export async function loadConfig(env: NodeJS.ProcessEnv): Promise<WorkerConfig> 
   const names = repositories.map((repo) => repo.name);
   const twice = names.find((name, i) => names.indexOf(name) !== i);
   if (twice !== undefined) throw new Error(`${settings.GWARDEN_REPOSITORIES}: ${twice} is listed twice`);
-  if (settings.GITHUB_WEBHOOK_SECRET === undefined && settings.GWARDEN_PUSH_TOKEN === undefined && settings.GWARDEN_POLL_SECONDS === 0) {
-    throw new Error("No trigger: set GITHUB_WEBHOOK_SECRET, GWARDEN_PUSH_TOKEN or GWARDEN_POLL_SECONDS");
+  if (settings.GITHUB_WEBHOOK_SECRET === undefined && settings.GITLAB_WEBHOOK_SECRET === undefined && settings.GWARDEN_PUSH_TOKEN === undefined && settings.GWARDEN_POLL_SECONDS === 0) {
+    throw new Error("No trigger: set GITHUB_WEBHOOK_SECRET, GITLAB_WEBHOOK_SECRET, GWARDEN_PUSH_TOKEN or GWARDEN_POLL_SECONDS");
   }
   if (settings.GWARDEN_LLM === "openai" && settings.GWARDEN_LLM_MODEL === undefined) {
     throw new Error("GWARDEN_LLM=openai needs GWARDEN_LLM_MODEL, the name of the model on its server");

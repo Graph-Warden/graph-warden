@@ -33,6 +33,8 @@ The words below are used with this meaning in code, proposals, issues and review
 | Agent session | A coding-agent session captured as a `Session` node, private to its author (`gwarden agent-session capture`). Not the browser's sign-in session. |
 | Promotion | Publishing an agent session to a team or shared scope: its author previews it redacted, then promotes exactly that text, named by its digest. |
 | Redaction | Replacing secrets and personal data in a text by `[REDACTED:<kind>]` (`redact`). |
+| Connector | A source read through an API rather than git (Jira, Confluence, GitLab merge requests): it reads everything the source holds now, each item scoped by the source's own permissions. A sync makes the graph hold exactly that; a rescope rewrites scopes alone, on its own clock. |
+| Narrowing | Rewriting the scope of nodes derived from a node whose scope narrowed, through chains (`narrowDependents`). Never widens. |
 | Folder file | A `.gwarden.yaml` in a folder of documents declaring `scope:` for every document in it and below, unless a nearer folder file or the document's own `scope:` says otherwise. |
 | Source conformance suite | What every source adapter guarantees of what it gives (`checkSource`): valid, unique nodes of the ontology; no dangling edge; provenance naming the source and a file; the default scope for content declaring none; the same graph whatever the order files are read in. |
 | Audit entry | A record of a read made on behalf of a user. |

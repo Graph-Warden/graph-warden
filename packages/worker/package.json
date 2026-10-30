@@ -16,9 +16,12 @@
   },
   "dependencies": {
     "@graph-warden/anthropic": "workspace:*",
+    "@graph-warden/confluence": "workspace:*",
     "@graph-warden/core": "workspace:*",
     "@graph-warden/documents": "workspace:*",
     "@graph-warden/git": "workspace:*",
+    "@graph-warden/gitlab": "workspace:*",
+    "@graph-warden/jira": "workspace:*",
     "@graph-warden/memory": "workspace:*",
     "@graph-warden/neo4j": "workspace:*",
     "@graph-warden/openai": "workspace:*",

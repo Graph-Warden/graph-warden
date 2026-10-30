@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { createClaudeProvider } from "@graph-warden/anthropic";
-import { createIngester, createRevalidator, createWriter, routeModels, type IngestionQueue, type LLMProvider } from "@graph-warden/core";
+import { createConnectorSync, createIngester, createRevalidator, createWriter, routeModels, type IngestionQueue, type LLMProvider } from "@graph-warden/core";
 import { createDocumentExtractor, readSensitivity } from "@graph-warden/documents";
 import { createGitRepository } from "@graph-warden/git";
 import { createMemoryQueue } from "@graph-warden/memory";
@@ -12,7 +12,9 @@ import { createTypeScriptExtractor } from "@graph-warden/typescript";
 import { Redis } from "ioredis";
 import neo4j from "neo4j-driver";
 import { loadConfig } from "./config.js";
+import { every, readConnectors } from "./connectors.js";
 import { buildTriggers, createPoller } from "./triggers.js";
+import { changeLinks } from "@graph-warden/jira";
 
 const config = await loadConfig(process.env);
 const driver = neo4j.driver(config.NEO4J_URI, neo4j.auth.basic(config.NEO4J_USER, config.NEO4J_PASSWORD));
@@ -57,6 +59,7 @@ const app = buildTriggers({
   queue,
   repositories: config.repositories,
   ...(config.GITHUB_WEBHOOK_SECRET === undefined ? {} : { webhookSecret: config.GITHUB_WEBHOOK_SECRET }),
+  ...(config.GITLAB_WEBHOOK_SECRET === undefined ? {} : { gitlabSecret: config.GITLAB_WEBHOOK_SECRET }),
   ...(config.GWARDEN_PUSH_TOKEN === undefined ? {} : { pushToken: config.GWARDEN_PUSH_TOKEN }),
   logger: true,
 });
@@ -75,6 +78,28 @@ const revalidator =
 // What the model reads of a commit: its message and patch, cut to a size it can take.
 const MAX_EVIDENCE = 60_000;
 
+// API sources (issues #19-#21): content and permissions on their own clocks.
+const sync = createConnectorSync(store, writer);
+const connectors = await readConnectors(config.GWARDEN_CONNECTORS, process.env);
+const stops = connectors.flatMap(({ connector, syncSeconds, permissionSeconds }) => [
+  every(syncSeconds, async () => {
+    try {
+      const report = await sync.sync(connector);
+      log.info({ source: connector.source, upserted: report.upserted, deleted: report.deleted.length, rescoped: report.rescoped.length, narrowed: report.narrowed.length }, "synced");
+    } catch (error) {
+      log.error({ err: error, source: connector.source }, "sync failed");
+    }
+  }),
+  every(permissionSeconds, async () => {
+    try {
+      const report = await sync.rescope(connector);
+      if (report.rescoped.length > 0) log.info({ source: connector.source, rescoped: report.rescoped.length, narrowed: report.narrowed.length }, "permissions resynced");
+    } catch (error) {
+      log.error({ err: error, source: connector.source }, "permission resync failed");
+    }
+  }),
+]);
+
 const worker = await queue.start(
   async (repo, sha) => {
     const clone = clones.get(repo);
@@ -83,6 +108,10 @@ const worker = await queue.start(
     if (!(await clone.git.has(sha))) await clone.git.fetch();
     for (const commit of await ingester.ingest(repo, sha)) {
       log.info({ repo, sha: commit.sha, upserted: commit.upserted, deleted: commit.deleted }, "ingested");
+      // A commit names the Jira issues it fixes: link them, when Jira is synced.
+      const graph = await store.snapshot();
+      const change = graph.nodes.get(commit.change);
+      if (change !== undefined) await writer.upsertEdges(changeLinks(change, (id) => graph.nodes.has(id)));
       if (revalidator !== undefined) {
         const evidence = `${await clone.git.message(commit.sha)}\n${await clone.git.diff(undefined, commit.sha)}`.slice(0, MAX_EVIDENCE);
         const report = await revalidator.revalidate({ change: commit.change, changed: commit.changed, evidence, author: clone.author });
@@ -104,6 +133,7 @@ if (config.GWARDEN_POLL_SECONDS > 0) {
 
 const stop = async () => {
   clearTimeout(timer);
+  for (const stopOne of stops) stopOne();
   await app.close();
   await worker.stop();
   redis?.disconnect();
