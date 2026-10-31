@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { checkOntology, CORE_ONTOLOGY, EdgeSchema, NodeSchema, type Edge, type Node, type Ontology } from "./ontology.js";
+import { narrowed } from "./derivation.js";
 import { canRead, ScopeSchema, type Principal } from "./scope.js";
 import type { GraphStore } from "./store.js";
 import type { Graph } from "./traversal.js";
@@ -43,7 +44,11 @@ export interface EventLog {
 // the ontology is enforced: a node or edge of a type it does not have is refused (`OutsideOntology`).
 export interface Writer {
   readonly ontology: Ontology;
+  // A node that holds sources with no edge to them keeps them and never widens, whoever writes it:
+  // ingesting a document again rewrites it from a file that knows nothing of them.
   upsertNodes(nodes: readonly Node[]): Promise<void>;
+  // Writes the nodes as given, dropping what they held. Only erasure may: it wrote their text again.
+  replaceNodes(nodes: readonly Node[]): Promise<void>;
   upsertEdges(edges: readonly Edge[]): Promise<void>;
   deleteNode(id: string): Promise<void>;
   deleteEdges(edges: readonly Edge[]): Promise<void>;
@@ -55,14 +60,20 @@ export interface WriterOptions {
 
 export function createWriter(store: GraphStore, log: EventLog, options: WriterOptions = {}): Writer {
   const { ontology = CORE_ONTOLOGY } = options;
+  const write = async (nodes: readonly Node[]) => {
+    const parsed = nodes.map((node) => NodeSchema.parse(node));
+    checkOntology(ontology, parsed);
+    await store.upsertNodes(parsed);
+    await log.append(parsed.map((node) => ({ kind: "node-upserted", id: node.id, scope: node.scope })));
+  };
   return {
     ontology,
     async upsertNodes(nodes) {
-      const parsed = nodes.map((node) => NodeSchema.parse(node));
-      checkOntology(ontology, parsed);
-      await store.upsertNodes(parsed);
-      await log.append(parsed.map((node) => ({ kind: "node-upserted", id: node.id, scope: node.scope })));
+      if (nodes.length === 0) return;
+      const current = (await store.snapshot()).nodes;
+      await write(nodes.map((node) => keepHeld(node, current.get(node.id))));
     },
+    replaceNodes: write,
     async upsertEdges(edges) {
       const parsed = edges.map((edge) => EdgeSchema.parse(edge));
       checkOntology(ontology, [], parsed);
@@ -79,6 +90,12 @@ export function createWriter(store: GraphStore, log: EventLog, options: WriterOp
       await log.append(parsed.map((edge) => ({ kind: "edge-deleted", edge })));
     },
   };
+}
+
+function keepHeld(node: Node, current: Node | undefined): Node {
+  if (current?.heldSources === undefined) return node;
+  const heldSources = [...new Set([...current.heldSources, ...(node.heldSources ?? [])])].sort();
+  return { ...node, scope: narrowed(current.scope, [node.scope]), heldSources };
 }
 
 export const DeltaSchema = z

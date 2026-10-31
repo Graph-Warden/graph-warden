@@ -11,7 +11,17 @@
 
 **Pour les équipes sécurité : les agents IA n'obtiennent que ce que la personne pour laquelle ils agissent peut lire.**
 
-Graph-Warden rassemble ce que les équipes écrivent déjà (dépôts, specs d'API, documentation, sessions d'agents), le relie en un graphe typé, et permet aux agents IA de l'interroger. Chaque requête est faite au nom d'une personne, ne renvoie que ce que cette personne a le droit de voir, et est enregistrée.
+Donner à des agents IA le savoir d'une entreprise impose d'habitude un choix : tout ouvrir et risquer les fuites, ou cloisonner les équipes et perdre ce qui les traverse. Graph-Warden relie ce que les équipes écrivent déjà (dépôts, specs d'API, documentation, sessions d'agents) en un seul graphe, puis décide de l'accès à chaque lecture, pour la personne au nom de laquelle l'agent agit.
+
+| Quand... | Graph-Warden... |
+|---|---|
+| un agent suit des liens vers un projet confidentiel | s'arrête avant. L'agent ne peut pas apprendre que le projet existe : il ne change ni les résultats ni leur ordre. |
+| quelqu'un publie en « shared » une synthèse des documents de trois équipes | la restreint aux personnes qui peuvent lire les trois. |
+| une réponse s'appuie sur un document RH | ne l'envoie qu'à un modèle local, et refuse s'il n'y en a pas. |
+| ce document RH est supprimé | continue de protéger le texte écrit à partir de lui, même après une réingestion. |
+| un auditeur demande qui a vu quoi | montre chaque lecture. Une lecture qui ne peut pas être enregistrée n'a pas lieu. |
+
+Personne n'écrit de filtre par équipe : les droits viennent de votre fournisseur d'identité. La [démo](#le-voir-tourner) montre un seul graphe donnant cinq vues correctes à cinq personnes.
 
 > Statut : **alpha**. Le jalon M0 est terminé ; M1 et M2 sont en cours. Rien n'est prêt pour la production. Voir [ce qui marche aujourd'hui](#ce-qui-marche-aujourdhui) et la [roadmap](docs/ROADMAP.md) (en anglais).
 >
@@ -91,7 +101,6 @@ Un graphe, cinq personnes, cinq vues correctes — et personne n'a configuré de
 
 - La non-interférence est vérifiée par des tests de propriétés sur des graphes aléatoires, pas par une preuve formelle. Le temps de réponse n'est pas couvert : une recherche sur plus de nœuds cachés prend plus de temps.
 - Les modèles locaux obéissent aux instructions glissées dans un document ([résultats](packages/eval/RESULTS.md)). Les scopes bornent toujours ce qu'ils peuvent lire, mais leur réponse peut être orientée par quiconque écrit un document que lit l'auteur de la question.
-- Réingérer un document remplace son nœud, ce qui efface les sources qu'il avait conservées après une suppression.
 - Il n'a été mesuré que sur son corpus d'exemple ([#88](https://github.com/Graph-Warden/graph-warden/issues/88)). Ne chargez pas encore de données confidentielles.
 
 ## Pour qui

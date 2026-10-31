@@ -11,7 +11,17 @@
 
 **For security teams: AI agents get only what the person they act for may read.**
 
-Graph-Warden collects what teams already write (repositories, API specs, docs, agent sessions), links it into one typed graph, and lets AI agents query it. Every query is made on behalf of a person, returns only what that person may see, and is recorded.
+Giving AI agents a company's knowledge usually forces a choice: open everything and risk leaks, or wall teams off and lose what crosses them. Graph-Warden links what teams already write (repositories, API specs, docs, agent sessions) into one graph, then decides access on every read, for the person the agent acts for.
+
+| When... | Graph-Warden... |
+|---|---|
+| an agent follows links towards a confidential project | stops before it. The agent cannot learn the project exists: it changes neither the results nor their order. |
+| someone publishes a summary of three teams' documents as "shared" | narrows it to the people who may read all three. |
+| an answer draws on an HR document | sends it only to a local model, and refuses if there is none. |
+| that HR document is deleted | keeps protecting the text written from it, even after it is ingested again. |
+| an auditor asks who saw what | shows every read. A read that cannot be recorded does not happen. |
+
+Nobody writes a filter per team: rights come from your identity provider. The [demo](#see-it-run) shows one graph giving five people five correct views.
 
 > Status: **alpha**. Milestone M0 is done; M1 and M2 are in progress. Nothing here is ready for production. See [what works today](#what-works-today) and the [roadmap](docs/ROADMAP.md).
 
@@ -89,7 +99,6 @@ One graph, five people, five correct views — and nobody configured a filter fo
 
 - Non-interference is checked by property tests over random graphs, not by a formal proof. Response time is not covered: a search over more hidden nodes takes longer.
 - Local models obey instructions planted in a document ([results](packages/eval/RESULTS.md)). Scopes still bound what they can read, but their answer can be steered by anyone who can write a document the asker reads.
-- Ingesting a document again replaces its node, which clears the sources it recorded as held after a deletion.
 - It has been measured on its example corpus only ([#88](https://github.com/Graph-Warden/graph-warden/issues/88)). Do not load confidential data yet.
 
 ## Who it is for

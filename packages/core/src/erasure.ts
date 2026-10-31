@@ -132,7 +132,7 @@ export function createEraser(store: GraphStore, writer: Writer, audit: AuditLog,
         // Written from its remaining sources only: what it held without an edge is gone.
         rewritten.push(withoutHeldSources({ ...node, body }));
       }
-      await writer.upsertNodes(rewritten);
+      await writer.replaceNodes(rewritten);
       await writer.deleteEdges(result.detached);
       for (const node of result.deleted) await writer.deleteNode(node.id);
       if (marks !== undefined) {
