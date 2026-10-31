@@ -19,6 +19,9 @@ spec:
       labels:
         {{- include "gw.labels" . | nindent 8 }}
         app.kubernetes.io/component: worker
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
     spec:

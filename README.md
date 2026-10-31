@@ -252,7 +252,7 @@ Graph databases already have role-based access, and agent-memory libraries alrea
 - a REST API whose identities and groups come from an OIDC provider or Google with Cloud Identity;
 - an audit entry for every read, question and deletion;
 - `gwarden pull` into a local SQLite cache holding only what the user may see;
-- `gwarden ask`, answers from readable nodes with Claude (Claude API, Vertex AI, or Google Cloud with no API key) or any OpenAI-compatible model, local ones included, filed back as derived nodes on request;
+- `gwarden ask`, answers from readable nodes with Claude (Claude API, Vertex AI or Google Cloud, and Microsoft Foundry, the last three with no API key) or any OpenAI-compatible model, local ones included, filed back as derived nodes on request;
 - `gwarden delete`, following `DERIVED_FROM`, shown then confirmed;
 - a web app: pages, search, the graph (Sigma.js), questions, deletion and wiki pages, updated live over SSE;
 - `gwarden forget`, erasing a whole source with what was derived from it; derived scopes narrowed when a source narrows;
@@ -516,7 +516,7 @@ The API settings for writes: `GWARDEN_WRITERS` (groups that may delete and save 
 ### Deploy
 
 - [`deploy/gcp`](deploy/gcp/README.md): the API on Cloud Run, the graph on Neo4j Aura, identities from Google sign-in restricted to your domain, groups from Cloud Identity.
-- [`deploy/helm`](deploy/helm/graph-warden/values.yaml): a Helm chart for the API, the worker and its clones, or the demo, on any Kubernetes. Guides for [GKE](deploy/gke/README.md) (Claude through Vertex AI with Workload Identity) and [AKS](deploy/aks/README.md) (Entra ID, Azure Files). Both are checked in CI, not yet on a cluster.
+- [`deploy/helm`](deploy/helm/graph-warden/values.yaml): a Helm chart for the API, the worker and its clones, or the demo, on any Kubernetes. Guides for [GKE](deploy/gke/README.md) (Claude through Vertex AI with Workload Identity) and [AKS](deploy/aks/README.md) (Entra ID, Azure Files, Claude through Microsoft Foundry). Both are checked in CI, not yet on a cluster.
 
 ## Repository layout
 

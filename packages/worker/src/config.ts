@@ -30,7 +30,7 @@ const EnvSchema = z.object({
   // The model that revalidates knowledge after each commit (proposal 0005), as for the API's
   // /v1/ask: none, claude or openai, with the same settings. None: nothing is revalidated.
   GWARDEN_LLM: z.enum(["none", "claude", "openai"]).default("none"),
-  GWARDEN_LLM_PLATFORM: z.enum(["anthropic", "google-cloud", "vertex"]).default("anthropic"),
+  GWARDEN_LLM_PLATFORM: z.enum(["anthropic", "google-cloud", "vertex", "foundry"]).default("anthropic"),
   GWARDEN_LLM_MODEL: setting,
   GWARDEN_LLM_BASE_URL: setting.pipe(z.url({ protocol: /^https?$/ }).optional()),
   OPENAI_API_KEY: setting,

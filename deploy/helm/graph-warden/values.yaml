@@ -85,6 +85,8 @@ serviceAccount:
   create: true
   name: ""
   annotations: {}             # Workload Identity: iam.gke.io/gcp-service-account, azure.workload.identity/client-id
+# Labels on every pod. Azure Workload Identity needs `azure.workload.identity/use: "true"`.
+podLabels: {}
 
 podSecurityContext:
   runAsNonRoot: true

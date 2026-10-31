@@ -1,4 +1,4 @@
-# OIDC, a worker on two repositories with webhooks, Jira, and the past served by the API.
+# OIDC, Claude on Foundry through Workload Identity, a worker on two repositories with webhooks, Jira, and the past served by the API.
 image: { repository: acme.azurecr.io/graph-warden, tag: "2026.11.0" }
 neo4j: { uri: "neo4j+s://xxxxxxxx.databases.neo4j.io" }
 ontology: |
@@ -11,11 +11,9 @@ api:
     OIDC_ISSUER: https://login.microsoftonline.com/00000000-0000-0000-0000-000000000000/v2.0
     OIDC_AUDIENCE: api://graph-warden
     GWARDEN_AUDITORS: auditors
-    GWARDEN_LLM: openai
-    GWARDEN_LLM_MODEL: gpt-graph
-    GWARDEN_LLM_BASE_URL: https://acme.openai.azure.com/openai/v1
-  secretEnv:
-    OPENAI_API_KEY: { secret: graph-warden, key: openai-api-key }
+    GWARDEN_LLM: claude
+    GWARDEN_LLM_PLATFORM: foundry
+    ANTHROPIC_FOUNDRY_RESOURCE: acme-ai
 worker:
   replicas: 2
   env: { GWARDEN_POLL_SECONDS: "300" }
@@ -39,4 +37,7 @@ worker:
       email: graph-warden@acme.com
       tokenEnv: JIRA_TOKEN
       projects: [SHOP]
+serviceAccount:
+  annotations: { azure.workload.identity/client-id: 00000000-0000-0000-0000-000000000000 }
+podLabels: { azure.workload.identity/use: "true" }
 clones: { accessMode: ReadWriteMany, storageClass: azurefile-csi }

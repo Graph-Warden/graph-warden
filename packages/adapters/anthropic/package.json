@@ -1,7 +1,7 @@
 {
   "name": "@graph-warden/anthropic",
   "version": "0.0.0",
-  "description": "LLMProvider for Graph-Warden backed by Claude through the Anthropic API.",
+  "description": "LLMProvider for Graph-Warden backed by Claude: the Claude API, Google Cloud, Vertex AI or Microsoft Foundry.",
   "license": "Apache-2.0",
   "type": "module",
   "exports": {
@@ -18,9 +18,11 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/foundry-sdk": "catalog:",
     "@anthropic-ai/google-cloud-sdk": "catalog:",
     "@anthropic-ai/sdk": "catalog:",
     "@anthropic-ai/vertex-sdk": "catalog:",
+    "@azure/identity": "catalog:",
     "@graph-warden/core": "workspace:*"
   }
 }
