@@ -25,7 +25,7 @@ const { values } = parseArgs({
 function provider(): { llm: LLMProvider; name: string } {
   if (values.llm === "claude") {
     const platform = values.platform;
-    if (platform !== "anthropic" && platform !== "google-cloud" && platform !== "vertex") throw new Error("--platform: anthropic, google-cloud or vertex");
+    if (platform !== "anthropic" && platform !== "google-cloud" && platform !== "vertex" && platform !== "foundry") throw new Error("--platform: anthropic, google-cloud, vertex or foundry");
     return { llm: createClaudeProvider({ platform, ...(values.model === undefined ? {} : { model: values.model }) }), name: `claude ${values.model ?? "default"} (${platform})` };
   }
   if (values.llm === "openai") {

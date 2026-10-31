@@ -401,6 +401,8 @@ describe("loadConfig", () => {
     await expect(loadConfig({ ...demo, GWARDEN_LLM_PLATFORM: "copilot" })).rejects.toThrow();
     const config = await loadConfig({ ...demo, GWARDEN_LLM_PLATFORM: "vertex", CLOUD_ML_REGION: "global" });
     expect(config.GWARDEN_LLM_PLATFORM).toBe("vertex");
+    await expect(loadConfig({ ...demo, GWARDEN_LLM_PLATFORM: "foundry" })).rejects.toThrow(/ANTHROPIC_FOUNDRY_RESOURCE/);
+    expect((await loadConfig({ ...demo, GWARDEN_LLM_PLATFORM: "foundry", ANTHROPIC_FOUNDRY_RESOURCE: "acme-ai" })).GWARDEN_LLM_PLATFORM).toBe("foundry");
   });
 
   it("reads the organisation's ontology from GWARDEN_ONTOLOGY, and serves it", async () => {

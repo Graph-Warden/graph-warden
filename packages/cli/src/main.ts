@@ -181,8 +181,8 @@ function llmFromEnv(): LLMProvider | undefined {
   const { GWARDEN_LLM: kind, GWARDEN_LLM_MODEL: model, GWARDEN_LLM_BASE_URL: baseUrl, OPENAI_API_KEY: apiKey, GWARDEN_LLM_PLATFORM: platform } = process.env;
   if (kind === undefined || kind === "" || kind === "none") return undefined;
   if (kind === "claude") {
-    if (platform !== undefined && platform !== "" && platform !== "anthropic" && platform !== "google-cloud" && platform !== "vertex") {
-      throw new Error("GWARDEN_LLM_PLATFORM must be anthropic, google-cloud or vertex");
+    if (platform !== undefined && platform !== "" && platform !== "anthropic" && platform !== "google-cloud" && platform !== "vertex" && platform !== "foundry") {
+      throw new Error("GWARDEN_LLM_PLATFORM must be anthropic, google-cloud, vertex or foundry");
     }
     return createClaudeProvider({ ...(platform ? { platform } : {}), ...(model ? { model } : {}) });
   }

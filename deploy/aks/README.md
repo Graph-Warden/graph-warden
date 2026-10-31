@@ -7,7 +7,7 @@ gwarden pull / web app ──HTTPS + Entra token──▶ Ingress ──▶ grap
 git push ──webhook──▶ graph-warden-worker ── clones on Azure Files (RWX, read by the API too) ─┘
 ```
 
-This guide has not been run end to end by the project yet: the chart is checked in CI (`helm lint`, `helm template` with `ci/production-values.yaml`, written for AKS), not on a cluster. Report what fails.
+This guide has not been run end to end by the project yet: the chart is checked in CI (`helm lint`, `helm template` with `ci/production-values.yaml`, written for AKS; the Foundry provider against a fake endpoint in the tests), not on a cluster. Report what fails.
 
 ## What you need first
 
@@ -65,31 +65,44 @@ kubectl -n graph-warden create secret generic graph-warden \
 
 For production, keep them in Key Vault and mount them with the Key Vault provider for the Secrets Store CSI driver (`--enable-addons azure-keyvault-secrets-provider`), synced to a Kubernetes Secret: the chart only needs the Secret to exist.
 
-## Models
+## Claude through Microsoft Foundry, without a key
 
-**Claude through Microsoft Foundry is not available yet.** Foundry needs Anthropic's `@anthropic-ai/foundry-sdk`. Its 0.x line requires the Claude SDK below 1.0, which this project left behind. Its 1.0 release came out on 2026-10-21, and the project takes no dependency less than two weeks old, so it becomes eligible on 2026-11-04. Until then, use one of these:
+Deploy a Claude model in your Foundry resource (**Microsoft Foundry → Models → Claude**), then let the API's pods call it as a managed identity, through Workload Identity:
+
+```sh
+az identity create -g $RG -n graph-warden-api
+CLIENT_ID=$(az identity show -g $RG -n graph-warden-api --query clientId -o tsv)
+ISSUER=$(az aks show -g $RG -n graph-warden --query oidcIssuerProfile.issuerUrl -o tsv)
+az identity federated-credential create -g $RG --identity-name graph-warden-api --name graph-warden \
+  --issuer $ISSUER --subject system:serviceaccount:graph-warden:graph-warden --audiences api://AzureADTokenExchange
+az role assignment create --assignee $CLIENT_ID --role "Cognitive Services User" \
+  --scope $(az cognitiveservices account show -g $RG -n <foundry resource> --query id -o tsv)
+```
+
+The subject names the chart's service account, `<namespace>:<release>` when the release is called `graph-warden`. Check in Microsoft's documentation which role your Foundry resource expects for calling models with Entra ID: the project has not run this against a real resource yet. In the values:
+
+```yaml
+serviceAccount:
+  annotations: { azure.workload.identity/client-id: "<CLIENT_ID>" }
+podLabels: { azure.workload.identity/use: "true" }
+api:
+  env:
+    GWARDEN_LLM: claude
+    GWARDEN_LLM_PLATFORM: foundry
+    ANTHROPIC_FOUNDRY_RESOURCE: <foundry resource>   # https://<resource>.services.ai.azure.com/anthropic/
+```
+
+With no `ANTHROPIC_FOUNDRY_API_KEY`, the API takes an Entra ID token for `https://ai.azure.com/.default` from Workload Identity (or from `az login` on a laptop). Put a key in `secretEnv` as `ANTHROPIC_FOUNDRY_API_KEY` to use one instead. `ANTHROPIC_FOUNDRY_BASE_URL` replaces the resource name for another endpoint. Foundry offers no server-side fallback: a declined answer fails the question instead of being retried on another model. The worker takes the same settings for revalidation.
+
+Other models:
 
 - `GWARDEN_LLM: none`: everything but `/v1/ask` and revalidation works.
-- **A model served by Azure OpenAI**, through the OpenAI-compatible provider. Put the key in the Secret as `openai-api-key`:
-
-  ```yaml
-  api:
-    env:
-      GWARDEN_LLM: openai
-      GWARDEN_LLM_MODEL: <deployment name>
-      GWARDEN_LLM_BASE_URL: https://<resource>.openai.azure.com/openai/v1
-    secretEnv:
-      OPENAI_API_KEY: { secret: graph-warden, key: openai-api-key }
-  ```
-
-- **Claude through the Claude API** with an API key: `GWARDEN_LLM: claude` and `ANTHROPIC_API_KEY` in `secretEnv`.
+- **A model served by Azure OpenAI**, through the OpenAI-compatible provider: `GWARDEN_LLM: openai`, `GWARDEN_LLM_MODEL: <deployment name>`, `GWARDEN_LLM_BASE_URL: https://<resource>.openai.azure.com/openai/v1`, and `OPENAI_API_KEY` in `secretEnv`.
 - **A local model** for sensitive nodes (`GWARDEN_LOCAL_LLM_MODEL`, `GWARDEN_LOCAL_LLM_BASE_URL`), in a pod of its own on a GPU node pool.
-
-When the Foundry provider lands, it will authenticate with Workload Identity (`azure.workload.identity/client-id` on the service account, `azure.workload.identity/use: "true"` on the pods) rather than a key.
 
 ## Install
 
-`values.yaml`, with the identity and model settings above:
+`values.yaml`, with the identity and Foundry settings above:
 
 ```yaml
 image: { repository: acmegraphwarden.azurecr.io/graph-warden, tag: "<TAG>" }
