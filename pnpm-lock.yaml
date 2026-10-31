@@ -372,15 +372,27 @@ importers:
       '@graph-warden/documents':
         specifier: workspace:*
         version: link:../adapters/documents
+      '@graph-warden/git':
+        specifier: workspace:*
+        version: link:../adapters/git
       '@graph-warden/identity':
         specifier: workspace:*
         version: link:../adapters/identity
+      '@graph-warden/memory':
+        specifier: workspace:*
+        version: link:../adapters/memory
       '@graph-warden/neo4j':
         specifier: workspace:*
         version: link:../adapters/neo4j
       '@graph-warden/openai':
         specifier: workspace:*
         version: link:../adapters/openai
+      '@graph-warden/openapi':
+        specifier: workspace:*
+        version: link:../adapters/openapi
+      '@graph-warden/typescript':
+        specifier: workspace:*
+        version: link:../adapters/typescript
       '@modelcontextprotocol/sdk':
         specifier: 'catalog:'
         version: 1.32.1(zod@4.6.7)
@@ -399,10 +411,6 @@ importers:
       zod:
         specifier: 'catalog:'
         version: 4.6.7
-    devDependencies:
-      '@graph-warden/memory':
-        specifier: workspace:*
-        version: link:../adapters/memory
 
   packages/cli:
     dependencies:

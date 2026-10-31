@@ -81,6 +81,10 @@ export const AuditEntrySchema = z.discriminatedUnion("action", [
       denied: z.literal(true).optional(),
     })
     .readonly(),
+  // A repository as it was at a commit (its list of commits without `sha`), and a pull request's
+  // impact (issue #16).
+  z.object({ ...common, action: z.literal("history"), repo: z.string().min(1), sha: z.string().min(1).optional() }).readonly(),
+  z.object({ ...common, action: z.literal("impact"), repo: z.string().min(1), base: z.string().min(1), head: z.string().min(1) }).readonly(),
   // What depends on some nodes (proposal 0005), through readable nodes only.
   z.object({ ...common, action: z.literal("related"), targets: z.array(z.string().min(1)).min(1).readonly() }).readonly(),
   // Reading the audit log is itself recorded: it says who looked at who saw what. So is a refused

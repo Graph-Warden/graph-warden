@@ -436,3 +436,40 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 }
+
+.commits {
+  list-style: none;
+  padding: 0;
+  max-height: 14rem;
+  overflow-y: auto;
+}
+
+.commits li.current,
+.hint a.current {
+  font-weight: 600;
+}
+
+.hint a + a {
+  margin-left: 0.75rem;
+}
+
+.compare {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-block: 0.75rem;
+}
+
+.impact {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.25rem 1rem;
+}
+
+.impact dt {
+  font-weight: 600;
+}
+
+.impact dd {
+  margin: 0;
+}
