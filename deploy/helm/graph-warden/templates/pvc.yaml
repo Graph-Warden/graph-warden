@@ -1,0 +1,19 @@
+{{- if .Values.worker.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "gw.fullname" . }}-clones
+  labels:
+    {{- include "gw.labels" . | nindent 4 }}
+  annotations:
+    # The clones outlive an uninstall: ingesting them again from scratch takes time.
+    helm.sh/resource-policy: keep
+spec:
+  accessModes: [{{ .Values.clones.accessMode }}]
+  {{- with .Values.clones.storageClass }}
+  storageClassName: {{ . }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.clones.size }}
+{{- end }}

@@ -508,9 +508,10 @@ gwarden delete adr-0007-cursor-pagination                                     # 
 
 Réglages de l'API pour les écritures : `GWARDEN_WRITERS` (groupes autorisés à supprimer et enregistrer des réponses), `GWARDEN_LLM` (`claude` ou `openai`), `GWARDEN_LLM_MODEL` et, pour `openai`, `GWARDEN_LLM_BASE_URL`.
 
-### Déployer sur Google Cloud
+### Déployer
 
-[`deploy/gcp`](deploy/gcp/README.md) (en anglais) : l'API sur Cloud Run, le graphe sur Neo4j Aura, les identités via la connexion Google restreinte à votre domaine, les groupes via Cloud Identity.
+- [`deploy/gcp`](deploy/gcp/README.md) (en anglais) : l'API sur Cloud Run, le graphe sur Neo4j Aura, les identités via la connexion Google restreinte à votre domaine, les groupes via Cloud Identity.
+- [`deploy/helm`](deploy/helm/graph-warden/values.yaml) : un chart Helm pour l'API, le worker et ses clones, ou la démo, sur n'importe quel Kubernetes. Guides (en anglais) pour [GKE](deploy/gke/README.md) (Claude via Vertex AI avec Workload Identity) et [AKS](deploy/aks/README.md) (Entra ID, Azure Files). Vérifiés en CI, pas encore sur un cluster.
 
 ## Organisation du dépôt
 

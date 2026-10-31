@@ -1,0 +1,170 @@
+{{- if .Values.api.enabled }}
+{{- if and .Values.demo.enabled (not .Values.demo.usersSecret) }}
+{{- fail "demo.usersSecret is required: the tokens in the repository are public (see the guide to issue new ones)" }}
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "gw.fullname" . }}-api
+  labels:
+    {{- include "gw.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  replicas: {{ .Values.demo.enabled | ternary 1 .Values.api.replicas }}
+  selector:
+    matchLabels:
+      {{- include "gw.selector" (dict "root" . "component" "api") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "gw.labels" . | nindent 8 }}
+        app.kubernetes.io/component: api
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "gw.serviceAccount" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- if .Values.demo.enabled }}
+      # The demo (examples/shop): its documents ingested, and its repository given a history.
+      initContainers:
+        - name: demo
+          image: {{ include "gw.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          env:
+            {{- include "gw.commonEnv" . | nindent 12 }}
+            - name: HOME
+              value: /tmp
+            - name: GWARDEN_ONTOLOGY
+              value: /demo/examples/shop/ontology.yaml
+            - name: SOURCE
+              value: {{ .Values.demo.source | quote }}
+            - name: REVISION
+              value: {{ .Values.demo.revision | quote }}
+          command:
+            - sh
+            - -c
+            - >-
+              git clone --quiet --depth 1 --branch "$REVISION" "$SOURCE" /demo &&
+              sh /demo/examples/shop/history.sh /var/lib/gwarden &&
+              gwarden ingest /demo/examples/shop/docs --source docs:shop --user lea
+              --team dev --team dev-leads --team bff --team front-a --team front-b --team front-c
+              --team shopping-front --team user --team data
+          volumeMounts:
+            - { name: demo, mountPath: /demo }
+            - { name: clones, mountPath: /var/lib/gwarden }
+            - { name: tmp, mountPath: /tmp }
+      {{- end }}
+      containers:
+        - name: api
+          image: {{ include "gw.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - { name: http, containerPort: 8080 }
+          env:
+            {{- include "gw.commonEnv" . | nindent 12 }}
+            - name: HOME
+              value: /tmp
+            {{- if .Values.demo.enabled }}
+            - { name: GWARDEN_IDENTITY, value: demo }
+            - { name: GWARDEN_DEMO, value: i-understand-anyone-with-a-token-is-that-user }
+            - { name: GWARDEN_DEMO_USERS, value: /etc/gwarden/demo/users.yaml }
+            - { name: GWARDEN_ONTOLOGY, value: /demo/examples/shop/ontology.yaml }
+            - { name: GWARDEN_REPOSITORIES, value: /demo/examples/shop/repositories.yaml }
+            {{- else if .Values.api.history }}
+            - { name: GWARDEN_REPOSITORIES, value: /etc/gwarden/repositories.yaml }
+            {{- end }}
+            {{- include "gw.env" .Values.api | nindent 12 }}
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.api.resources | nindent 12 }}
+          volumeMounts:
+            - { name: config, mountPath: /etc/gwarden, readOnly: true }
+            - { name: tmp, mountPath: /tmp }
+            {{- if .Values.demo.enabled }}
+            - { name: demo, mountPath: /demo, readOnly: true }
+            - { name: demo-users, mountPath: /etc/gwarden/demo, readOnly: true }
+            - { name: clones, mountPath: /var/lib/gwarden, readOnly: true }
+            {{- else if .Values.api.history }}
+            - { name: clones, mountPath: /var/lib/gwarden, readOnly: true }
+            {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "gw.fullname" . }}
+        - name: tmp
+          emptyDir: {}
+        {{- if .Values.demo.enabled }}
+        - name: demo
+          emptyDir: {}
+        - name: clones
+          emptyDir: {}
+        - name: demo-users
+          secret:
+            secretName: {{ .Values.demo.usersSecret }}
+            items:
+              - { key: users.yaml, path: users.yaml }
+        {{- else if .Values.api.history }}
+        - name: clones
+          persistentVolumeClaim:
+            claimName: {{ include "gw.fullname" . }}-clones
+            readOnly: true
+        {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "gw.fullname" . }}-api
+  labels:
+    {{- include "gw.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  type: {{ .Values.api.service.type }}
+  selector:
+    {{- include "gw.selector" (dict "root" . "component" "api") | nindent 4 }}
+  ports:
+    - { name: http, port: {{ .Values.api.service.port }}, targetPort: http }
+{{- if .Values.api.ingress.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "gw.fullname" . }}-api
+  labels:
+    {{- include "gw.labels" . | nindent 4 }}
+  {{- with .Values.api.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.api.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- with .Values.api.ingress.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    - host: {{ required "api.ingress.host is required with the ingress" .Values.api.ingress.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "gw.fullname" . }}-api
+                port: { name: http }
+{{- end }}
+{{- end }}

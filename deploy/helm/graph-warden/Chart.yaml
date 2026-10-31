@@ -1,0 +1,9 @@
+apiVersion: v2
+name: graph-warden
+description: Graph-Warden on Kubernetes - the API (with the web app) and the ingestion worker, against Neo4j.
+type: application
+version: 0.1.0
+appVersion: "0.0.0"
+home: https://github.com/Graph-Warden/graph-warden
+sources:
+  - https://github.com/Graph-Warden/graph-warden
