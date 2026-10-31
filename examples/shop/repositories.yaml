@@ -1,0 +1,5 @@
+# The demo's repository (issue #16), given a history by history.sh: the API reads its past.
+- name: github:acme/shop
+  dir: /var/lib/gwarden/shop
+  scope: team:dev
+  author: { user: ci, teams: [dev] }

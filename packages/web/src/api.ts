@@ -55,6 +55,24 @@ export interface PageDraft {
   readonly type: NodeType;
 }
 
+export interface PastGraph {
+  readonly nodes: readonly Node[];
+  readonly edges: readonly Edge[];
+}
+
+export interface ImpactView extends PastGraph {
+  readonly impact: {
+    readonly endpoints: readonly Node[];
+    readonly consumers: readonly { readonly module: Node; readonly endpoints: readonly string[] }[];
+    readonly knowledge: readonly Node[];
+    readonly teams: readonly string[];
+  };
+  readonly commits: number;
+  readonly highlighted: readonly string[];
+}
+
+const query = (params: Record<string, string>) => new URLSearchParams(params).toString();
+
 export const api = {
   config: () => call<{ login: "demo" | "oidc" }>("/auth/config"),
   signInDemo: (token: string) => call<Principal>("/auth/demo", { method: "POST", body: { token } }),
@@ -75,6 +93,10 @@ export const api = {
     const response = await send(`/v1/pages/${encodeURIComponent(id)}`, { method: "PUT", body: draft, headers });
     return { node: ((await response.json()) as { node: Node }).node, version: response.headers.get("etag") ?? "" };
   },
+  repositories: () => call<{ repositories: string[] }>("/v1/history"),
+  commits: (repo: string) => call<{ nodes: Node[] }>(`/v1/history/commits?${query({ repo })}`),
+  graphAt: (repo: string, sha: string) => call<PastGraph>(`/v1/history/graph?${query({ repo, sha })}`),
+  impact: (repo: string, base: string, head: string) => call<ImpactView>(`/v1/history/impact?${query({ repo, base, head })}`),
   planDeletion: (id: string) => call<DeletionPlan>(`${node(id)}/deletion`),
   deleteNode: (id: string, digest: string) => call<DeletionPlan>(`${node(id)}?confirm=${encodeURIComponent(digest)}`, { method: "DELETE" }),
 };

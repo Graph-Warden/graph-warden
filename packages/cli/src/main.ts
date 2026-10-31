@@ -252,6 +252,10 @@ function describe(entry: AuditEntry): string {
       if (entry.denied === true) return `${what} ${entry.target} DENIED`;
       return `${what} ${entry.target} -> ${count(entry.returned.length, "node")}, ${count(entry.detached.length, "edge")} detached`;
     }
+    case "history":
+      return `history ${entry.repo}${entry.sha === undefined ? " commits" : ` at ${entry.sha}`} -> ${count(entry.returned.length, "node")}`;
+    case "impact":
+      return `impact ${entry.repo} ${entry.base}..${entry.head} -> ${count(entry.returned.length, "node")}`;
     case "read":
       return `read ${entry.target}${entry.returned.length === 0 ? " -> nothing" : ""}`;
     case "search":

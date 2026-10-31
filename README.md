@@ -222,7 +222,7 @@ Only members of a writer group may delete or save answers, and only what they ma
 
 ## In the browser
 
-The API also serves a web app: each node as a page (title, scope, provenance, text, what it derives from and what links to it), search, the graph itself, questions, and wiki pages written in the browser. It shows what its user may read, nothing else, and updates as the graph changes. In the demo, open http://localhost:8080 and sign in with a token from `examples/shop/users.yaml`.
+The API also serves a web app: each node as a page (title, scope, provenance, text, what it derives from and what links to it), search, the graph itself, questions, wiki pages written in the browser, and the past: a repository as it was at a commit, and a pull request's impact drawn as a highlighted subgraph (with `GWARDEN_REPOSITORIES` pointing at the worker's clones). A past node is shown only to who may read it both then and now. It shows what its user may read, nothing else, and updates as the graph changes. In the demo, open http://localhost:8080 and sign in with a token from `examples/shop/users.yaml`.
 
 <p align="center"><img src="docs/assets/web-1-page.png" alt="The page of the leads' impact summary: scope teams:bff,front-a,front-b, its provenance, its text, and the three documents it derives from" width="900"></p>
 

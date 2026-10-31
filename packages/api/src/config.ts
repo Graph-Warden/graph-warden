@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { CORE_ONTOLOGY, type IdentityProvider, type Ontology } from "@graph-warden/core";
+import { CORE_ONTOLOGY, RepositoriesSchema, type IdentityProvider, type Ontology, type RepositoryEntry } from "@graph-warden/core";
 import { readOntology } from "@graph-warden/documents";
 import {
   createCloudIdentityGroups,
@@ -85,6 +85,9 @@ const CommonSchema = z.object({
   GWARDEN_LOCAL_LLM_MODEL: setting,
   GWARDEN_LOCAL_LLM_BASE_URL: setting.pipe(z.url({ protocol: /^https?$/ }).optional()),
   GWARDEN_SENSITIVITY: setting,
+  // The worker's repositories file (issue #16), with clones the API may read: their past is then
+  // served at /v1/history. The clones are only read, never fetched; the worker keeps them current.
+  GWARDEN_REPOSITORIES: setting,
   ANTHROPIC_GOOGLE_CLOUD_WORKSPACE_ID: setting,
   ANTHROPIC_GOOGLE_CLOUD_BASE_URL: setting,
   CLOUD_ML_REGION: setting,
@@ -104,6 +107,7 @@ export type Config = z.infer<typeof CommonSchema> & {
   readonly identityKind: string;
   readonly ontology: Ontology;
   readonly web?: WebOptions;
+  readonly repositories: readonly RepositoryEntry[];
 };
 
 export async function loadConfig(env: NodeJS.ProcessEnv): Promise<Config> {
@@ -132,6 +136,8 @@ export async function loadConfig(env: NodeJS.ProcessEnv): Promise<Config> {
     identityKind: settings.GWARDEN_IDENTITY,
     ontology,
     ...(web === undefined ? {} : { web }),
+    repositories:
+      common.GWARDEN_REPOSITORIES === undefined ? [] : RepositoriesSchema.parse(parseYaml(await readFile(common.GWARDEN_REPOSITORIES, "utf8")) ?? []),
   };
 }
 

@@ -245,7 +245,7 @@ function uniqueEdges(edges: readonly Edge[]): Edge[] {
 }
 
 // The subject line as title, the rest as body.
-function commitText(message: string): { title?: string; body?: string } {
+export function commitText(message: string): { title?: string; body?: string } {
   const [subject = "", ...rest] = message.trim().split("\n");
   const body = rest.join("\n").trim();
   return { ...(subject.trim() === "" ? {} : { title: subject.trim() }), ...(body === "" ? {} : { body }) };

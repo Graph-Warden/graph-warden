@@ -224,7 +224,7 @@ Seuls les membres d'un groupe d'écrivains peuvent supprimer ou enregistrer des 
 
 ## Dans le navigateur
 
-L'API sert aussi une application web : chaque nœud comme une page (titre, scope, provenance, texte, ce dont il dérive et ce qui pointe vers lui), la recherche, le graphe lui-même, les questions, et des pages wiki écrites dans le navigateur. Elle montre ce que son utilisateur peut lire, rien d'autre, et se met à jour quand le graphe change. Dans la démo, ouvrez http://localhost:8080 et connectez-vous avec un jeton de `examples/shop/users.yaml`.
+L'API sert aussi une application web : chaque nœud comme une page (titre, scope, provenance, texte, ce dont il dérive et ce qui pointe vers lui), la recherche, le graphe lui-même, les questions, des pages wiki écrites dans le navigateur, et le passé : un dépôt tel qu'il était à un commit, et l'impact d'une pull request dessiné en sous-graphe mis en évidence (avec `GWARDEN_REPOSITORIES` pointant vers les clones du worker). Un nœud passé n'est montré qu'à qui peut le lire alors et maintenant. Elle montre ce que son utilisateur peut lire, rien d'autre, et se met à jour quand le graphe change. Dans la démo, ouvrez http://localhost:8080 et connectez-vous avec un jeton de `examples/shop/users.yaml`.
 
 <p align="center"><img src="docs/assets/web-1-page.png" alt="La page de la synthèse d'impact des leads : scope teams:bff,front-a,front-b, sa provenance, son texte, et les trois documents dont elle dérive" width="900"></p>
 

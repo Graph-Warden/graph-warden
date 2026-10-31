@@ -26,6 +26,8 @@ import {
   type Principal,
   type Reader,
   type AgentSessions,
+  type History,
+  UnknownCommit,
 } from "@graph-warden/core";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import { z } from "zod";
@@ -51,6 +53,8 @@ export interface ApiOptions {
   readonly agentSessions?: AgentSessions;
   // Questions; without a model configured, /v1/ask answers 501.
   readonly asker?: Asker;
+  // The past of the repositories (issue #16); without it, /v1/history answers 501.
+  readonly history?: History;
   // The types the graph accepts, the core ones by default: the writer's, shown at /v1/ontology.
   readonly ontology?: Ontology;
   // The web app and browser sessions (proposal 0012); without it, only bearer tokens are accepted.
@@ -82,6 +86,10 @@ const AskBody = z.object({
   scope: z.string().min(1).optional(),
 });
 
+const RepoQuery = z.object({ repo: z.string().min(1), limit: z.coerce.number().int().min(1).max(500).default(100) });
+const AtQuery = z.object({ repo: z.string().min(1), sha: z.string().min(1) });
+const ImpactQuery = z.object({ repo: z.string().min(1), base: z.string().min(1), head: z.string().min(1) });
+
 const PageBody = z.object({
   title: z.string().min(1).max(300),
   body: z.string().max(200_000),
@@ -103,6 +111,18 @@ const DeletionResponse = z.object({
   deleted: z.array(NodeSchema),
   detached: z.array(EdgeSchema),
   digest: z.string(),
+});
+const RepositoriesResponse = z.object({ repositories: z.array(z.string()) });
+const PastResponse = z.object({ nodes: z.array(NodeSchema), edges: z.array(EdgeSchema) });
+const ImpactResponse = PastResponse.extend({
+  impact: z.object({
+    endpoints: z.array(NodeSchema),
+    consumers: z.array(z.object({ module: NodeSchema, endpoints: z.array(z.string()) })),
+    knowledge: z.array(NodeSchema),
+    teams: z.array(z.string()),
+  }),
+  commits: z.number().int().nonnegative(),
+  highlighted: z.array(z.string()),
 });
 const AskResponse = z.object({ answer: z.string(), sources: z.array(NodeSchema), saved: NodeSchema.optional() });
 const deletion = (plan: DeletionPlan) =>
@@ -142,7 +162,7 @@ export function buildApi(options: ApiOptions): FastifyInstance {
     if (error instanceof Unreachable) {
       return reply.code(403).send({ error: "forbidden", detail: "the deletion would change nodes you may not read" });
     }
-    if (error instanceof NotFound) return reply.code(404).send({ error: "not found" });
+    if (error instanceof NotFound || error instanceof UnknownCommit) return reply.code(404).send({ error: "not found" });
     if (error instanceof Conflict) return reply.code(409).send({ error: "conflict", detail: error.message });
     if (error instanceof NotConfigured) return reply.code(501).send({ error: "not configured", detail: error.message });
     // Confidential content and no local model to send it to (issue #28): the question needs one.
@@ -324,6 +344,33 @@ export function buildApi(options: ApiOptions): FastifyInstance {
     return deletion(await options.editor.deleteNode(principal, request.params.id, confirm));
   });
 
+  // The past (issue #16): a repository at a commit, and a pull request's impact, as the caller may
+  // see them then and now.
+  const history = async (request: FastifyRequest) => {
+    const principal = await principalOf(request);
+    if (options.history === undefined) throw new NotConfigured("no repositories are configured on this API");
+    return { principal, history: options.history };
+  };
+  app.get("/v1/history", async (request) => {
+    const { history: past } = await history(request);
+    return RepositoriesResponse.parse({ repositories: past.repositories });
+  });
+  app.get("/v1/history/commits", async (request) => {
+    const { principal, history: past } = await history(request);
+    const { repo, limit } = parse(RepoQuery, request.query);
+    return NodesResponse.parse({ nodes: await past.commits(principal, repo, limit) });
+  });
+  app.get("/v1/history/graph", async (request) => {
+    const { principal, history: past } = await history(request);
+    const { repo, sha } = parse(AtQuery, request.query);
+    return PastResponse.parse(await past.at(principal, repo, sha));
+  });
+  app.get("/v1/history/impact", async (request) => {
+    const { principal, history: past } = await history(request);
+    const { repo, base, head } = parse(ImpactQuery, request.query);
+    return ImpactResponse.parse(await past.impact(principal, repo, base, head));
+  });
+
   app.post("/v1/ask", async (request) => {
     const principal = await principalOf(request);
     if (options.asker === undefined) throw new NotConfigured("no language model is configured on this API");
@@ -427,6 +474,43 @@ export const openApi = {
           "412": { description: "The page changed since the version named" },
           "428": { description: "Neither If-Match nor If-None-Match" },
         },
+      },
+    },
+    "/v1/history": {
+      get: {
+        summary: "The repositories whose past may be read",
+        responses: { "200": { description: "Repository names", content: json(RepositoriesResponse) }, ...errors, "501": { description: "No repositories configured" } },
+      },
+    },
+    "/v1/history/commits": {
+      get: {
+        summary: "A repository's commits, newest first, as the Change nodes the caller may read",
+        parameters: [
+          { name: "repo", in: "query", required: true, schema: { type: "string" } },
+          { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 500, default: 100 } },
+        ],
+        responses: { "200": { description: "Change nodes", content: json(NodesResponse) }, ...errors, "404": { description: "Unknown repository" } },
+      },
+    },
+    "/v1/history/graph": {
+      get: {
+        summary: "A repository's graph at a commit: the nodes the caller may read both then and now",
+        parameters: [
+          { name: "repo", in: "query", required: true, schema: { type: "string" } },
+          { name: "sha", in: "query", required: true, schema: { type: "string" } },
+        ],
+        responses: { "200": { description: "The graph then", content: json(PastResponse) }, ...errors, "404": { description: "Unknown repository or commit" } },
+      },
+    },
+    "/v1/history/impact": {
+      get: {
+        summary: "A pull request's impact, from base to head, as a subgraph with what it changes or reaches highlighted",
+        parameters: [
+          { name: "repo", in: "query", required: true, schema: { type: "string" } },
+          { name: "base", in: "query", required: true, schema: { type: "string" } },
+          { name: "head", in: "query", required: true, schema: { type: "string" } },
+        ],
+        responses: { "200": { description: "The impact", content: json(ImpactResponse) }, ...errors, "404": { description: "Unknown repository or commits, or head not descending from base" } },
       },
     },
     "/v1/search": {

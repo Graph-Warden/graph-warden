@@ -18,6 +18,8 @@ export interface GitRepository extends Repository {
   fetch(): Promise<void>;
   // The commit a ref points to: `origin/main`.
   head(ref: string): Promise<string>;
+  // The first-parent commits of a ref, newest first, at most `limit`.
+  log(ref: string, limit: number): Promise<readonly string[]>;
 }
 
 export function createGitRepository(dir: string, options: GitOptions = {}): GitRepository {
@@ -76,6 +78,10 @@ export function createGitRepository(dir: string, options: GitOptions = {}): GitR
     },
     async head(ref) {
       return (await git("rev-parse", "--verify", `${ref}^{commit}`)).trim();
+    },
+    async log(ref, limit) {
+      const out = await git("rev-list", "--first-parent", `--max-count=${Math.max(1, Math.floor(limit))}`, "--end-of-options", ref);
+      return out.split("\n").filter((line) => line !== "");
     },
   };
 }

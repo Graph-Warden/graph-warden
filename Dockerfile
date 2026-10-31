@@ -16,14 +16,16 @@ ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=build /out/api ./api
 COPY --from=build /out/cli ./cli
-# The ingestion worker: docker run graph-warden gwarden-worker. It runs git on its clones.
+# The ingestion worker: docker run graph-warden gwarden-worker. It runs git on its clones, kept
+# in /var/lib/gwarden, which the API may also read for the past (issue #16).
 COPY --from=build /out/worker ./worker
 # The web app, served by the API when GWARDEN_WEB_SECRET is set.
 COPY --from=build /src/packages/web/dist ./web
 ENV GWARDEN_WEB_DIR=/app/web
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/* \
  && printf '#!/bin/sh\nexec node /app/cli/dist/main.js "$@"\n' > /usr/local/bin/gwarden && chmod +x /usr/local/bin/gwarden \
- && printf '#!/bin/sh\nexec node /app/worker/dist/main.js "$@"\n' > /usr/local/bin/gwarden-worker && chmod +x /usr/local/bin/gwarden-worker
+ && printf '#!/bin/sh\nexec node /app/worker/dist/main.js "$@"\n' > /usr/local/bin/gwarden-worker && chmod +x /usr/local/bin/gwarden-worker \
+ && install -d -o node -g node /var/lib/gwarden
 USER node
 EXPOSE 8080
 CMD ["node", "/app/api/dist/main.js"]

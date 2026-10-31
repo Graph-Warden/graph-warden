@@ -1,12 +1,15 @@
 #!/usr/bin/env node
 import { createClaudeProvider } from "@graph-warden/anthropic";
-import { createAsker, createEditor, createPages, createReader, createRevalidator, createAgentSessions, createWriter, routeModels } from "@graph-warden/core";
-import { readSensitivity } from "@graph-warden/documents";
+import { createAsker, createEditor, createHistory, createPages, createReader, createRevalidator, createAgentSessions, createWriter, routeModels } from "@graph-warden/core";
+import { createDocumentExtractor, readSensitivity } from "@graph-warden/documents";
 import { createNeo4jAuditLog, createNeo4jEventLog, createNeo4jStaleMarks, createNeo4jStore, ensureConstraints } from "@graph-warden/neo4j";
 import { createOpenAICompatibleProvider, LOCAL_BASE_URL } from "@graph-warden/openai";
+import { createOpenApiExtractor } from "@graph-warden/openapi";
+import { createTypeScriptExtractor } from "@graph-warden/typescript";
 import neo4j from "neo4j-driver";
 import { buildApi } from "./app.js";
 import { loadConfig } from "./config.js";
+import { createGitPast } from "./history.js";
 
 const config = await loadConfig(process.env);
 const driver = neo4j.driver(config.NEO4J_URI, neo4j.auth.basic(config.NEO4J_USER, config.NEO4J_PASSWORD));
@@ -50,11 +53,25 @@ const editor = createEditor(store, writer, audit, { writers });
 const pages = createPages(store, writer, audit, { writers });
 const agentSessions = createAgentSessions(store, writer, audit);
 const asker = llm === undefined ? undefined : createAsker(store, writer, audit, llm, { writers });
+// The same extractors as the worker's, so that the past is extracted as the present was.
+const history =
+  config.repositories.length === 0
+    ? undefined
+    : createHistory(
+        store,
+        audit,
+        createGitPast({
+          repositories: config.repositories,
+          extractors: [createDocumentExtractor({ ontology: config.ontology }), createTypeScriptExtractor(), createOpenApiExtractor()],
+          ontology: config.ontology,
+        }),
+      );
 const app = buildApi({
   reader,
   editor,
   pages,
   agentSessions,
+  ...(history === undefined ? {} : { history }),
   ontology: config.ontology,
   ...(asker === undefined ? {} : { asker }),
   ...(config.web === undefined ? {} : { web: config.web }),

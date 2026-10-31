@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import Graph from "graphology";
 import forceAtlas2 from "graphology-layout-forceatlas2";
 import Sigma from "sigma";
-import type { CoreNodeType, NodeType } from "@graph-warden/core";
+import type { CoreNodeType, Edge, Node, NodeType } from "@graph-warden/core";
 import { nameOf, neighbourhood, type Store } from "../graph.js";
 import { pageHref } from "../markdown.js";
 import { graphHref } from "../route.js";
@@ -21,6 +21,7 @@ const COLOURS: Record<CoreNodeType, string> = {
   Session: "#7a7a72",
 };
 const colour = (type: NodeType): string => (COLOURS as Record<string, string>)[type] ?? "#a0763a";
+const GREY = "#d4d2ca";
 
 // A stable starting position per id, so that the same graph is laid out the same way each time.
 function seed(id: string): [number, number] {
@@ -31,10 +32,17 @@ function seed(id: string): [number, number] {
   return [Math.cos(angle) * radius, Math.sin(angle) * radius];
 }
 
-export function GraphView({ store, focus }: { store: Store; focus?: string }) {
+// The graph drawn: `highlighted`, when given, in colour and the rest greyed (a pull request's
+// impact, issue #16). A click on a node opens its page, or calls `onNode`.
+export function GraphCanvas(props: {
+  nodes: readonly Node[];
+  edges: readonly Edge[];
+  focus?: string;
+  highlighted?: ReadonlySet<string>;
+  onNode?: (id: string) => void;
+}) {
+  const { nodes, edges, focus, highlighted, onNode } = props;
   const container = useRef<HTMLDivElement>(null);
-  // Laid out again only when the graph or the focus changes, not on every render.
-  const { nodes, edges } = useMemo(() => neighbourhood(store, focus), [store, focus]);
   const types = [...new Set(nodes.map((node) => node.type))].sort();
 
   useEffect(() => {
@@ -42,19 +50,21 @@ export function GraphView({ store, focus }: { store: Store; focus?: string }) {
     const graph = new Graph({ multi: true, type: "directed" });
     const degree = new Map<string, number>();
     for (const edge of edges) for (const id of [edge.from, edge.to]) degree.set(id, (degree.get(id) ?? 0) + 1);
+    const lit = (id: string) => highlighted === undefined || highlighted.has(id);
     for (const node of nodes) {
       const [x, y] = seed(node.id);
       graph.addNode(node.id, {
         x,
         y,
         label: nameOf(node),
-        size: (node.id === focus ? 12 : 6) + Math.min(degree.get(node.id) ?? 0, 10),
-        color: colour(node.type),
+        size: (node.id === focus || (highlighted?.has(node.id) ?? false) ? 12 : 6) + Math.min(degree.get(node.id) ?? 0, 10),
+        color: lit(node.id) ? colour(node.type) : GREY,
       });
     }
     for (const edge of edges) {
       const derived = edge.type === "DERIVED_FROM";
-      graph.addEdge(edge.from, edge.to, { label: edge.type, size: derived ? 3 : 2, color: derived ? "#b48ad6" : "#a9a79e" });
+      const on = lit(edge.from) && lit(edge.to);
+      graph.addEdge(edge.from, edge.to, { label: edge.type, size: derived ? 3 : 2, color: !on ? GREY : derived ? "#b48ad6" : "#a9a79e" });
     }
     if (graph.order > 1) forceAtlas2.assign(graph, { iterations: 300, settings: { ...forceAtlas2.inferSettings(graph), barnesHutOptimize: graph.order > 500 } });
 
@@ -67,13 +77,31 @@ export function GraphView({ store, focus }: { store: Store; focus?: string }) {
       labelRenderedSizeThreshold: 4,
     });
     renderer.on("clickNode", ({ node }) => {
-      window.location.hash = pageHref(node);
+      if (onNode === undefined) window.location.hash = pageHref(node);
+      else onNode(node);
     });
     renderer.on("enterNode", () => container.current?.classList.add("pointing"));
     renderer.on("leaveNode", () => container.current?.classList.remove("pointing"));
     return () => renderer.kill();
-  }, [nodes, edges, focus]);
+  }, [nodes, edges, focus, highlighted, onNode]);
 
+  return (
+    <>
+      <ul className="legend">
+        {types.map((type) => (
+          <li key={type}>
+            <span className="dot" style={{ background: colour(type) }} /> {type}
+          </li>
+        ))}
+      </ul>
+      <div className="canvas" ref={container} />
+    </>
+  );
+}
+
+export function GraphView({ store, focus }: { store: Store; focus?: string }) {
+  // Laid out again only when the graph or the focus changes, not on every render.
+  const { nodes, edges } = useMemo(() => neighbourhood(store, focus), [store, focus]);
   const centre = focus === undefined ? undefined : store.nodes.get(focus);
   return (
     <section className="graph-view">
@@ -91,14 +119,7 @@ export function GraphView({ store, focus }: { store: Store; focus?: string }) {
           </>
         )}
       </p>
-      <ul className="legend">
-        {types.map((type) => (
-          <li key={type}>
-            <span className="dot" style={{ background: colour(type) }} /> {type}
-          </li>
-        ))}
-      </ul>
-      <div className="canvas" ref={container} />
+      <GraphCanvas nodes={nodes} edges={edges} {...(focus === undefined ? {} : { focus })} />
     </section>
   );
 }

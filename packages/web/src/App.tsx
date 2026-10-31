@@ -6,6 +6,7 @@ import { useRoute } from "./route.js";
 import { Ask } from "./views/Ask.js";
 import { Editor } from "./views/Editor.js";
 import { GraphView } from "./views/GraphView.js";
+import { History, Impact } from "./views/History.js";
 import { Login } from "./views/Login.js";
 import { Page } from "./views/Page.js";
 import { Search } from "./views/Search.js";
@@ -117,6 +118,10 @@ export function App() {
         <Editor key={route.id ?? ""} principal={session.principal} {...(route.id === undefined ? {} : { id: route.id })} />
       ) : route.view === "ask" ? (
         <Ask store={store} principal={session.principal} {...(route.from === undefined ? {} : { from: route.from })} />
+      ) : route.view === "history" ? (
+        <History {...(route.repo === undefined ? {} : { repo: route.repo })} {...(route.sha === undefined ? {} : { sha: route.sha })} />
+      ) : route.view === "impact" ? (
+        <Impact repo={route.repo} base={route.base} head={route.head} />
       ) : route.view === "graph" ? (
         <GraphView store={store} {...(route.id === undefined ? {} : { focus: route.id })} />
       ) : (

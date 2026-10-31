@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { CORE_ONTOLOGY, parseScope, type Ontology, type Principal, type Scope } from "@graph-warden/core";
+import { CORE_ONTOLOGY, RepositoriesSchema, type Ontology, type RepositoryEntry } from "@graph-warden/core";
 import { readOntology } from "@graph-warden/documents";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
@@ -48,37 +48,7 @@ const EnvSchema = z.object({
   GWARDEN_REVALIDATE_DEPTH: z.coerce.number().int().nonnegative().default(3),
 });
 
-// - name: github:acme/shop        provenance source of its nodes; matches GitHub webhooks of acme/shop
-//   dir: /var/lib/gwarden/shop    a clone whose `origin` is the repository
-//   branch: main                  the branch ingested (main by default)
-//   scope: team:bff               scope of documents without a scope: field, and of Change nodes
-//   author: { user: ingestion, teams: [bff, front-a] }   who derived documents are derived for
-const RepositoriesSchema = z.array(
-  z
-    .object({
-      name: z.string().min(1),
-      dir: z.string().min(1),
-      branch: z.string().min(1).default("main"),
-      scope: z.string().transform((value, context): Scope => {
-        try {
-          return parseScope(value);
-        } catch (error) {
-          context.addIssue({ code: "custom", message: error instanceof Error ? error.message : String(error) });
-          return z.NEVER;
-        }
-      }),
-      author: z.object({ user: z.string().min(1), teams: z.array(z.string().min(1)).default([]) }),
-    })
-    .strict(),
-);
-
-export interface RepositoryEntry {
-  readonly name: string;
-  readonly dir: string;
-  readonly branch: string;
-  readonly scope: Scope;
-  readonly author: Principal;
-}
+export type { RepositoryEntry } from "@graph-warden/core";
 
 export type WorkerConfig = z.infer<typeof EnvSchema> & {
   readonly repositories: readonly RepositoryEntry[];
@@ -88,9 +58,6 @@ export type WorkerConfig = z.infer<typeof EnvSchema> & {
 export async function loadConfig(env: NodeJS.ProcessEnv): Promise<WorkerConfig> {
   const settings = EnvSchema.parse(env);
   const repositories = RepositoriesSchema.parse(parseYaml(await readFile(settings.GWARDEN_REPOSITORIES, "utf8")) ?? []);
-  const names = repositories.map((repo) => repo.name);
-  const twice = names.find((name, i) => names.indexOf(name) !== i);
-  if (twice !== undefined) throw new Error(`${settings.GWARDEN_REPOSITORIES}: ${twice} is listed twice`);
   if (settings.GITHUB_WEBHOOK_SECRET === undefined && settings.GITLAB_WEBHOOK_SECRET === undefined && settings.GWARDEN_PUSH_TOKEN === undefined && settings.GWARDEN_POLL_SECONDS === 0) {
     throw new Error("No trigger: set GITHUB_WEBHOOK_SECRET, GITLAB_WEBHOOK_SECRET, GWARDEN_PUSH_TOKEN or GWARDEN_POLL_SECONDS");
   }
