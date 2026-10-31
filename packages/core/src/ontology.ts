@@ -119,6 +119,9 @@ export const NodeSchema = z
     // YAML document, an answer filed by `ask`. The graph holds it so that it stays the source of
     // truth; nothing reads the files back.
     body: z.string().optional(),
+    // Sources the text still holds with no `DERIVED_FROM` edge left to show it: a plain deletion
+    // removes the edge and keeps the text (proposal 0011). Sorted, read by routing and erasure.
+    heldSources: z.array(z.string().min(1)).min(1).readonly().optional(),
   })
   .readonly();
 

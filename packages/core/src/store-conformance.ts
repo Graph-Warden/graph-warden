@@ -30,6 +30,7 @@ const CHECKS: Record<string, (store: GraphStore) => Promise<string | undefined>>
       base("c", { scope: { kind: "teams", teams: ["bff", "front"] } }),
       base("d", { scope: { kind: "private", user: "lea" }, type: "Microservice" }),
       base("e", { provenance: { source: "wiki", path: "e" } }),
+      base("f", { heldSources: ["docs:hr", "docs:legal"] }),
     ];
     await store.upsertNodes(nodes);
     for (const node of nodes) if (!same(await store.getNode(node.id), node)) return `${node.id} came back as ${JSON.stringify(await store.getNode(node.id))}`;

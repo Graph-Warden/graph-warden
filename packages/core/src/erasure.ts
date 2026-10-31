@@ -40,27 +40,37 @@ export interface ErasurePlan {
 export function planErasure(graph: Graph, source: string, recompile: boolean): ErasurePlan {
   const sourcesOf = (id: string) => graph.edges.filter((e) => e.type === "DERIVED_FROM" && e.from === id);
   const deleted = new Set([...graph.nodes.values()].filter((node) => node.provenance.source === source).map((node) => node.id));
+  // A node can hold the source with no edge to it left: a plain deletion keeps the text.
+  const holds = (id: string) => graph.nodes.get(id)?.heldSources?.includes(source) === true;
   for (let changed = true; changed; ) {
     changed = false;
     for (const id of graph.nodes.keys()) {
       if (deleted.has(id)) continue;
       const sources = sourcesOf(id);
       const lost = sources.filter((e) => deleted.has(e.to));
+      const carries = lost.length > 0 || holds(id);
       // Every source gone; or one gone and nothing to recompile with.
-      if (lost.length > 0 && (lost.length === sources.length || !recompile)) {
+      if (carries && (lost.length === sources.length || !recompile)) {
         deleted.add(id);
         changed = true;
       }
     }
   }
   const detached = graph.edges.filter((e) => e.type === "DERIVED_FROM" && !deleted.has(e.from) && deleted.has(e.to));
-  const recompiled = [...new Set(detached.map((e) => e.from))].map((id) => graph.nodes.get(id)).filter((n): n is Node => n !== undefined);
+  const holding = [...graph.nodes.keys()].filter((id) => holds(id) && !deleted.has(id));
+  const recompiled = [...new Set([...detached.map((e) => e.from), ...holding])].map((id) => graph.nodes.get(id)).filter((n): n is Node => n !== undefined);
   const nodes = [...deleted].map((id) => graph.nodes.get(id)).filter((n): n is Node => n !== undefined);
   const digest = createHash("sha256")
     .update(JSON.stringify({ source, deleted: [...deleted].sort(), recompiled: recompiled.map((n) => n.id).sort() }))
     .digest("hex")
     .slice(0, 16);
   return { source, deleted: nodes, recompiled, detached, digest };
+}
+
+function withoutHeldSources(node: Node): Node {
+  const copy = { ...node };
+  delete (copy as { heldSources?: unknown }).heldSources;
+  return copy;
 }
 
 export interface Eraser {
@@ -119,7 +129,8 @@ export function createEraser(store: GraphStore, writer: Writer, audit: AuditLog,
           sources: contentSources(graph, [node, ...remaining]),
           principal,
         });
-        rewritten.push({ ...node, body });
+        // Written from its remaining sources only: what it held without an edge is gone.
+        rewritten.push(withoutHeldSources({ ...node, body }));
       }
       await writer.upsertNodes(rewritten);
       await writer.deleteEdges(result.detached);
