@@ -83,13 +83,13 @@ One graph, five people, five correct views — and nobody configured a filter fo
 | **Answers stay within your rights** | An AI answer is written only from what you may read, and a saved answer is visible only to people who may read everything it was written from. |
 | **Deletion follows summaries** | Deleting a document deletes the summaries built only from it, and only unlinks those built from other documents too. You see the full list and type the name before anything goes. |
 | **Your directory decides** | Users and groups come from your identity provider (Entra ID, Okta, Keycloak, Google Workspace…). No second user base to maintain. |
-| **Erasure of a whole source** *(planned)* | Erasing a source (GDPR article 17) applies the same deletion to every document it brought in. |
+| **Erasure of a whole source** | Erasing a source (GDPR article 17) applies the same deletion to every document it brought in. |
 
 ## Who it is for
 
 - **Security teams: agents that do not leak.** Rights are checked on every step of a traversal, not only on the result.
-- **Engineering teams: cross-team impact before the merge.** When the BFF team changes an endpoint, the front-end teams that consume it are told in the pull request, before it breaks in production *(planned, M2)*.
-- **Data protection and audit: compliance built in.** Every read an agent makes on behalf of a user is recorded, and erasure will reach everything an LLM derived from the erased source.
+- **Engineering teams: cross-team impact before the merge.** When the BFF team changes an endpoint, the front-end teams that consume it are told in the pull request, before it breaks in production, by a GitHub Action that comments the pull request.
+- **Data protection and audit: compliance built in.** Every read an agent makes on behalf of a user is recorded, and erasure reaches everything an LLM derived from the erased source.
 - **Infrastructure teams: it fits a large group's constraints.**
   - Self-hosted, on GCP, Azure or on premises.
   - Developer machines open no inbound port: they pull the part of the graph their user may see.
@@ -255,9 +255,16 @@ Graph databases already have role-based access, and agent-memory libraries alrea
 - `gwarden ask`, answers from readable nodes with Claude (Claude API, Vertex AI, or Google Cloud with no API key) or any OpenAI-compatible model, local ones included, filed back as derived nodes on request;
 - `gwarden delete`, following `DERIVED_FROM`, shown then confirmed;
 - a web app: pages, search, the graph (Sigma.js), questions, deletion and wiki pages, updated live over SSE;
-- a `docker compose` demo and a Cloud Run deployment.
+- `gwarden forget`, erasing a whole source with what was derived from it; derived scopes narrowed when a source narrows;
+- a worker that ingests on webhooks (GitHub, GitLab) or polling, behind a Redis queue, and revalidates knowledge a commit contradicts;
+- TypeScript and OpenAPI analyzers, and connectors for Jira, Confluence and GitLab, scoped by their own permissions;
+- an MCP server, GitHub Actions for ingestion and pull request impact, and coding-agent sessions captured privately until promoted;
+- exports to Markdown, JSON-LD and GraphML; model routing by sensitivity, with a local model for sensitive sources;
+- time travel by commit and a pull request's impact in the web app, whose graph view takes 10,000 nodes;
+- Neo4j or any SPARQL 1.1 triplestore as the store;
+- a `docker compose` demo, a Cloud Run deployment and a Helm chart.
 
-**Not yet:** revalidating derived scopes when a source or a group changes, erasing a whole source, MCP, LLM compilation, and time travel in the web app. The design for all of it is settled in [`docs/proposals`](docs/proposals); the work is tracked in [issues](https://github.com/Graph-Warden/graph-warden/issues).
+**Not yet:** a Claude eval run published with the shared eval set ([#10](https://github.com/Graph-Warden/graph-warden/issues/10)), and the Helm chart run on a real GKE or AKS cluster ([#25](https://github.com/Graph-Warden/graph-warden/issues/25), [#26](https://github.com/Graph-Warden/graph-warden/issues/26)).
 
 ---
 
@@ -295,7 +302,7 @@ flowchart LR
     C4["gwarden CLI<br/>+ local cache"] -- pull --> API
 ```
 
-Today: document ingestion through the CLI, Neo4j, the REST API, identity providers, `gwarden pull`, questions answered by Claude, and the web app, live over SSE. Planned: the queue, LLM compilation, webhooks and MCP.
+All of it runs today: the queue (in memory, or Redis), webhooks and polling, LLM revalidation, the REST API and MCP, `gwarden pull`, and the web app, live over SSE.
 
 - **The graph is the source of truth**, never the files it was built from. It lives in a server: Neo4j locally (`pnpm db:up`) or a hosted deployment, from which `gwarden pull` fetches only what the user may see.
 - **Single writer, ordered ingestion** *(design)*: only the merge on `main` writes shared nodes, in commit order, and replaying a webhook creates no duplicates ([proposal 0004](docs/proposals/0004-single-writer-ordered-ingestion.md)).
@@ -522,10 +529,9 @@ The API settings for writes: `GWARDEN_WRITERS` (groups that may delete and save 
 | `packages/adapters/documents` | Markdown, JSON and YAML documents as nodes and typed edges, with their text | M1, first slice |
 | `packages/adapters/anthropic` | `LLMProvider` on Claude | first slice |
 | `packages/adapters/openai` | `LLMProvider` on any OpenAI-compatible API (OpenAI, Azure OpenAI, Mistral, Ollama, vLLM, LM Studio) | first slice |
-| `packages/cli` | `gwarden ingest`, `traverse`, `audit`, `pull`, `cache`, `ask`, `delete`; later `forget`, PR impact | M0–M2 |
-| `packages/api` | REST with OpenAPI, the only place readers reach the graph; browser sign-in, SSE stream, wiki pages; webhooks later | M2, first slice |
-| `packages/mcp` | MCP server | M2, planned |
-| `packages/worker` | Ingestion queue consumer, LLM calls | M1, planned |
+| `packages/cli` | `gwarden ingest`, `traverse`, `audit`, `pull`, `cache`, `ask`, `delete`, `forget`, `impact`, `export`, `capture`, `promote` | M0–M2 |
+| `packages/api` | REST with OpenAPI, the only place readers reach the graph; MCP, browser sign-in, SSE stream, wiki pages, history | M2, first slice |
+| `packages/worker` | Ingestion queue consumer: webhooks, polling, connectors, revalidation | done |
 | `packages/web` | Web app: pages, search, graph (Sigma.js), questions, wiki pages, live over SSE ([proposal 0012](docs/proposals/0012-web-app-stream-and-wiki-pages.md)) | M2, first slice |
 | `packages/adapters/*` | More sources, LLM providers, stores, queues, analyzers | M1+ |
 
@@ -551,7 +557,7 @@ The core holds the rules and defines ports; adapters implement them ([proposal 0
 
 ## Contributing
 
-Adapters are the easiest way in: each kind has a typed interface in `core` (a shared conformance suite per kind is planned). Read [CONTRIBUTING.md](CONTRIBUTING.md), then pick an issue labelled [`good first issue`](https://github.com/Graph-Warden/graph-warden/labels/good%20first%20issue). Commits follow Conventional Commits and are signed off (`git commit -s`).
+Adapters are the easiest way in: each kind has a typed interface in `core` (with a shared conformance suite for sources and stores). Read [CONTRIBUTING.md](CONTRIBUTING.md), then pick an issue labelled [`good first issue`](https://github.com/Graph-Warden/graph-warden/labels/good%20first%20issue). Commits follow Conventional Commits and are signed off (`git commit -s`).
 
 Found a way to read something you should not? Report it privately: see [SECURITY.md](SECURITY.md).
 
