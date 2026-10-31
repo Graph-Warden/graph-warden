@@ -1,0 +1,96 @@
+# Graph-Warden on Kubernetes (issue #25). Neo4j is not part of the chart: point it at Neo4j Aura or
+# a database you run. Every secret is read from a Kubernetes Secret you create; the chart never
+# holds one. See deploy/gke and deploy/aks for complete guides.
+
+image:
+  # The image built from the repository's Dockerfile, pushed to your registry.
+  repository: ""
+  tag: ""
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+neo4j:
+  uri: ""                     # neo4j+s://xxxxxxxx.databases.neo4j.io
+  user: neo4j
+  passwordSecret:
+    name: graph-warden        # a Secret you created
+    key: neo4j-password
+
+# The organisation's node and edge types (GWARDEN_ONTOLOGY), as YAML; none: the core types only.
+ontology: ""
+
+api:
+  enabled: true
+  replicas: 2
+  # Plain settings of the API (see packages/api/src/config.ts): GWARDEN_IDENTITY, OIDC_ISSUER,
+  # GWARDEN_AUDITORS, GWARDEN_LLM, GWARDEN_PUBLIC_URL...
+  env: {}
+  # Settings read from Secrets: NAME: { secret: <name>, key: <key> }. GWARDEN_WEB_SECRET turns the
+  # web app on; WEB_OIDC_CLIENT_SECRET, OPENAI_API_KEY, ANTHROPIC_API_KEY...
+  secretEnv: {}
+  service:
+    type: ClusterIP
+    port: 80
+  ingress:
+    enabled: false
+    className: ""
+    annotations: {}
+    host: ""
+    tls: []                   # [{ secretName, hosts: [...] }]
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { memory: 1Gi }
+  # The past of the repositories in the web app (issue #16): the API reads the worker's clones.
+  # Needs `clones.accessMode: ReadWriteMany` unless both run on one node.
+  history: false
+
+worker:
+  enabled: true
+  # One worker per queue without Redis; with REDIS_URL, as many as the jobs need.
+  replicas: 1
+  env: {}                     # GWARDEN_POLL_SECONDS, GWARDEN_LLM...
+  secretEnv: {}               # GITHUB_WEBHOOK_SECRET, GITLAB_WEBHOOK_SECRET, GWARDEN_PUSH_TOKEN, REDIS_URL...
+  # The repositories to ingest (GWARDEN_REPOSITORIES), as a YAML list; `dir` under /var/lib/gwarden.
+  # The worker clones each one there on start when it is missing (`url` names the remote).
+  repositories: []
+  #  - name: github:acme/shop
+  #    url: https://github.com/acme/shop.git
+  #    scope: team:dev
+  #    author: { user: ingestion, teams: [dev] }
+  # API sources (GWARDEN_CONNECTORS: Jira, Confluence, GitLab), as YAML; tokens come from secretEnv.
+  connectors: ""
+  service:
+    port: 8081
+  resources:
+    requests: { cpu: 100m, memory: 512Mi }
+    limits: { memory: 2Gi }
+
+# Where the worker keeps its clones.
+clones:
+  size: 10Gi
+  storageClass: ""
+  accessMode: ReadWriteOnce
+
+# The demo of the repository (examples/shop) with demo tokens: never on a cluster others reach.
+demo:
+  enabled: false
+  # The repository the demo data comes from, and its revision.
+  source: https://github.com/Graph-Warden/graph-warden.git
+  revision: main
+  # A Secret whose `users.yaml` lists { token, user, teams } as examples/shop/users.yaml does,
+  # with tokens of your own: the repository's are public.
+  usersSecret: ""
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}             # Workload Identity: iam.gke.io/gcp-service-account, azure.workload.identity/client-id
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities: { drop: [ALL] }

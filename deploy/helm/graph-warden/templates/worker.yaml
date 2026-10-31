@@ -1,0 +1,97 @@
+{{- if .Values.worker.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "gw.fullname" . }}-worker
+  labels:
+    {{- include "gw.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker
+spec:
+  replicas: {{ .Values.worker.replicas }}
+  # Clones on a ReadWriteOnce volume: the old pod lets go of it before the new one starts.
+  strategy:
+    type: {{ eq .Values.clones.accessMode "ReadWriteMany" | ternary "RollingUpdate" "Recreate" }}
+  selector:
+    matchLabels:
+      {{- include "gw.selector" (dict "root" . "component" "worker") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "gw.labels" . | nindent 8 }}
+        app.kubernetes.io/component: worker
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "gw.serviceAccount" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      initContainers:
+        - name: clone
+          image: {{ include "gw.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          env:
+            - { name: HOME, value: /tmp }
+          command: [sh, /etc/gwarden/clone.sh]
+          volumeMounts:
+            - { name: config, mountPath: /etc/gwarden, readOnly: true }
+            - { name: clones, mountPath: /var/lib/gwarden }
+            - { name: tmp, mountPath: /tmp }
+      containers:
+        - name: worker
+          image: {{ include "gw.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [gwarden-worker]
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - { name: http, containerPort: 8081 }
+          env:
+            {{- include "gw.commonEnv" . | nindent 12 }}
+            - { name: HOME, value: /tmp }
+            - { name: GWARDEN_REPOSITORIES, value: /etc/gwarden/repositories.yaml }
+            {{- if .Values.worker.connectors }}
+            - { name: GWARDEN_CONNECTORS, value: /etc/gwarden/connectors.yaml }
+            {{- end }}
+            {{- include "gw.env" .Values.worker | nindent 12 }}
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.worker.resources | nindent 12 }}
+          volumeMounts:
+            - { name: config, mountPath: /etc/gwarden, readOnly: true }
+            - { name: clones, mountPath: /var/lib/gwarden }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "gw.fullname" . }}
+        - name: tmp
+          emptyDir: {}
+        - name: clones
+          persistentVolumeClaim:
+            claimName: {{ include "gw.fullname" . }}-clones
+---
+# Webhooks (GitHub, GitLab) and pushes from CI reach the worker here; expose it only as far as
+# the senders need.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "gw.fullname" . }}-worker
+  labels:
+    {{- include "gw.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker
+spec:
+  selector:
+    {{- include "gw.selector" (dict "root" . "component" "worker") | nindent 4 }}
+  ports:
+    - { name: http, port: {{ .Values.worker.service.port }}, targetPort: http }
+{{- end }}

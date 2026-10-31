@@ -56,6 +56,23 @@ jobs:
         env:
           GWARDEN_TEST_STORE: rdf
 
+  # The Helm chart (issue #25): lint it, and render it with each set of example values.
+  helm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.16.4
+      - name: Lint and render the chart
+        run: |
+          for values in deploy/helm/graph-warden/ci/*.yaml; do
+            helm lint --strict deploy/helm/graph-warden -f "$values"
+            helm template graph-warden deploy/helm/graph-warden -f "$values" > /dev/null
+          done
+          # Required settings fail the render instead of producing a broken release.
+          ! helm template graph-warden deploy/helm/graph-warden 2> /dev/null
+
   conventional-commits:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest

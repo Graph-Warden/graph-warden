@@ -1,0 +1,42 @@
+# OIDC, a worker on two repositories with webhooks, Jira, and the past served by the API.
+image: { repository: acme.azurecr.io/graph-warden, tag: "2026.11.0" }
+neo4j: { uri: "neo4j+s://xxxxxxxx.databases.neo4j.io" }
+ontology: |
+  nodeTypes: [Dataset, Dashboard]
+  edgeTypes: [READS]
+api:
+  history: true
+  env:
+    GWARDEN_IDENTITY: oidc
+    OIDC_ISSUER: https://login.microsoftonline.com/00000000-0000-0000-0000-000000000000/v2.0
+    OIDC_AUDIENCE: api://graph-warden
+    GWARDEN_AUDITORS: auditors
+    GWARDEN_LLM: openai
+    GWARDEN_LLM_MODEL: gpt-graph
+    GWARDEN_LLM_BASE_URL: https://acme.openai.azure.com/openai/v1
+  secretEnv:
+    OPENAI_API_KEY: { secret: graph-warden, key: openai-api-key }
+worker:
+  replicas: 2
+  env: { GWARDEN_POLL_SECONDS: "300" }
+  secretEnv:
+    GITHUB_WEBHOOK_SECRET: { secret: graph-warden, key: github-webhook-secret }
+    REDIS_URL: { secret: graph-warden, key: redis-url }
+    JIRA_TOKEN: { secret: graph-warden, key: jira-token }
+  repositories:
+    - name: github:acme/shop
+      url: https://github.com/acme/shop.git
+      scope: team:dev
+      author: { user: ingestion, teams: [dev] }
+    - name: github:acme/platform
+      url: https://github.com/acme/platform.git
+      branch: trunk
+      scope: team:platform
+      author: { user: ingestion, teams: [platform] }
+  connectors: |
+    - kind: jira
+      baseUrl: https://acme.atlassian.net
+      email: graph-warden@acme.com
+      tokenEnv: JIRA_TOKEN
+      projects: [SHOP]
+clones: { accessMode: ReadWriteMany, storageClass: azurefile-csi }

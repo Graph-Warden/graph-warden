@@ -1,0 +1,10 @@
+# The demo: the API with the web app and demo tokens, no worker.
+image: { repository: europe-west1-docker.pkg.dev/graph-warden-demo/graph-warden/graph-warden, tag: demo }
+neo4j: { uri: "neo4j+s://xxxxxxxx.databases.neo4j.io" }
+demo: { enabled: true, usersSecret: graph-warden-demo-users }
+worker: { enabled: false }
+api:
+  env: { GWARDEN_PUBLIC_URL: "https://graph-warden.example.com", GWARDEN_AUDITORS: auditors, GWARDEN_WRITERS: dev-leads }
+  secretEnv:
+    GWARDEN_WEB_SECRET: { secret: graph-warden, key: web-secret }
+  ingress: { enabled: true, host: graph-warden.example.com }

@@ -1,0 +1,14 @@
+Graph-Warden {{ .Chart.AppVersion }} is installed as {{ .Release.Name }}.
+
+The API{{ if .Values.api.secretEnv.GWARDEN_WEB_SECRET }} and the web app{{ end }}:
+{{- if .Values.api.ingress.enabled }}
+  https://{{ .Values.api.ingress.host }}
+{{- else }}
+  kubectl port-forward svc/{{ include "gw.fullname" . }}-api 8080:{{ .Values.api.service.port }}
+  then http://localhost:8080
+{{- end }}
+{{- if .Values.demo.enabled }}
+
+DEMO: anyone holding a token from the {{ .Values.demo.usersSecret }} Secret is that user. Load demo
+data only, and keep the API off the internet or behind your own access control.
+{{- end }}
