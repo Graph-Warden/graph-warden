@@ -3,7 +3,7 @@ import { EdgeTypeSchema, type Node } from "./ontology.js";
 import { canRead, type Principal } from "./scope.js";
 import { NotFound } from "./deletion.js";
 import { computeDelta, type Delta, type EventLog } from "./events.js";
-import { retrieve, type RetrieveOptions } from "./search.js";
+import { searchGraph, type RetrieveOptions, type TextIndex } from "./search.js";
 import type { GraphStore } from "./store.js";
 import { findRelated } from "./revalidation.js";
 import { createGraph, traverse, type TraversalOptions } from "./traversal.js";
@@ -163,6 +163,8 @@ export interface ReaderOptions {
   readonly auditors?: readonly string[];
   // Called before a node is read, to revalidate it if it is stale (proposal 0005).
   readonly refresh?: (id: string) => Promise<unknown>;
+  // Finds the nodes holding a query's words; every node is read without one.
+  readonly index?: TextIndex;
   readonly now?: () => Date;
 }
 
@@ -179,7 +181,7 @@ export function recorder(audit: AuditLog, now: () => Date = () => new Date()) {
 }
 
 export function createReader(store: GraphStore, audit: AuditLog, options: ReaderOptions = {}): Reader {
-  const { events, auditors = [], refresh, now = () => new Date() } = options;
+  const { events, auditors = [], refresh, index, now = () => new Date() } = options;
   const record = recorder(audit, now);
 
   return {
@@ -196,7 +198,8 @@ export function createReader(store: GraphStore, audit: AuditLog, options: Reader
     },
 
     async search(principal, query, options = {}) {
-      const found = retrieve(await store.snapshot(), principal, query, options);
+      // A search shows what holds the words: links rank what it finds, and bring nothing in.
+      const found = await searchGraph(await store.snapshot(), index, principal, query, { ...options, linkable: () => false });
       await record({ action: "search", query, returned: found.map((node) => node.id) }, principal);
       return found;
     },

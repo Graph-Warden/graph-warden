@@ -66,6 +66,8 @@ const CommonSchema = z.object({
   GWARDEN_AUDITORS: list,
   // Groups whose members may delete nodes and file answers. None by default: nobody writes.
   GWARDEN_WRITERS: list,
+  // Tokens of documents /v1/ask hands the model; less for a small local model.
+  GWARDEN_ASK_BUDGET: z.coerce.number().int().positive().optional(),
   // The model behind /v1/ask: none (the route answers 501), claude or openai.
   // - claude, on the platform below with its credentials from the environment: anthropic
   //   (ANTHROPIC_API_KEY or an `ant auth login` profile), google-cloud (Claude on Google Cloud run

@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import neo4j, { type Driver } from "neo4j-driver";
-import { checkStore, type AuditEntry, type Node } from "@graph-warden/core";
-import { createNeo4jAuditLog, createNeo4jEventLog, createNeo4jIngestionState, createNeo4jStaleMarks, createNeo4jStore, ensureConstraints } from "../src/index.js";
+import { checkStore, checkTextIndex, searchGraph, type AuditEntry, type Node } from "@graph-warden/core";
+import { createNeo4jAuditLog, createNeo4jEventLog, createNeo4jIngestionState, createNeo4jStaleMarks, createNeo4jStore, createNeo4jTextIndex, ensureConstraints } from "../src/index.js";
 
 // Runs against a throwaway database: every test wipes it. Never point NEO4J_TEST_URI at a
 // database you care about. `docker compose --profile test up -d --wait neo4j-test` starts one on
@@ -49,6 +49,35 @@ describe.skipIf(uri === undefined)("Neo4j adapter", () => {
   });
   afterAll(() => driver.close());
   beforeEach(() => driver.executeQuery("MATCH (n) DETACH DELETE n"));
+
+  describe("TextIndex", () => {
+    const wipe = () => driver.executeQuery("MATCH (n) DETACH DELETE n");
+
+    it("conforms", async () => {
+      expect(
+        await checkTextIndex(async () => {
+          await wipe();
+          return { store: createNeo4jStore(driver), index: createNeo4jTextIndex(driver) };
+        }),
+      ).toEqual([]);
+    });
+
+    it("finds nodes written before the index existed", async () => {
+      await driver.executeQuery("CREATE (:Node {id: 'old', type: 'Concept', scopeKind: 'shared', provenanceSource: 'docs', provenancePath: 'old', body: 'Falcon'})");
+      await ensureConstraints(driver);
+      expect(await createNeo4jTextIndex(driver).matching(["falco"])).toEqual(new Set(["old"]));
+    });
+
+    it("cuts nothing a principal may read when hidden nodes match too", async () => {
+      const store = createNeo4jStore(driver);
+      await store.upsertNodes([
+        ...Array.from({ length: 50 }, (_, i): Node => ({ ...concept, id: `hidden-${i}`, scope: { kind: "team", team: "m-and-a" }, body: "orders orders orders" })),
+        { ...module_, id: "visible", body: "orders" },
+      ]);
+      const found = await searchGraph(await store.snapshot(), createNeo4jTextIndex(driver), { user: "bob", teams: [] }, "orders", { limit: 3 });
+      expect(found.map((n) => n.id)).toEqual(["visible"]);
+    });
+  });
 
   describe("GraphStore", () => {
     it("passes the store conformance suite", async () => {

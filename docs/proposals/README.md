@@ -26,3 +26,4 @@ A proposal normally goes `to be reviewed` → `accepted` → `in progress` → `
 | [0010](0010-identity-groups-and-derived-scopes.md) | Rights come from the identity provider; derived nodes require every source team | to be reviewed |
 | [0011](0011-ask-and-governed-deletion.md) | Questions answered from the graph, and deletion that follows derivation | to be reviewed |
 | [0012](0012-web-app-stream-and-wiki-pages.md) | A web app on the API, a live stream, and pages written in the browser | to be reviewed |
+| [0013](0013-graph-ranked-retrieval.md) | Retrieval ranked by the graph, within a budget, behind a port that cannot interfere | to be reviewed |

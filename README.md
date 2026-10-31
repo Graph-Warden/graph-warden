@@ -252,6 +252,7 @@ Graph databases already have role-based access, and agent-memory libraries alrea
 - a REST API whose identities and groups come from an OIDC provider or Google with Cloud Identity;
 - an audit entry for every read, question and deletion;
 - `gwarden pull` into a local SQLite cache holding only what the user may see;
+- retrieval ranked by BM25 and the graph's links, on the readable part only, within a budget of tokens: a hidden document changes neither what a reader gets nor its order, which property tests check ([proposal 0013](docs/proposals/0013-graph-ranked-retrieval.md));
 - `gwarden ask`, answers from readable nodes with Claude (Claude API, Vertex AI or Google Cloud, and Microsoft Foundry, the last three with no API key) or any OpenAI-compatible model, local ones included, filed back as derived nodes on request;
 - `gwarden delete`, following `DERIVED_FROM`, shown then confirmed;
 - a web app: pages, search, the graph (Sigma.js), questions, deletion and wiki pages, updated live over SSE;
@@ -399,7 +400,7 @@ sequenceDiagram
     participant Writer
 
     User->>Asker: ask("How does pagination change?", save?)
-    Asker->>Asker: retrieve: readable nodes only<br/>(anchor + neighbours, then word matches)
+    Asker->>Asker: retrieve: readable nodes only<br/>(anchor + neighbours, then words and links, within a budget)
     Asker->>Audit: append(question, every node handed over)
     Asker->>LLM: those nodes, nothing else
     LLM-->>Asker: answer citing [[ids]]
@@ -409,7 +410,7 @@ sequenceDiagram
     Asker-->>User: answer + nodes read
 ```
 
-Retrieval is done by the domain, not by the model, so the nodes an answer could draw on are known exactly. A saved answer is derived from **all** of them, cited or not: it is private to the asker by default, and `--scope shared` is narrowed to the readers of all its sources ([proposal 0011](docs/proposals/0011-ask-and-governed-deletion.md)). The model sits behind the `LLMProvider` port; it has two adapters: Claude (`GWARDEN_LLM=claude`, default model `claude-opus-5-5`, credentials from the environment) and any OpenAI-compatible API (`GWARDEN_LLM=openai`, `GWARDEN_LLM_MODEL`, `GWARDEN_LLM_BASE_URL` for Azure OpenAI, Mistral or a local Ollama, vLLM or LM Studio, `OPENAI_API_KEY` if the server asks for one).
+Retrieval is done by the domain, not by the model, so the nodes an answer could draw on are known exactly. It works on the readable part of the graph only: BM25 over those nodes, a short walk over their links, then a budget of tokens (`GWARDEN_ASK_BUDGET`), so a hidden document changes neither what a reader gets nor its order, which property tests check ([proposal 0013](docs/proposals/0013-graph-ranked-retrieval.md)). Routing reads what a node's text holds, derivation included, so a filed answer written from a confidential document stays local. A saved answer is derived from **all** of them, cited or not: it is private to the asker by default, and `--scope shared` is narrowed to the readers of all its sources ([proposal 0011](docs/proposals/0011-ask-and-governed-deletion.md)). The model sits behind the `LLMProvider` port; it has two adapters: Claude (`GWARDEN_LLM=claude`, default model `claude-opus-5-5`, credentials from the environment) and any OpenAI-compatible API (`GWARDEN_LLM=openai`, `GWARDEN_LLM_MODEL`, `GWARDEN_LLM_BASE_URL` for Azure OpenAI, Mistral or a local Ollama, vLLM or LM Studio, `OPENAI_API_KEY` if the server asks for one).
 
 ## Deleting a node
 

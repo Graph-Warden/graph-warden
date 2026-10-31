@@ -1,3 +1,4 @@
+import { contentSources } from "./derivation.js";
 import { createHash } from "node:crypto";
 import { recorder, type AuditLog } from "./audit.js";
 import { ASK_SYSTEM, type LLMProvider } from "./ask.js";
@@ -115,7 +116,7 @@ export function createEraser(store: GraphStore, writer: Writer, audit: AuditLog,
           system: RECOMPILE,
           prompt: recompilePrompt(node, remaining),
           // The title is the node's own.
-          sources: [node.provenance.source, ...remaining.map((n) => n.provenance.source)],
+          sources: contentSources(graph, [node, ...remaining]),
           principal,
         });
         rewritten.push({ ...node, body });
