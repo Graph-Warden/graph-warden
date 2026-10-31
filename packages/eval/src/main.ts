@@ -10,7 +10,7 @@ import { loadCases, loadRetrievalCases, retrievalScore, runEval, runRetrievalEva
 
 // gwarden-eval --llm claude [--platform anthropic|google-cloud|vertex] [--model <id>]
 // gwarden-eval --llm openai --model <name> [--base-url http://localhost:11434/v1]
-// gwarden-eval --retrieval [--k 8]
+// gwarden-eval --retrieval [--k 8] [--corpus <dir>] [--queries <yaml>] [--teams a,b]
 // Prints each case, then the scores; --out writes them as JSON. --retrieval needs no model.
 
 const { values } = parseArgs({
@@ -23,6 +23,7 @@ const { values } = parseArgs({
     out: { type: "string" },
     retrieval: { type: "boolean", default: false },
     k: { type: "string", default: "8" },
+    teams: { type: "string" },
     corpus: { type: "string", default: fileURLToPath(new URL("../../../examples/shop/docs", import.meta.url)) },
     queries: { type: "string", default: fileURLToPath(new URL("../retrieval.yaml", import.meta.url)) },
   },
@@ -46,8 +47,8 @@ function provider(): { llm: LLMProvider; name: string } {
   throw new Error("--llm claude or --llm openai");
 }
 
-// Reads like the demo's Lea, who may read every document of the corpus.
-const READER: Principal = { user: "lea", teams: ["bff", "data", "front-a", "front-b", "front-c", "shopping-front", "user"] };
+// Reads like the demo's Lea, who may read every document of the example corpus.
+const READER: Principal = { user: "lea", teams: values.teams?.split(",").map((team) => team.trim()) ?? ["bff", "data", "front-a", "front-b", "front-c", "shopping-front", "user"] };
 
 async function evaluateRetrieval(): Promise<void> {
   const { nodes, edges } = await readDocuments(values.corpus, { source: "docs:shop", defaultScope: { kind: "shared" } });

@@ -64,6 +64,18 @@ parsing, not judgement.
   file header; feeding the real `git diff` (as the worker does) may help, to be measured.
 - **Citations**: both local models can miss the second source of a two-source answer.
 
+## On your own documents
+
+Point the retrieval set at any folder of Markdown, JSON or YAML documents, with your own queries in
+the format of `retrieval.yaml`. Name the groups of the reader, or documents scoped to others are not
+read:
+
+```sh
+node packages/eval/dist/main.js --retrieval --corpus ./docs --queries ./queries.yaml --teams data,bff --out results.json
+```
+
+No model is called and nothing leaves the machine.
+
 ## Gap with Claude
 
 Claude passes every case in both runs, where the 30b fails two to three of ten verdicts and one to
