@@ -10,7 +10,8 @@
   },
   "files": [
     "dist",
-    "cases.yaml"
+    "cases.yaml",
+    "retrieval.yaml"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -19,6 +20,7 @@
   "dependencies": {
     "@graph-warden/anthropic": "workspace:*",
     "@graph-warden/core": "workspace:*",
+    "@graph-warden/documents": "workspace:*",
     "@graph-warden/openai": "workspace:*",
     "yaml": "catalog:",
     "zod": "catalog:"

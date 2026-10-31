@@ -313,7 +313,8 @@ describe("API writes", () => {
     const llm: LLMProvider = { complete: async ({ prompt }) => (prompt.includes('id="adr"') ? "Cursors, see [[adr]]." : "No idea.") };
     const { call } = await writes({ llm });
     const answer = (await call("POST", "/v1/ask", writerTokens.carl, { question: "How is pagination done?" })).json();
-    expect(answer).toMatchObject({ answer: "Cursors, see [[adr]].", sources: [{ id: "adr" }] });
+    expect(answer).toMatchObject({ answer: "Cursors, see [[adr]]." });
+    expect((answer.sources as Node[]).map((n) => n.id)).toContain("adr");
     expect(answer).not.toHaveProperty("saved");
 
     expect((await call("POST", "/v1/ask", writerTokens.carl, { question: "pagination", save: true })).statusCode).toBe(403);

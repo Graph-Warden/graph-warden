@@ -1,0 +1,36 @@
+# What retrieval must find, over the documents of examples/shop, read by someone who may read all of
+# them. No model is involved: each query lists the documents an answer needs. Written before any
+# ranking was measured against it, so it says what the graph should give, not what it gives.
+#
+# kind:
+#   lexical: the words of the query are in the documents to find.
+#   linked: part of the answer sits one link away from the documents that hold those words.
+#   french: a question in French over documents in English.
+#   paraphrase: the query shares almost no word with the answer. Where embeddings would help.
+
+queries:
+  - { id: orders-paginate, kind: lexical, query: "How does GET /orders paginate?", relevant: [adr-0007-cursor-pagination, orders-api] }
+  - { id: events-sent, kind: lexical, query: "Which events does the web shop send?", relevant: [clickstream-events, web-tracking] }
+  - { id: reco-latency, kind: lexical, query: "What is the p95 of the recommendations API?", relevant: [recommendations-api] }
+  - { id: profile-fields, kind: lexical, query: "What does the customer profile contain?", relevant: [user-profile-api] }
+  - { id: account-erased, kind: lexical, query: "Who publishes account.erased?", relevant: [user-service, consent-events] }
+
+  - { id: dashboard-drop, kind: linked, query: "Why did the conversion dashboard show add-to-cart down?", relevant: [incident-208, release-2026-42] }
+  - { id: email-leaves, kind: linked, query: "What breaks if email leaves the profile?", relevant: [adr-0012-email-out-of-profile, profile-v2-impact, product-page, customer-360] }
+  - { id: orders-consumers, kind: linked, query: "Who consumes GET /orders?", relevant: [checkout, backoffice, mobile-app, customer-360] }
+  - { id: erased-customer, kind: linked, query: "What happens after a customer is erased?", relevant: [erasure-trail, user-service, customer-360, recommendations-service] }
+  - { id: cursor-impact, kind: linked, query: "What does cursor pagination break?", relevant: [pagination-impact, checkout, backoffice] }
+  - { id: clickstream-deps, kind: linked, query: "What depends on the clickstream contract?", relevant: [customer-360, web-tracking, adr-0003-versioned-clickstream] }
+  - { id: incident-cause, kind: linked, query: "What caused INC-208?", relevant: [release-2026-42, incident-208] }
+  - { id: erp-mobile, kind: linked, query: "What does the ERP migration change for the mobile app?", relevant: [adr-0007-cursor-pagination, mobile-app, orders-api] }
+
+  - { id: fr-pagination, kind: french, query: "Comment fonctionne la pagination de GET /orders ?", relevant: [adr-0007-cursor-pagination, orders-api] }
+  - { id: fr-erasure, kind: french, query: "Où reste un client après une demande d'effacement ?", relevant: [erasure-trail] }
+  - { id: fr-profile, kind: french, query: "Qui consomme le profil utilisateur ?", relevant: [cart, product-page, customer-360] }
+
+  - { id: deleted-suggestions, kind: paraphrase, query: "How long until a deleted person disappears from suggestions?", relevant: [erasure-trail, recommendations-service] }
+  - { id: revenue-misread, kind: paraphrase, query: "Why did a metric alarm people when revenue was fine?", relevant: [incident-208] }
+  - { id: privacy-review, kind: paraphrase, query: "Which privacy review took the mail address away?", relevant: [adr-0012-email-out-of-profile] }
+  - { id: past-purchases, kind: paraphrase, query: "Past purchases vanished after a rollout", relevant: [incident-142] }
+  - { id: suggestions-speed, kind: paraphrase, query: "How fast are product suggestions?", relevant: [recommendations-api] }
+  - { id: opt-out, kind: paraphrase, query: "What is triggered when somebody opts out of advertising?", relevant: [consent-events, web-tracking] }

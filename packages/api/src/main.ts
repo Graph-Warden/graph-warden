@@ -2,7 +2,7 @@
 import { createClaudeProvider } from "@graph-warden/anthropic";
 import { createAsker, createEditor, createHistory, createPages, createReader, createRevalidator, createAgentSessions, createWriter, routeModels } from "@graph-warden/core";
 import { createDocumentExtractor, readSensitivity } from "@graph-warden/documents";
-import { createNeo4jAuditLog, createNeo4jEventLog, createNeo4jStaleMarks, createNeo4jStore, ensureConstraints } from "@graph-warden/neo4j";
+import { createNeo4jAuditLog, createNeo4jEventLog, createNeo4jStaleMarks, createNeo4jStore, createNeo4jTextIndex, ensureConstraints } from "@graph-warden/neo4j";
 import { createOpenAICompatibleProvider, LOCAL_BASE_URL } from "@graph-warden/openai";
 import { createOpenApiExtractor } from "@graph-warden/openapi";
 import { createTypeScriptExtractor } from "@graph-warden/typescript";
@@ -44,15 +44,17 @@ const llm = routeModels({
 });
 // Knowledge the worker marked stale is revalidated on its first read (proposal 0005).
 const revalidator = llm === undefined ? undefined : createRevalidator({ store, writer, llm, marks: createNeo4jStaleMarks(driver) });
+const index = createNeo4jTextIndex(driver);
 const reader = createReader(store, audit, {
   events,
+  index,
   auditors: config.GWARDEN_AUDITORS,
   ...(revalidator === undefined ? {} : { refresh: revalidator.refresh }),
 });
 const editor = createEditor(store, writer, audit, { writers });
 const pages = createPages(store, writer, audit, { writers });
 const agentSessions = createAgentSessions(store, writer, audit);
-const asker = llm === undefined ? undefined : createAsker(store, writer, audit, llm, { writers });
+const asker = llm === undefined ? undefined : createAsker(store, writer, audit, llm, { writers, index, ...(config.GWARDEN_ASK_BUDGET === undefined ? {} : { budget: config.GWARDEN_ASK_BUDGET }) });
 // The same extractors as the worker's, so that the past is extracted as the present was.
 const history =
   config.repositories.length === 0

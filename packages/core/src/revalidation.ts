@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { LLMProvider } from "./ask.js";
-import { deriveScopes } from "./derivation.js";
+import { contentSources, deriveScopes } from "./derivation.js";
 import { changeSource } from "./ingestion.js";
 import type { Writer } from "./events.js";
 import type { Edge, EdgeType, Node } from "./ontology.js";
@@ -167,7 +167,8 @@ export function createRevalidator(options: RevalidatorOptions): Revalidator {
   };
 
   async function judge(node: Node, change: string, evidence: string, author: Principal): Promise<{ verdict: Verdict; alert?: Alert }> {
-    const verdict = await askVerdict(llm, node, evidence, changeSource(change), author);
+    const held = contentSources(await store.snapshot(), [node]);
+    const verdict = await askVerdict(llm, node, evidence, [...held, changeSource(change)], author);
     if (verdict.verdict === "valid") return { verdict };
 
     const graph = await store.snapshot();
@@ -219,12 +220,12 @@ export function createRevalidator(options: RevalidatorOptions): Revalidator {
 }
 
 // One verdict from the model: the prompt the revalidator sends, shared with the evaluation set.
-// `source` is the repository the change comes from, for routing (issue #28).
-export async function askVerdict(llm: LLMProvider, node: Node, evidence: string, source?: string, principal?: Principal): Promise<Verdict> {
+// `sources` are those of the prompt's content, for routing (issue #28).
+export async function askVerdict(llm: LLMProvider, node: Node, evidence: string, sources?: readonly string[], principal?: Principal): Promise<Verdict> {
   const title = node.title === undefined ? "" : ` title="${node.title.replace(/"/g, "'")}"`;
   const answer = await llm.complete({
     system: SYSTEM,
-    ...(source === undefined ? {} : { sources: [node.provenance.source, source] }),
+    ...(sources === undefined ? {} : { sources }),
     ...(principal === undefined ? {} : { principal }),
     prompt: `<document id="${node.id}" type="${node.type}"${title}>\n${node.body ?? ""}\n</document>\n\n<change>\n${evidence}\n</change>`,
   });

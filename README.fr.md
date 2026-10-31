@@ -254,6 +254,7 @@ Les bases de graphe ont déjà un contrôle d'accès par rôle, et les biblioth�
 - une API REST dont identités et groupes viennent d'un fournisseur OIDC ou de Google avec Cloud Identity ;
 - une entrée d'audit pour chaque lecture, question et suppression ;
 - `gwarden pull` vers un cache SQLite local qui ne contient que ce que l'utilisateur peut voir ;
+- une recherche classée par BM25 et par les liens du graphe, sur la seule partie lisible, dans un budget de tokens : un document caché ne change ni ce qu'un lecteur obtient, ni l'ordre, ce que vérifient des tests de propriétés ([proposition 0013](docs/proposals/0013-graph-ranked-retrieval.md)) ;
 - `gwarden ask`, des réponses tirées des nœuds lisibles, par Claude (API Claude, Vertex AI, Google Cloud ou Microsoft Foundry, ces trois derniers sans clé d'API) ou tout modèle compatible OpenAI, local compris, enregistrées comme nœuds dérivés sur demande ;
 - `gwarden delete`, qui suit `DERIVED_FROM`, montré puis confirmé ;
 - une application web : pages, recherche, graphe (Sigma.js), questions, suppression et pages wiki, à jour en direct via SSE ;

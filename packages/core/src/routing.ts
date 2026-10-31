@@ -62,6 +62,8 @@ export function createRouter(options: RouterOptions): LLMProvider {
   if (remote === undefined && local === undefined) throw new Error("A router needs a remote or a local model");
   const record = recorder(audit, now);
   return {
+    // With no remote model, everything stays local whatever it holds.
+    narrows: (source) => remote !== undefined && policy.of(source) === "confidential",
     async complete(request: LLMRequest) {
       const sources = [...new Set(request.sources ?? [])].sort();
       const confidential = request.sources === undefined ? ["(unnamed)"] : sources.filter((source) => policy.of(source) === "confidential");

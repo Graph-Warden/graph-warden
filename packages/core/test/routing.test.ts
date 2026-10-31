@@ -106,6 +106,65 @@ describe("routing by sensitivity", () => {
     expect(routes.find((entry) => entry.model === "remote")).toMatchObject({ principal: lea, sources: ["docs:wiki"], confidential: [] });
   });
 
+  describe("a node derived from a confidential source", () => {
+    const derived = (id: string, source: string, body: string, from: string): { node: Node; edge: Edge } => ({ node: node(id, "Concept", source, body), edge: { type: "DERIVED_FROM", from: id, to: from } });
+
+    async function withDerived() {
+      const ready = await setup();
+      const first = derived("bonus-answer", "ask:lea", `Bonus figures: ${SECRET}.`, "hr-salaries");
+      const second = derived("bonus-digest", "ask:lea", `Quarterly digest: ${SECRET}.`, "bonus-answer");
+      await ready.writer.upsertNodes([first.node, second.node]);
+      await ready.writer.upsertEdges([first.edge, second.edge]);
+      return ready;
+    }
+
+    it("stays away from the remote model when `ask` finds it by its own words", async () => {
+      const { store, writer, audit, remote, llm } = await withDerived();
+      await expect(createAsker(store, writer, audit, llm).ask(lea, "bonus figures")).rejects.toThrow(Unroutable);
+      expect(leaks(remote.sent)).toEqual([]);
+    });
+
+    it("stays away from it however many derivations it took", async () => {
+      const { store, writer, audit, remote, llm } = await withDerived();
+      await expect(createAsker(store, writer, audit, llm).ask(lea, "quarterly digest")).rejects.toThrow(Unroutable);
+      expect(leaks(remote.sent)).toEqual([]);
+    });
+
+    const refused = (audit: ReturnType<typeof memoryAudit>) => audit.written.filter((entry) => entry.action === "route" && entry.denied === true && entry.confidential.includes("docs:hr"));
+
+    it("stays away from it when it is revalidated", async () => {
+      const { store, writer, audit, remote, llm } = await withDerived();
+      await writer.upsertNodes([node("bonus-code", "Module", "github:acme/bonus", "export function bonus() {}")]);
+      await writer.upsertEdges([{ type: "DERIVED_FROM", from: "bonus-answer", to: "bonus-code" }]);
+      await createRevalidator({ store, writer, llm, marks: noMarks }).revalidate({ change: "github:acme/bonus@abc", changed: ["bonus-code"], evidence: "bonus.ts: renamed", author: lea }).catch(() => undefined);
+      expect(refused(audit).length).toBeGreaterThan(0);
+      expect(leaks(remote.sent)).toEqual([]);
+    });
+
+    it("stays away from it when a node is recompiled from it", async () => {
+      const { store, writer, audit, remote, llm } = await withDerived();
+      await writer.upsertNodes([node("wiki-note", "Concept", "docs:notes", "Note."), node("summary", "Concept", "docs:wiki", "Summary.")]);
+      await writer.upsertEdges([{ type: "DERIVED_FROM", from: "summary", to: "wiki-note" }, { type: "DERIVED_FROM", from: "summary", to: "bonus-answer" }]);
+      const eraser = createEraser(store, writer, audit, { llm });
+      await expect(eraser.forget(lea, "docs:notes", (await eraser.plan(lea, "docs:notes")).digest)).rejects.toThrow(Unroutable);
+      expect(refused(audit).length).toBeGreaterThan(0);
+      expect(leaks(remote.sent)).toEqual([]);
+    });
+  });
+
+  it("keeps a confidential node out when only a link would bring it, so that a link never changes where a question goes", async () => {
+    const { store, writer, audit, llm, remote } = await setup();
+    await createAsker(store, writer, audit, llm).ask(lea, "Where is it announced?");
+    expect(leaks(remote.sent)).toEqual([]);
+    expect(remote.sent).toHaveLength(1);
+  });
+
+  it("follows links to anything when every question stays local anyway", async () => {
+    const local = spy();
+    const llm = createRouter({ local, policy: createSensitivityPolicy({ default: "confidential" }), audit: memoryAudit() });
+    expect(llm.narrows?.("docs:hr")).toBe(false);
+  });
+
   it("refuses confidential content when there is no local model, and audits the refusal", async () => {
     const { store, writer, audit, remote, llm } = await setup();
     const asker = createAsker(store, writer, audit, llm);

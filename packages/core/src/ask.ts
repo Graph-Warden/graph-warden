@@ -1,16 +1,17 @@
 import { createHash } from "node:crypto";
 import { Forbidden, recorder, type AuditLog } from "./audit.js";
-import { deriveScope } from "./derivation.js";
+import { contentSources, deriveScope } from "./derivation.js";
 import type { Writer } from "./events.js";
 import type { Node } from "./ontology.js";
 import type { Principal, Scope } from "./scope.js";
 import type { GraphStore } from "./store.js";
-import { retrieve, type RetrieveOptions } from "./search.js";
+import { fitContext, searchGraph, type RetrieveOptions, type TextIndex } from "./search.js";
 
 // Questions answered from the graph (proposal 0011), in the manner of an LLM-maintained wiki: the
 // model reads a few pages and answers with citations, and the answer can be filed back as a page.
 //
-// Retrieval happens here, not in the model: it picks among the nodes the principal may read, and
+// Retrieval happens here, not in the model: it picks among the nodes the principal may read, within
+// a budget of tokens (proposal 0013), and
 // the model sees those nodes and nothing else. So the nodes an answer may draw on are known exactly,
 // and a filed answer is derived (`DERIVED_FROM`) from all of them, cited or not: its scope is that
 // of every node the model read, and it is private to the asker unless they declare a wider one.
@@ -28,6 +29,10 @@ export interface LLMRequest {
 // Port for a language model.
 export interface LLMProvider {
   complete(request: LLMRequest): Promise<string>;
+  // Whether content of this source would send a request somewhere else (a router, issue #28), or
+  // refuse it. Retrieval does not follow a link to such a node: a question is read where its own
+  // words take it.
+  narrows?(source: string): boolean;
 }
 
 export interface AskOptions extends RetrieveOptions {
@@ -37,7 +42,7 @@ export interface AskOptions extends RetrieveOptions {
 
 export interface Answer {
   readonly answer: string;
-  // Every node the model read.
+  // Every node the model read, whole even if it read an excerpt.
   readonly sources: readonly Node[];
   readonly saved?: Node;
 }
@@ -49,8 +54,14 @@ export interface Asker {
 export interface AskerOptions {
   // Groups whose members may file answers. Asking needs none.
   readonly writers?: readonly string[];
+  // Tokens of documents handed to the model.
+  readonly budget?: number;
+  // Finds the nodes holding a question's words; every node is read without one.
+  readonly index?: TextIndex;
   readonly now?: () => Date;
 }
+
+export const DEFAULT_BUDGET = 8000;
 
 export const NOTHING_FOUND = "Nothing you may read matches this question.";
 
@@ -71,7 +82,7 @@ export function askPrompt(question: string, sources: readonly Node[]): string {
 }
 
 export function createAsker(store: GraphStore, writer: Writer, audit: AuditLog, llm: LLMProvider, options: AskerOptions = {}): Asker {
-  const { writers = [], now = () => new Date() } = options;
+  const { writers = [], budget = DEFAULT_BUDGET, index, now = () => new Date() } = options;
   const record = recorder(audit, now);
 
   return {
@@ -80,7 +91,15 @@ export function createAsker(store: GraphStore, writer: Writer, audit: AuditLog, 
         await record({ action: "ask", question, returned: [], denied: true }, principal);
         throw new Forbidden(`${principal.user} is not in a writer group and cannot file answers`);
       }
-      const sources = retrieve(await store.snapshot(), principal, question, options);
+      // Only what fits is read, so only what fits is recorded, routed and derived from.
+      const graph = await store.snapshot();
+      // A filed answer is scoped by all it read: a node the question did not ask for would narrow
+      // who can read it. So links only add to answers that are not filed.
+      const linkable = (node: Node) => options.save === undefined && !contentSources(graph, [node]).some((source) => llm.narrows?.(source));
+      const found = await searchGraph(graph, index, principal, question, { ...options, linkable });
+      const context = fitContext(found, question, budget);
+      const read = new Set(context.map((node) => node.id));
+      const sources = found.filter((node) => read.has(node.id));
       if (sources.length === 0) {
         await record({ action: "ask", question, returned: [] }, principal);
         return { answer: NOTHING_FOUND, sources };
@@ -95,8 +114,8 @@ export function createAsker(store: GraphStore, writer: Writer, audit: AuditLog, 
       await record({ action: "ask", question, returned: sources.map((n) => n.id), ...(id === undefined ? {} : { saved: id }) }, principal);
       const answer = await llm.complete({
         system: ASK_SYSTEM,
-        prompt: askPrompt(question, sources),
-        sources: sources.map((n) => n.provenance.source),
+        prompt: askPrompt(question, context),
+        sources: contentSources(graph, sources),
         principal,
       });
       if (id === undefined || options.save === undefined) return { answer, sources };

@@ -4,6 +4,7 @@ import {
   GraphEventSchema,
   EdgeSchema,
   NodeSchema,
+  nodeTerms,
   type AuditLog,
   type Edge,
   type EventLog,
@@ -12,6 +13,7 @@ import {
   type StaleMarks,
   type Node,
   type Scope,
+  type TextIndex,
 } from "@graph-warden/core";
 import neo4j, { type Driver, type Record as Neo4jRecord } from "neo4j-driver";
 
@@ -33,6 +35,34 @@ export async function ensureConstraints(driver: Driver): Promise<void> {
   await driver.executeQuery("CREATE INDEX event_node IF NOT EXISTS FOR (e:Event) ON (e.node)");
   await driver.executeQuery("CREATE CONSTRAINT ingestion_repo IF NOT EXISTS FOR (i:Ingestion) REQUIRE i.repo IS UNIQUE");
   await driver.executeQuery("CREATE CONSTRAINT stale_id IF NOT EXISTS FOR (s:Stale) REQUIRE s.id IS UNIQUE");
+  // Over the terms the domain computed, split on spaces only, so that Lucene matches what a scan of
+  // the graph matches. Consistent at commit: a node is found as soon as it is written.
+  await driver.executeQuery(
+    "CREATE FULLTEXT INDEX node_terms IF NOT EXISTS FOR (n:Node) ON EACH [n.terms] OPTIONS {indexConfig: {`fulltext.analyzer`: 'whitespace', `fulltext.eventually_consistent`: false}}",
+  );
+  await driver.executeQuery("CALL db.awaitIndex('node_terms', 60)");
+  await indexExistingNodes(driver);
+}
+
+// Nodes written before the index existed: otherwise search would silently miss them.
+async function indexExistingNodes(driver: Driver): Promise<void> {
+  const { records } = await driver.executeQuery("MATCH (n:Node) WHERE n.terms IS NULL RETURN n");
+  const rows = records.map(fromRecord).map((node) => ({ id: node.id, terms: toRow(node).terms }));
+  if (rows.length > 0) await driver.executeQuery("UNWIND $rows AS row MATCH (n:Node {id: row.id}) SET n.terms = row.terms", { rows });
+}
+
+// Full text over Neo4j's index. It returns every match, unranked and of every scope: `TextIndex`
+// says why. Ranking by Lucene's score would be ranking by words of documents the reader cannot see.
+export function createNeo4jTextIndex(driver: Driver): TextIndex {
+  return {
+    async matching(terms) {
+      if (terms.length === 0) return new Set();
+      // Each term in quotes, so that no term is read as Lucene syntax.
+      const query = terms.map((term) => `"${term}"`).join(" ");
+      const { records } = await driver.executeQuery("CALL db.index.fulltext.queryNodes('node_terms', $query) YIELD node RETURN node.id AS id", { query });
+      return new Set(records.map((record) => record.get("id") as string));
+    },
+  };
 }
 
 export function createNeo4jStore(driver: Driver): GraphStore {
@@ -227,6 +257,8 @@ interface Row {
   provenanceSha: string | null;
   title: string | null;
   body: string | null;
+  // What the full-text index reads: the node's terms, joined by spaces.
+  terms: string;
 }
 
 function toRow(node: Node): Row {
@@ -242,6 +274,7 @@ function toRow(node: Node): Row {
     provenanceSha: provenance.sha ?? null,
     title: node.title ?? null,
     body: node.body ?? null,
+    terms: nodeTerms(node).join(" "),
   };
 }
 

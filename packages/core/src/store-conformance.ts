@@ -1,4 +1,5 @@
 import type { Edge, Node } from "./ontology.js";
+import { nodeTerms, queryTerms, type TextIndex } from "./search.js";
 import type { GraphStore } from "./store.js";
 
 // The store conformance suite (issue #24): what every GraphStore must do, whatever it runs on.
@@ -109,6 +110,60 @@ export async function checkStore(make: () => GraphStore | Promise<GraphStore>): 
   for (const [name, check] of Object.entries(CHECKS)) {
     try {
       const problem = await check(await make());
+      if (problem !== undefined) violations.push(`${name}: ${problem}`);
+    } catch (error) {
+      violations.push(`${name}: threw ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  return violations;
+}
+
+// The same for a `TextIndex` over a store: `make` gives an empty pair each time.
+const INDEX_CHECKS: Record<string, (store: GraphStore, index: TextIndex) => Promise<string | undefined>> = {
+  "finds a node by its id, its title and its text": async (store, index) => {
+    await store.upsertNodes([base("falcon-notes"), base("b", { title: "Falcon" }), base("c", { body: "About falcon." }), base("d", { body: "Nothing here." })]);
+    const got = [...(await index.matching(queryTerms("falcon")))].sort();
+    return same(got, ["b", "c", "falcon-notes"]) ? undefined : `found ${JSON.stringify(got)}`;
+  },
+  "finds a node holding any one of the terms": async (store, index) => {
+    await store.upsertNodes([base("a", { body: "cursor" }), base("b", { body: "refund" }), base("c", { body: "other" })]);
+    const got = [...(await index.matching(queryTerms("cursor refund")))].sort();
+    return same(got, ["a", "b"]) ? undefined : `found ${JSON.stringify(got)}`;
+  },
+  "gives every match, with no limit": async (store, index) => {
+    await store.upsertNodes(Array.from({ length: 300 }, (_, i) => base(`n${i}`, { body: "orders" })));
+    const { size } = await index.matching(queryTerms("orders"));
+    return size === 300 ? undefined : `not every match: ${size} of 300`;
+  },
+  "gives nodes of every scope, leaving the scopes to the domain": async (store, index) => {
+    await store.upsertNodes([base("a", { body: "orders", scope: { kind: "private", user: "lea" } }), base("b", { body: "orders", scope: { kind: "shared" } })]);
+    const { size } = await index.matching(queryTerms("orders"));
+    return size === 2 ? undefined : `filtered to ${size}`;
+  },
+  "follows a node's text as it changes": async (store, index) => {
+    await store.upsertNodes([base("a", { body: "cursor" })]);
+    await store.upsertNodes([base("a", { body: "refund" })]);
+    return (await index.matching(queryTerms("cursor"))).size === 0 && (await index.matching(queryTerms("refund"))).has("a") ? undefined : "still indexed under its old text";
+  },
+  "forgets a deleted node": async (store, index) => {
+    await store.upsertNodes([base("a", { body: "cursor" })]);
+    await store.deleteNode("a");
+    return (await index.matching(queryTerms("cursor"))).size === 0 ? undefined : "still indexed after its deletion";
+  },
+  "takes any terms the domain gives": async (store, index) => {
+    const odd = base("odd", { body: 'AND OR NOT "quoted" (paren) a:b *star* \\ Ünïcode' });
+    await store.upsertNodes([odd]);
+    const got = await index.matching(nodeTerms(odd));
+    return got.has("odd") && (await index.matching([])).size === 0 ? undefined : "lost a node, or gave one for no term";
+  },
+};
+
+export async function checkTextIndex(make: () => { readonly store: GraphStore; readonly index: TextIndex } | Promise<{ readonly store: GraphStore; readonly index: TextIndex }>): Promise<string[]> {
+  const violations: string[] = [];
+  for (const [name, check] of Object.entries(INDEX_CHECKS)) {
+    try {
+      const { store, index } = await make();
+      const problem = await check(store, index);
       if (problem !== undefined) violations.push(`${name}: ${problem}`);
     } catch (error) {
       violations.push(`${name}: threw ${error instanceof Error ? error.message : String(error)}`);

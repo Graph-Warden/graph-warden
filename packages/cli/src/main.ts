@@ -34,6 +34,7 @@ import {
   createNeo4jIngestionState,
   createNeo4jStaleMarks,
   createNeo4jStore,
+  createNeo4jTextIndex,
   ensureConstraints,
 } from "@graph-warden/neo4j";
 import { createOpenAICompatibleProvider, LOCAL_BASE_URL } from "@graph-warden/openai";
@@ -91,7 +92,7 @@ async function run(command: Command): Promise<void> {
         // the read in the audit log before returning it.
         if (command.principal === undefined) throw new Error("--user is required without --api");
         await ensureConstraints(driver);
-        const reader = createReader(store, audit);
+        const reader = createReader(store, audit, { index: createNeo4jTextIndex(driver) });
         printNodes(await reader.traverse(command.principal, command.start, command.options), command.principal.user);
         break;
       }

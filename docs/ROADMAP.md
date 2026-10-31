@@ -29,6 +29,7 @@ Each line is a GitHub issue under the matching milestone. Labels in brackets.
 - [ ] `gwarden forget <source>` with propagation [core, security]
 - [x] `gwarden delete` following `DERIVED_FROM`, shown then confirmed (proposal 0011) [core, api, cli]
 - [x] `gwarden ask`, answers from readable nodes, filed as derived nodes (proposal 0011) [core, api, cli]
+- [x] Retrieval ranked by the graph, a context budget, full text behind a port that cannot interfere (proposal 0013) [core, neo4j, eval]
 
 ## M3 — Opening up
 - [ ] Source adapters: Markdown documents, GitLab, Confluence, Jira [adapter, good first issue]

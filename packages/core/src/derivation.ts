@@ -93,3 +93,22 @@ export function narrowDependents(graph: Graph, changed: readonly string[]): Node
   }
   return [...updated.values()];
 }
+
+// The sources of what a node's text holds: its own and those of everything it derives from, at any
+// distance (issue #28). A filed answer's provenance is the asker, yet its text comes from the
+// documents read: routing by the node's own source alone would send them out through it.
+export function contentSources(graph: Graph, nodes: readonly Node[]): readonly string[] {
+  const seen = new Set(nodes.map((node) => node.id));
+  const sources = new Set(nodes.map((node) => node.provenance.source));
+  const pending = [...seen];
+  for (let id = pending.pop(); id !== undefined; id = pending.pop()) {
+    for (const edge of graph.edges) {
+      if (edge.type !== "DERIVED_FROM" || edge.from !== id || seen.has(edge.to)) continue;
+      seen.add(edge.to);
+      pending.push(edge.to);
+      const source = graph.nodes.get(edge.to)?.provenance.source;
+      if (source !== undefined) sources.add(source);
+    }
+  }
+  return [...sources];
+}

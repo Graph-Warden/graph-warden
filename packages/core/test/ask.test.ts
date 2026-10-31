@@ -53,7 +53,7 @@ describe("retrieve", () => {
 
   it("picks only nodes the principal may read, best match first", () => {
     expect(retrieve(graph, bob, "How are orders paginated?").map((n) => n.id)).toEqual(["orders-api", "adr-0007"]);
-    expect(retrieve(graph, lea, "orders offset").map((n) => n.id)).toEqual(["orders-api", "adr-0007", "checkout"]);
+    expect(retrieve(graph, lea, "orders offset").map((n) => n.id)).toEqual(["orders-api", "checkout", "adr-0007"]);
   });
 
   it("puts an anchor and its readable neighbours first", () => {
