@@ -473,3 +473,18 @@ button:disabled {
 .impact dd {
   margin: 0;
 }
+
+.graph-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+}
+
+.graph-filters .legend label {
+  cursor: pointer;
+}
+
+.picked {
+  margin-block: 0.5rem;
+}

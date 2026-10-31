@@ -23,6 +23,7 @@ Each line is a GitHub issue under the matching milestone. Labels in brackets.
 - [ ] Event log, `gwarden pull` with SQLite cache [api, cli]
 - [x] SSE stream filtered by scope, resume with `Last-Event-ID` (proposal 0012) [api, security]
 - [x] Web app: pages, search, graph view (Sigma.js) with neighbourhood, live updates (proposal 0012) [web]
+- [x] Graph view at scale: 10k nodes, filters by type and team, neighbourhood expansion, layout in a web worker [web]
 - [x] Wiki pages written in the browser, saved over the version read (proposal 0012) [core, api, web]
 - [x] Time travel by commit and PR impact view [web]
 - [ ] `gwarden forget <source>` with propagation [core, security]
