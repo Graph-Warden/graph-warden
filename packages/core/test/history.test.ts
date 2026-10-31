@@ -33,8 +33,8 @@ describe("history", () => {
         node("gone-private", { kind: "private", user: "alice" }),
       ],
       [
-        { type: "RELATES_TO", from: "kept", to: "narrowed-since" },
-        { type: "RELATES_TO", from: "kept", to: "gone" },
+        { type: "IMPORTS", from: "kept", to: "narrowed-since" },
+        { type: "IMPORTS", from: "kept", to: "gone" },
       ],
     );
     const { store, audit, history } = setup({ at: { abc1234: then } });
@@ -43,7 +43,7 @@ describe("history", () => {
     const view = await history.at(bob, REPO, "abc1234");
     // Bob left the Data team's node, narrowed since, out; gone ones as git still has them.
     expect(view.nodes.map((n) => n.id).sort()).toEqual(["gone", "kept", "shared-since"]);
-    expect(view.edges).toEqual([{ type: "RELATES_TO", from: "kept", to: "gone" }]);
+    expect(view.edges).toEqual([{ type: "IMPORTS", from: "kept", to: "gone" }]);
     // Yan may read the narrowed node, not the one that was BFF's then.
     expect((await history.at(yan, REPO, "abc1234")).nodes.map((n) => n.id).sort()).toEqual(["gone", "kept", "narrowed-since"]);
     expect(audit.written[0]).toMatchObject({ action: "history", repo: REPO, sha: "abc1234", returned: ["kept", "shared-since", "gone"] });
@@ -80,8 +80,8 @@ describe("history", () => {
       { type: "CONSUMES", from: "front", to: "orders" },
       { type: "CONSUMES", from: "data-job", to: "orders" },
       { type: "DECIDES", from: "adr", to: "orders" },
-      { type: "RELATES_TO", from: "far", to: "front" },
-      { type: "RELATES_TO", from: "farther", to: "far" },
+      { type: "IMPORTS", from: "far", to: "front" },
+      { type: "IMPORTS", from: "farther", to: "far" },
     ];
     const before = createGraph(nodes, edges);
     const after = createGraph([...nodes.filter((n) => n.id !== "orders"), { ...endpoint, title: "GET /orders, paged" }], edges);
