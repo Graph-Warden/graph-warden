@@ -156,7 +156,7 @@ describe("routing by sensitivity", () => {
   describe("a node that lost a confidential source to a plain deletion", () => {
     async function afterDeletion() {
       const ready = await setup();
-      const answer = node("bonus-answer", "Concept", "ask:lea", `Bonus figures: ${SECRET}.`);
+      const answer: Node = { ...node("bonus-answer", "Concept", "ask:lea", `Bonus figures: ${SECRET}.`), scope: { kind: "team", team: "hr" } };
       const digest = node("bonus-digest", "Concept", "ask:lea", `Quarterly digest: ${SECRET}.`);
       const note = node("bonus-note", "Concept", "docs:wiki", "A note on bonuses.");
       await ready.writer.upsertNodes([answer, digest, note]);
@@ -186,6 +186,43 @@ describe("routing by sensitivity", () => {
       const { store } = await afterDeletion();
       expect((await store.getNode("bonus-answer"))?.heldSources).toEqual(["docs:hr"]);
       expect((await store.getNode("bonus-note"))?.heldSources).toBeUndefined();
+    });
+
+    // What ingestion writes: the document as read, which knows nothing of what the graph recorded.
+    const asIngested = { id: "bonus-answer", type: "Concept", scope: { kind: "shared" }, provenance: { source: "ask:lea", path: "bonus-answer" }, body: `Bonus figures: ${SECRET}.` } as const;
+
+    it("stays away from the remote model after it is ingested again", async () => {
+      const { store, writer, audit, remote, llm } = await afterDeletion();
+      await writer.upsertNodes([asIngested]);
+      await expect(createAsker(store, writer, audit, llm).ask(lea, "bonus figures")).rejects.toThrow(Unroutable);
+      expect(leaks(remote.sent)).toEqual([]);
+      expect((await store.getNode("bonus-answer"))?.heldSources).toEqual(["docs:hr"]);
+    });
+
+    it("does not widen when it is ingested again with a wider scope", async () => {
+      const { store, writer } = await afterDeletion();
+      const before = (await store.getNode("bonus-answer"))?.scope;
+      expect(before).not.toEqual({ kind: "shared" });
+      await writer.upsertNodes([asIngested]);
+      expect((await store.getNode("bonus-answer"))?.scope).toEqual(before);
+    });
+
+    it("is still reached by the erasure of that source after it is ingested again", async () => {
+      const { store, writer, audit } = await afterDeletion();
+      await writer.upsertNodes([asIngested]);
+      const eraser = createEraser(store, writer, audit, { llm: { complete: async () => "Written again." } });
+      const plan = await eraser.plan(lea, "docs:hr");
+      expect(plan.recompiled.map((n) => n.id)).toContain("bonus-answer");
+      await eraser.forget(lea, "docs:hr", plan.digest);
+      expect((await store.getNode("bonus-answer"))?.heldSources).toBeUndefined();
+    });
+
+    it("leaves a node that holds nothing free to change scope", async () => {
+      const { store, writer } = await afterDeletion();
+      const note = await store.getNode("bonus-note");
+      await writer.upsertNodes([{ ...(note as Node), scope: { kind: "team", team: "hr" } }]);
+      await writer.upsertNodes([{ ...(note as Node), scope: { kind: "shared" } }]);
+      expect((await store.getNode("bonus-note"))?.scope).toEqual({ kind: "shared" });
     });
 
     it("is reached by the erasure of that source, which leaves it without the source", async () => {

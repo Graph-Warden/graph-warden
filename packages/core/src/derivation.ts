@@ -53,7 +53,7 @@ export function deriveScopes(graph: Graph, author: Principal, ids: readonly stri
 // what deriveScope gives, without an author to check. Sources private to different users leave
 // nobody who reads them all: the node goes private to the user of its own private scope, or of
 // its first private source. Its content stays with someone who read part of it, never wider.
-function narrowed(current: Scope, sources: readonly Scope[]): Scope {
+export function narrowed(current: Scope, sources: readonly Scope[]): Scope {
   const all = [current, ...sources];
   const privateTo = all.filter((scope) => scope.kind === "private").map((scope) => (scope as { user: string }).user);
   if (privateTo.length > 0) return { kind: "private", user: current.kind === "private" ? current.user : (privateTo[0] ?? "") };
