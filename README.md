@@ -265,7 +265,7 @@ Graph databases already have role-based access, and agent-memory libraries alrea
 - Neo4j or any SPARQL 1.1 triplestore as the store;
 - a `docker compose` demo, a Cloud Run deployment and a Helm chart.
 
-**Not yet:** a Claude eval run published with the shared eval set ([#10](https://github.com/Graph-Warden/graph-warden/issues/10)), and the Helm chart run on a real GKE or AKS cluster ([#25](https://github.com/Graph-Warden/graph-warden/issues/25), [#26](https://github.com/Graph-Warden/graph-warden/issues/26)).
+**Not yet:** the Helm chart run on a real GKE or AKS cluster ([#25](https://github.com/Graph-Warden/graph-warden/issues/25), [#26](https://github.com/Graph-Warden/graph-warden/issues/26)).
 
 ---
 

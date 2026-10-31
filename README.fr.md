@@ -267,7 +267,7 @@ Les bases de graphe ont déjà un contrôle d'accès par rôle, et les biblioth�
 - Neo4j ou n'importe quel triplestore SPARQL 1.1 comme store ;
 - une démo `docker compose`, un déploiement Cloud Run et un chart Helm.
 
-**Pas encore :** une exécution de l'éval Claude publiée avec le jeu d'éval partagé ([#10](https://github.com/Graph-Warden/graph-warden/issues/10)), et le chart Helm exécuté sur un vrai cluster GKE ou AKS ([#25](https://github.com/Graph-Warden/graph-warden/issues/25), [#26](https://github.com/Graph-Warden/graph-warden/issues/26)).
+**Pas encore :** le chart Helm exécuté sur un vrai cluster GKE ou AKS ([#25](https://github.com/Graph-Warden/graph-warden/issues/25), [#26](https://github.com/Graph-Warden/graph-warden/issues/26)).
 
 ---
 
