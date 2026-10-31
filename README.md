@@ -9,7 +9,7 @@
 
 # Graph-Warden
 
-**One knowledge graph for every team's AI agents, with rights checked on every hop.**
+**For security teams: AI agents get only what the person they act for may read.**
 
 Graph-Warden collects what teams already write (repositories, API specs, docs, agent sessions), links it into one typed graph, and lets AI agents query it. Every query is made on behalf of a person, returns only what that person may see, and is recorded.
 
@@ -85,9 +85,19 @@ One graph, five people, five correct views — and nobody configured a filter fo
 | **Your directory decides** | Users and groups come from your identity provider (Entra ID, Okta, Keycloak, Google Workspace…). No second user base to maintain. |
 | **Erasure of a whole source** | Erasing a source (GDPR article 17) applies the same deletion to every document it brought in. |
 
+**What it does not guarantee yet.**
+
+- Non-interference is checked by property tests over random graphs, not by a formal proof. Response time is not covered: a search over more hidden nodes takes longer.
+- Local models obey instructions planted in a document ([results](packages/eval/RESULTS.md)). Scopes still bound what they can read, but their answer can be steered by anyone who can write a document the asker reads.
+- Ingesting a document again replaces its node, which clears the sources it recorded as held after a deletion.
+- It has been measured on its example corpus only ([#88](https://github.com/Graph-Warden/graph-warden/issues/88)). Do not load confidential data yet.
+
 ## Who it is for
 
-- **Security teams: agents that do not leak.** Rights are checked on every step of a traversal, not only on the result.
+- **Security teams, first.** Agents get only what the person they act for may read: rights are checked on every step of a traversal, not only on the result.
+
+The same graph also serves:
+
 - **Engineering teams: cross-team impact before the merge.** When the BFF team changes an endpoint, the front-end teams that consume it are told in the pull request, before it breaks in production, by a GitHub Action that comments the pull request.
 - **Data protection and audit: compliance built in.** Every read an agent makes on behalf of a user is recorded, and erasure reaches everything an LLM derived from the erased source.
 - **Infrastructure teams: it fits a large group's constraints.**
@@ -261,11 +271,12 @@ Graph databases already have role-based access, and agent-memory libraries alrea
 - TypeScript and OpenAPI analyzers, and connectors for Jira, Confluence and GitLab, scoped by their own permissions;
 - an MCP server, GitHub Actions for ingestion and pull request impact, and coding-agent sessions captured privately until promoted;
 - exports to Markdown, JSON-LD and GraphML; model routing by sensitivity, with a local model for sensitive sources;
+- a shared evaluation set, run on Claude and on local models ([results](packages/eval/RESULTS.md));
 - time travel by commit and a pull request's impact in the web app, whose graph view takes 10,000 nodes;
 - Neo4j or any SPARQL 1.1 triplestore as the store;
 - a `docker compose` demo, a Cloud Run deployment and a Helm chart.
 
-**Not yet:** a Claude eval run published with the shared eval set ([#10](https://github.com/Graph-Warden/graph-warden/issues/10)), and the Helm chart run on a real GKE or AKS cluster ([#25](https://github.com/Graph-Warden/graph-warden/issues/25), [#26](https://github.com/Graph-Warden/graph-warden/issues/26)).
+**Not yet:** the Helm chart run on a real GKE or AKS cluster ([#25](https://github.com/Graph-Warden/graph-warden/issues/25), [#26](https://github.com/Graph-Warden/graph-warden/issues/26)).
 
 ---
 

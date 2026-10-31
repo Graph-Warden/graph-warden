@@ -23,4 +23,4 @@ The usual fixes break non-interference (proposal 0002). A search engine's scores
 - Precision falls as recall rises: linked nodes are often not what the question needed, and the budget pays for them. The same question can read more when asked than when filed.
 - Terms are prefixes of five characters, a language-neutral approximation: `paginated` meets `pagination`, `erased` does not meet `erasure`. They do not translate, so a question in French misses a document in English that shares no root with it.
 - Changing how terms are computed means reindexing: `ensureConstraints` only fills nodes that have no terms.
-- A node keeps its text after a plain deletion of a source (proposal 0011), but loses the edge that made it sensitive. Erasure recompiles; plain deletion does not.
+- A node keeps its text after a plain deletion of a source (proposal 0011), so it records the sources it loses (`heldSources`): routing still reads them, and erasing such a source reaches the node. Ingesting a document again replaces the node and clears them.

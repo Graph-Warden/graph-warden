@@ -2,6 +2,14 @@
 
 Each line is a GitHub issue under the matching milestone. Labels in brackets.
 
+## Pass and stop criteria
+
+What decides whether the differentiator holds, written before the evidence exists.
+
+- **Pass:** an outside team runs Graph-Warden on its own documents ([#88](https://github.com/Graph-Warden/graph-warden/issues/88)) and publishes the results, with no read outside a reader's scope, and recall of at least 80% on lexical and linked queries.
+- **Stop or redirect:** no outside team has run it by 2027-01-31, or a leak turns out to come from the design rather than from a bug. Then the project stops adding features and stays a reference implementation of per-hop checks.
+- **Until then:** no new feature starts before the audience ([#89](https://github.com/Graph-Warden/graph-warden/issues/89)) and the measure above are settled. Fixes, documentation and what those two need do not count as features.
+
 ## M0 — Foundation
 - [x] Repository, pnpm monorepo, strict TypeScript, CI, license, contribution and security docs
 - [x] Ontology in Zod, Neo4j constraints, Neo4j `GraphStore` [core]

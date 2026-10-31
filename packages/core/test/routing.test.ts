@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createAsker,
+  createEditor,
   createEraser,
   createRevalidator,
   createRouter,
@@ -149,6 +150,60 @@ describe("routing by sensitivity", () => {
       await expect(eraser.forget(lea, "docs:notes", (await eraser.plan(lea, "docs:notes")).digest)).rejects.toThrow(Unroutable);
       expect(refused(audit).length).toBeGreaterThan(0);
       expect(leaks(remote.sent)).toEqual([]);
+    });
+  });
+
+  describe("a node that lost a confidential source to a plain deletion", () => {
+    async function afterDeletion() {
+      const ready = await setup();
+      const answer = node("bonus-answer", "Concept", "ask:lea", `Bonus figures: ${SECRET}.`);
+      const digest = node("bonus-digest", "Concept", "ask:lea", `Quarterly digest: ${SECRET}.`);
+      const note = node("bonus-note", "Concept", "docs:wiki", "A note on bonuses.");
+      await ready.writer.upsertNodes([answer, digest, note]);
+      await ready.writer.upsertEdges([
+        { type: "DERIVED_FROM", from: "bonus-answer", to: "hr-salaries" },
+        { type: "DERIVED_FROM", from: "bonus-answer", to: "bonus-note" },
+        { type: "DERIVED_FROM", from: "bonus-digest", to: "bonus-answer" },
+      ]);
+      const editor = createEditor(ready.store, ready.writer, ready.audit, { writers: lea.teams });
+      await editor.deleteNode(lea, "hr-salaries", (await editor.planDeletion(lea, "hr-salaries")).digest);
+      return ready;
+    }
+
+    it("keeps its text away from the remote model", async () => {
+      const { store, writer, audit, remote, llm } = await afterDeletion();
+      await expect(createAsker(store, writer, audit, llm).ask(lea, "bonus figures")).rejects.toThrow(Unroutable);
+      expect(leaks(remote.sent)).toEqual([]);
+    });
+
+    it("keeps away what derives from it too", async () => {
+      const { store, writer, audit, remote, llm } = await afterDeletion();
+      await expect(createAsker(store, writer, audit, llm).ask(lea, "quarterly digest")).rejects.toThrow(Unroutable);
+      expect(leaks(remote.sent)).toEqual([]);
+    });
+
+    it("records the source lost on the node, and nothing on nodes that lost none", async () => {
+      const { store } = await afterDeletion();
+      expect((await store.getNode("bonus-answer"))?.heldSources).toEqual(["docs:hr"]);
+      expect((await store.getNode("bonus-note"))?.heldSources).toBeUndefined();
+    });
+
+    it("is reached by the erasure of that source, which leaves it without the source", async () => {
+      const { store, writer, audit } = await afterDeletion();
+      const eraser = createEraser(store, writer, audit, { llm: { complete: async () => "Written again." } });
+      const plan = await eraser.plan(lea, "docs:hr");
+      expect(plan.recompiled.map((n) => n.id)).toContain("bonus-answer");
+      await eraser.forget(lea, "docs:hr", plan.digest);
+      const rewritten = await store.getNode("bonus-answer");
+      expect(rewritten?.body).toBe("Written again.");
+      expect(rewritten?.heldSources).toBeUndefined();
+    });
+
+    it("is deleted by that erasure when no model can write it again", async () => {
+      const { store, writer, audit } = await afterDeletion();
+      const eraser = createEraser(store, writer, audit);
+      await eraser.forget(lea, "docs:hr", (await eraser.plan(lea, "docs:hr")).digest);
+      expect(await store.getNode("bonus-answer")).toBeUndefined();
     });
   });
 

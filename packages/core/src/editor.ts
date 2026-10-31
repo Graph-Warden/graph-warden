@@ -63,6 +63,8 @@ export function createEditor(store: GraphStore, writer: Writer, audit: AuditLog,
       // Recorded before the writes, like a read before its result: a deletion that cannot be
       // audited does not happen.
       await record({ action: "delete", target: id, detached: result.detached.map(edgeName), returned: result.deleted.map((n) => n.id) }, principal);
+      // Before the edges go: a failure must not leave a node that looks less sensitive than it is.
+      await writer.upsertNodes(result.marked);
       await writer.deleteEdges(result.detached);
       for (const node of result.deleted) await writer.deleteNode(node.id);
       return result;

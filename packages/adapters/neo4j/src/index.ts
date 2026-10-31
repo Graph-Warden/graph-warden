@@ -257,6 +257,7 @@ interface Row {
   provenanceSha: string | null;
   title: string | null;
   body: string | null;
+  heldSources: string[] | null;
   // What the full-text index reads: the node's terms, joined by spaces.
   terms: string;
 }
@@ -274,6 +275,7 @@ function toRow(node: Node): Row {
     provenanceSha: provenance.sha ?? null,
     title: node.title ?? null,
     body: node.body ?? null,
+    heldSources: node.heldSources === undefined ? null : [...node.heldSources],
     terms: nodeTerms(node).join(" "),
   };
 }
@@ -295,7 +297,8 @@ function fromRecord(record: Neo4jRecord): Node {
   };
   const title = row.title === null || row.title === undefined ? {} : { title: row.title };
   const body = row.body === null || row.body === undefined ? {} : { body: row.body };
-  return NodeSchema.parse({ id: row.id, type: row.type, scope, provenance, ...title, ...body });
+  const held = row.heldSources === null || row.heldSources === undefined ? {} : { heldSources: row.heldSources };
+  return NodeSchema.parse({ id: row.id, type: row.type, scope, provenance, ...title, ...body, ...held });
 }
 
 function groupBy<T, K>(items: readonly T[], key: (item: T) => K): Map<K, T[]> {

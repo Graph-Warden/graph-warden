@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { contentSources } from "./derivation.js";
 import type { Edge, Node } from "./ontology.js";
 import { canRead, type Principal } from "./scope.js";
 import type { Graph } from "./traversal.js";
@@ -11,7 +12,8 @@ import type { Graph } from "./traversal.js";
 // - a node whose every source is deleted is deleted too, and so on down the chain.
 // A node that loses a source keeps its scope: its text was written from that source too, and
 // widening the scope to its remaining sources would show that text to people who could never read
-// the deleted one.
+// the deleted one. For the same reason it keeps the source's sensitivity: the edge is gone but the
+// text is not, so the sources it held are written on the node (`heldSources`).
 
 export interface DeletionPlan {
   // The node asked for.
@@ -20,6 +22,8 @@ export interface DeletionPlan {
   readonly deleted: readonly Node[];
   // `DERIVED_FROM` edges removed from nodes that survive because they have other sources.
   readonly detached: readonly Edge[];
+  // The nodes that lose an edge, recording the sources their text keeps from it.
+  readonly marked: readonly Node[];
   // Fingerprint of the plan. A deletion carries the digest of the plan its user confirmed, and is
   // refused if the graph changed since, so a confirmation never covers more than was shown.
   readonly digest: string;
@@ -66,5 +70,11 @@ export function planDeletion(graph: Graph, principal: Principal, id: string): De
     .update(JSON.stringify({ deleted: [...deleted].sort(), detached: detached.map((e) => `${e.from}>${e.to}`).sort() }))
     .digest("hex")
     .slice(0, 16);
-  return { target, deleted: nodes, detached, digest };
+  const marked = [...new Set(detached.map((e) => e.from))].flatMap((id) => {
+    const node = graph.nodes.get(id);
+    if (node === undefined) return [];
+    const lost = detached.filter((e) => e.from === id).flatMap((e) => graph.nodes.get(e.to) ?? []);
+    return [{ ...node, heldSources: [...new Set([...(node.heldSources ?? []), ...contentSources(graph, lost)])].sort() }];
+  });
+  return { target, deleted: nodes, detached, marked, digest };
 }

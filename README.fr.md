@@ -9,7 +9,7 @@
 
 # Graph-Warden
 
-**Un seul graphe de connaissance pour les agents IA de toutes les équipes, avec des droits vérifiés à chaque saut.**
+**Pour les équipes sécurité : les agents IA n'obtiennent que ce que la personne pour laquelle ils agissent peut lire.**
 
 Graph-Warden rassemble ce que les équipes écrivent déjà (dépôts, specs d'API, documentation, sessions d'agents), le relie en un graphe typé, et permet aux agents IA de l'interroger. Chaque requête est faite au nom d'une personne, ne renvoie que ce que cette personne a le droit de voir, et est enregistrée.
 
@@ -87,9 +87,19 @@ Un graphe, cinq personnes, cinq vues correctes — et personne n'a configuré de
 | **Votre annuaire décide** | Utilisateurs et groupes viennent de votre fournisseur d'identité (Entra ID, Okta, Keycloak, Google Workspace…). Pas de seconde base d'utilisateurs à maintenir. |
 | **Effacement d'une source entière** | Effacer une source (RGPD, article 17) applique la même suppression à chaque document qu'elle a apporté. |
 
+**Ce qu'il ne garantit pas encore.**
+
+- La non-interférence est vérifiée par des tests de propriétés sur des graphes aléatoires, pas par une preuve formelle. Le temps de réponse n'est pas couvert : une recherche sur plus de nœuds cachés prend plus de temps.
+- Les modèles locaux obéissent aux instructions glissées dans un document ([résultats](packages/eval/RESULTS.md)). Les scopes bornent toujours ce qu'ils peuvent lire, mais leur réponse peut être orientée par quiconque écrit un document que lit l'auteur de la question.
+- Réingérer un document remplace son nœud, ce qui efface les sources qu'il avait conservées après une suppression.
+- Il n'a été mesuré que sur son corpus d'exemple ([#88](https://github.com/Graph-Warden/graph-warden/issues/88)). Ne chargez pas encore de données confidentielles.
+
 ## Pour qui
 
-- **Équipes sécurité : des agents qui ne fuient pas.** Les droits sont vérifiés à chaque pas d'une traversée, pas seulement sur le résultat.
+- **Les équipes sécurité, d'abord.** Les agents n'obtiennent que ce que la personne pour laquelle ils agissent peut lire : les droits sont vérifiés à chaque pas d'une traversée, pas seulement sur le résultat.
+
+Le même graphe sert aussi :
+
 - **Équipes de développement : l'impact inter-équipes avant le merge.** Quand l'équipe BFF change un endpoint, les équipes front qui le consomment sont prévenues dans la pull request, avant que ça casse en production, par une GitHub Action qui commente la pull request.
 - **Protection des données et audit : la conformité intégrée.** Chaque lecture faite par un agent au nom d'un utilisateur est enregistrée, et l'effacement atteint tout ce qu'un LLM a dérivé de la source effacée.
 - **Équipes infrastructure : il tient dans les contraintes d'un grand groupe.**
@@ -263,11 +273,12 @@ Les bases de graphe ont déjà un contrôle d'accès par rôle, et les biblioth�
 - des analyseurs TypeScript et OpenAPI, et des connecteurs Jira, Confluence et GitLab, scopés par leurs propres permissions ;
 - un serveur MCP, des GitHub Actions pour l'ingestion et l'impact des pull requests, et les sessions d'agents de code capturées en privé jusqu'à leur promotion ;
 - des exports Markdown, JSON-LD et GraphML ; le routage des modèles par sensibilité, avec un modèle local pour les sources sensibles ;
+- un jeu d'évaluation partagé, exécuté sur Claude et sur des modèles locaux ([résultats](packages/eval/RESULTS.md)) ;
 - le voyage dans le temps par commit et l'impact d'une pull request dans l'application web, dont la vue graphe tient 10 000 nœuds ;
 - Neo4j ou n'importe quel triplestore SPARQL 1.1 comme store ;
 - une démo `docker compose`, un déploiement Cloud Run et un chart Helm.
 
-**Pas encore :** une exécution de l'éval Claude publiée avec le jeu d'éval partagé ([#10](https://github.com/Graph-Warden/graph-warden/issues/10)), et le chart Helm exécuté sur un vrai cluster GKE ou AKS ([#25](https://github.com/Graph-Warden/graph-warden/issues/25), [#26](https://github.com/Graph-Warden/graph-warden/issues/26)).
+**Pas encore :** le chart Helm exécuté sur un vrai cluster GKE ou AKS ([#25](https://github.com/Graph-Warden/graph-warden/issues/25), [#26](https://github.com/Graph-Warden/graph-warden/issues/26)).
 
 ---
 
