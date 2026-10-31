@@ -85,13 +85,13 @@ Un graphe, cinq personnes, cinq vues correctes — et personne n'a configuré de
 | **Les réponses restent dans vos droits** | Une réponse d'IA n'est écrite qu'à partir de ce que vous pouvez lire, et une réponse enregistrée n'est visible que par qui peut lire tout ce dont elle est tirée. |
 | **La suppression suit les synthèses** | Supprimer un document supprime les synthèses construites uniquement à partir de lui, et ne fait que délier celles qui ont d'autres sources. Vous voyez la liste complète et tapez le nom avant que quoi que ce soit parte. |
 | **Votre annuaire décide** | Utilisateurs et groupes viennent de votre fournisseur d'identité (Entra ID, Okta, Keycloak, Google Workspace…). Pas de seconde base d'utilisateurs à maintenir. |
-| **Effacement d'une source entière** *(prévu)* | Effacer une source (RGPD, article 17) applique la même suppression à chaque document qu'elle a apporté. |
+| **Effacement d'une source entière** | Effacer une source (RGPD, article 17) applique la même suppression à chaque document qu'elle a apporté. |
 
 ## Pour qui
 
 - **Équipes sécurité : des agents qui ne fuient pas.** Les droits sont vérifiés à chaque pas d'une traversée, pas seulement sur le résultat.
-- **Équipes de développement : l'impact inter-équipes avant le merge.** Quand l'équipe BFF change un endpoint, les équipes front qui le consomment sont prévenues dans la pull request, avant que ça casse en production *(prévu, M2)*.
-- **Protection des données et audit : la conformité intégrée.** Chaque lecture faite par un agent au nom d'un utilisateur est enregistrée, et l'effacement atteindra tout ce qu'un LLM a dérivé de la source effacée.
+- **Équipes de développement : l'impact inter-équipes avant le merge.** Quand l'équipe BFF change un endpoint, les équipes front qui le consomment sont prévenues dans la pull request, avant que ça casse en production, par une GitHub Action qui commente la pull request.
+- **Protection des données et audit : la conformité intégrée.** Chaque lecture faite par un agent au nom d'un utilisateur est enregistrée, et l'effacement atteint tout ce qu'un LLM a dérivé de la source effacée.
 - **Équipes infrastructure : il tient dans les contraintes d'un grand groupe.**
   - Auto-hébergé, sur GCP, Azure ou on-premise.
   - Les postes développeurs n'ouvrent aucun port entrant : ils tirent la partie du graphe que leur utilisateur peut voir.
@@ -257,9 +257,16 @@ Les bases de graphe ont déjà un contrôle d'accès par rôle, et les biblioth�
 - `gwarden ask`, des réponses tirées des nœuds lisibles, par Claude (API Claude, Vertex AI, ou Google Cloud sans clé d'API) ou tout modèle compatible OpenAI, local compris, enregistrées comme nœuds dérivés sur demande ;
 - `gwarden delete`, qui suit `DERIVED_FROM`, montré puis confirmé ;
 - une application web : pages, recherche, graphe (Sigma.js), questions, suppression et pages wiki, à jour en direct via SSE ;
-- une démo `docker compose` et un déploiement Cloud Run.
+- `gwarden forget`, l'effacement d'une source entière avec ce qui en dérive ; les scopes dérivés rétrécis quand une source rétrécit ;
+- un worker qui ingère sur webhook (GitHub, GitLab) ou par polling, derrière une file Redis, et revalide les connaissances qu'un commit contredit ;
+- des analyseurs TypeScript et OpenAPI, et des connecteurs Jira, Confluence et GitLab, scopés par leurs propres permissions ;
+- un serveur MCP, des GitHub Actions pour l'ingestion et l'impact des pull requests, et les sessions d'agents de code capturées en privé jusqu'à leur promotion ;
+- des exports Markdown, JSON-LD et GraphML ; le routage des modèles par sensibilité, avec un modèle local pour les sources sensibles ;
+- le voyage dans le temps par commit et l'impact d'une pull request dans l'application web, dont la vue graphe tient 10 000 nœuds ;
+- Neo4j ou n'importe quel triplestore SPARQL 1.1 comme store ;
+- une démo `docker compose`, un déploiement Cloud Run et un chart Helm.
 
-**Pas encore :** la revalidation des scopes dérivés quand une source ou un groupe change, l'effacement d'une source entière, MCP, la compilation par LLM, et le voyage dans le temps dans l'application web. La conception est arrêtée dans [`docs/proposals`](docs/proposals) ; le travail est suivi dans les [issues](https://github.com/Graph-Warden/graph-warden/issues).
+**Pas encore :** une exécution de l'éval Claude publiée avec le jeu d'éval partagé ([#10](https://github.com/Graph-Warden/graph-warden/issues/10)), et le chart Helm exécuté sur un vrai cluster GKE ou AKS ([#25](https://github.com/Graph-Warden/graph-warden/issues/25), [#26](https://github.com/Graph-Warden/graph-warden/issues/26)).
 
 ---
 
@@ -297,7 +304,7 @@ flowchart LR
     C4["CLI gwarden<br/>+ cache local"] -- pull --> API
 ```
 
-Aujourd'hui : l'ingestion de documents par le CLI, Neo4j, l'API REST, les fournisseurs d'identité, `gwarden pull`, les réponses aux questions par Claude, et l'application web, en direct via SSE. Prévu : la file, la compilation par LLM, les webhooks et MCP.
+Tout fonctionne aujourd'hui : la file (en mémoire, ou Redis), les webhooks et le polling, la revalidation par LLM, l'API REST et MCP, `gwarden pull`, et l'application web, en direct via SSE.
 
 - **Le graphe est la source de vérité**, jamais les fichiers dont il est construit. Il vit sur un serveur : Neo4j en local (`pnpm db:up`) ou un déploiement hébergé, d'où `gwarden pull` ne récupère que ce que l'utilisateur peut voir.
 - **Un seul écrivain, ingestion ordonnée** *(conception)* : seul le merge sur `main` écrit les nœuds partagés, dans l'ordre des commits, et rejouer un webhook ne crée aucun doublon ([proposal 0004](docs/proposals/0004-single-writer-ordered-ingestion.md)).
@@ -524,10 +531,9 @@ Réglages de l'API pour les écritures : `GWARDEN_WRITERS` (groupes autorisés �
 | `packages/adapters/documents` | Documents Markdown, JSON et YAML en nœuds et arêtes typées, avec leur texte | M1, première tranche |
 | `packages/adapters/anthropic` | `LLMProvider` sur Claude | première tranche |
 | `packages/adapters/openai` | `LLMProvider` sur toute API compatible OpenAI (OpenAI, Azure OpenAI, Mistral, Ollama, vLLM, LM Studio) | première tranche |
-| `packages/cli` | `gwarden ingest`, `traverse`, `audit`, `pull`, `cache`, `ask`, `delete` ; plus tard `forget`, impact de PR | M0–M2 |
-| `packages/api` | REST avec OpenAPI, seul point d'accès des lecteurs au graphe ; connexion des navigateurs, flux SSE, pages wiki ; webhooks plus tard | M2, première tranche |
-| `packages/mcp` | Serveur MCP | M2, prévu |
-| `packages/worker` | Consommateur de la file d'ingestion, appels LLM | M1, prévu |
+| `packages/cli` | `gwarden ingest`, `traverse`, `audit`, `pull`, `cache`, `ask`, `delete`, `forget`, `impact`, `export`, `capture`, `promote` | M0–M2 |
+| `packages/api` | REST avec OpenAPI, seul point d'accès des lecteurs au graphe ; connexion des navigateurs, flux SSE, MCP, pages wiki, historique | M2, première tranche |
+| `packages/worker` | Consommateur de la file d'ingestion : webhooks, polling, connecteurs, revalidation | fait |
 | `packages/web` | Application web : pages, recherche, graphe (Sigma.js), questions, pages wiki, en direct via SSE ([proposal 0012](docs/proposals/0012-web-app-stream-and-wiki-pages.md)) | M2, première tranche |
 | `packages/adapters/*` | Autres sources, fournisseurs LLM, stockages, files, analyseurs | M1+ |
 
@@ -553,7 +559,7 @@ Le core porte les règles et définit les ports ; les adaptateurs les implément
 
 ## Contribuer
 
-Les adaptateurs sont la porte d'entrée la plus simple : chaque type a une interface typée dans `core` (une suite de conformité partagée par type est prévue). Lisez [CONTRIBUTING.md](CONTRIBUTING.md), puis choisissez une issue étiquetée [`good first issue`](https://github.com/Graph-Warden/graph-warden/labels/good%20first%20issue). Les commits suivent Conventional Commits et sont signés (`git commit -s`).
+Les adaptateurs sont la porte d'entrée la plus simple : chaque type a une interface typée dans `core` (avec une suite de conformité partagée pour les sources et les stores). Lisez [CONTRIBUTING.md](CONTRIBUTING.md), puis choisissez une issue étiquetée [`good first issue`](https://github.com/Graph-Warden/graph-warden/labels/good%20first%20issue). Les commits suivent Conventional Commits et sont signés (`git commit -s`).
 
 Vous avez trouvé un moyen de lire ce que vous ne devriez pas ? Signalez-le en privé : voir [SECURITY.md](SECURITY.md).
 
