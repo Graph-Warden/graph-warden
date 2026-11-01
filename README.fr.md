@@ -97,12 +97,13 @@ Un graphe, cinq personnes, cinq vues correctes — et personne n'a configuré de
 | **Les réponses restent dans vos droits** | Une réponse d'IA n'est écrite qu'à partir de ce que vous pouvez lire, et une réponse enregistrée n'est visible que par qui peut lire tout ce dont elle est tirée. |
 | **La suppression suit les synthèses** | Supprimer un document supprime les synthèses construites uniquement à partir de lui, et ne fait que délier celles qui ont d'autres sources. Vous voyez la liste complète et tapez le nom avant que quoi que ce soit parte. |
 | **Votre annuaire décide** | Utilisateurs et groupes viennent de votre fournisseur d'identité (Entra ID, Okta, Keycloak, Google Workspace…). Pas de seconde base d'utilisateurs à maintenir. |
-| **Effacement d'une source entière** | Effacer une source (RGPD, article 17) applique la même suppression à chaque document qu'elle a apporté. |
+| **Effacement d'une source entière** | Effacer une source (RGPD, article 17) applique la même suppression à chaque document qu'elle a apporté, puis la tient à l'écart, même si elle contient encore le texte, jusqu'à ce qu'un opérateur la réadmette. |
 
 **Ce qu'il ne garantit pas encore.**
 
 - La non-interférence est vérifiée par des tests de propriétés sur des graphes aléatoires, pas par une preuve formelle. Le temps de réponse n'est pas couvert : une recherche sur plus de nœuds cachés prend plus de temps.
 - Les modèles locaux obéissent aux instructions glissées dans un document ([résultats](packages/eval/RESULTS.md)). Les scopes bornent toujours ce qu'ils peuvent lire, mais leur réponse peut être orientée par quiconque écrit un document que lit l'auteur de la question.
+- L'effacement arrête une source, pas ses mots : le même texte recopié dans une autre source reste, et l'opérateur qui réadmet une source répond de ce qu'elle contient encore.
 - Il n'a été mesuré que sur son corpus d'exemple ([#88](https://github.com/Graph-Warden/graph-warden/issues/88)). Ne chargez pas encore de données confidentielles.
 
 ## Pour qui

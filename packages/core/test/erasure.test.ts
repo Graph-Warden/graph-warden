@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeDelta, createEraser, createWriter, ErasureConflict, type LLMProvider, type Node, type Scope, type StaleMark, type StaleMarks } from "../src/index.js";
+import { computeDelta, createEraser, createWriter, ErasureConflict, SourceErased, type LLMProvider, type Node, type Scope, type StaleMark, type StaleMarks } from "../src/index.js";
 import { memoryAudit, memoryEvents, memoryStore } from "./memory.js";
 
 // Issue #17: after forget, no node in the graph, no cache brought up to date and no event of the
@@ -116,5 +116,48 @@ describe("forget", () => {
     await createWriter(store, memoryEvents()).upsertNodes([node("crm-3", "crm", "late")]);
     await expect(eraser.forget(dpo, "crm", plan.digest)).rejects.toThrow(ErasureConflict);
     expect((await store.snapshot()).nodes.has("crm-1")).toBe(true);
+  });
+});
+
+// A source that still holds the text would bring it back: nothing keeps the text to recognise it,
+// so the source itself stays out until an operator says it was cleaned.
+describe("an erased source", () => {
+  const erase = async () => {
+    const context = await setup();
+    const plan = await context.eraser.plan(dpo, "crm");
+    await context.eraser.forget(dpo, "crm", plan.digest);
+    return { ...context, writer: createWriter(context.store, context.events) };
+  };
+
+  it("cannot be written again", async () => {
+    const { store, writer } = await erase();
+    await expect(writer.upsertNodes([node("crm-1", "crm", SECRET)])).rejects.toBeInstanceOf(SourceErased);
+    expect(await store.getNode("crm-1")).toBeUndefined();
+  });
+
+  it("does not stop other sources", async () => {
+    const { writer, store } = await erase();
+    await writer.upsertNodes([node("wiki-2", "wiki", "Visiting hours.")]);
+    expect(await store.getNode("wiki-2")).toBeDefined();
+  });
+
+  it("is remembered by name, never by content", async () => {
+    const { store } = await erase();
+    expect([...(await store.erasedSources())]).toEqual(["crm"]);
+  });
+
+  it("stays out when the model fails before anything is erased", async () => {
+    const { store, eraser } = await setup({ complete: async () => { throw new Error("model down"); } });
+    const plan = await eraser.plan(dpo, "crm");
+    await expect(eraser.forget(dpo, "crm", plan.digest)).rejects.toThrow("model down");
+    expect((await store.erasedSources()).size).toBe(0);
+  });
+
+  it("comes back when an operator readmits it, and that is audited", async () => {
+    const { store, writer, eraser, audit } = await erase();
+    await eraser.readmit(dpo, "crm");
+    await writer.upsertNodes([node("crm-1", "crm", "Cleaned.")]);
+    expect((await store.getNode("crm-1"))?.body).toBe("Cleaned.");
+    expect(audit.written.at(-1)).toMatchObject({ action: "readmit", source: "crm", returned: [], principal: dpo });
   });
 });

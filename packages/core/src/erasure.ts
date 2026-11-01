@@ -24,6 +24,11 @@ import type { Graph } from "./traversal.js";
 //
 // Erasure is an operator's act (the DPO's), made on the store like ingestion, shown then confirmed
 // with a digest like a deletion, and audited.
+//
+// The source may still hold the text, and nothing here keeps the text to recognise it. So an erased
+// source stays out: the writer refuses its nodes and the ingester skips it, until an operator
+// readmits it, saying it no longer holds what was erased. That stands for the source, not the text:
+// the same words copied into another source are not caught.
 
 export interface ErasurePlan {
   readonly source: string;
@@ -77,6 +82,8 @@ export interface Eraser {
   plan(principal: Principal, source: string): Promise<ErasurePlan>;
   // Rejects with `Conflict` when the graph changed since the plan with this digest was made.
   forget(principal: Principal, source: string, digest: string): Promise<ErasurePlan>;
+  // Lets an erased source be written again.
+  readmit(principal: Principal, source: string): Promise<void>;
 }
 
 export interface EraserOptions {
@@ -132,6 +139,9 @@ export function createEraser(store: GraphStore, writer: Writer, audit: AuditLog,
         // Written from its remaining sources only: what it held without an edge is gone.
         rewritten.push(withoutHeldSources({ ...node, body }));
       }
+      // Before anything is removed, so that nothing can bring the source back while it goes. After
+      // the model: a model that fails leaves the source whole and still ingested.
+      await store.markErased(source);
       await writer.replaceNodes(rewritten);
       await writer.deleteEdges(result.detached);
       for (const node of result.deleted) await writer.deleteNode(node.id);
@@ -141,6 +151,11 @@ export function createEraser(store: GraphStore, writer: Writer, audit: AuditLog,
       }
       await state?.forget(source);
       return result;
+    },
+
+    async readmit(principal, source) {
+      await record({ action: "readmit", source, returned: [] }, principal);
+      await store.readmit(source);
     },
   };
 }

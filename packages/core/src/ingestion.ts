@@ -45,7 +45,7 @@ export interface Repository {
 export interface IngestionState {
   last(repo: string): Promise<string | undefined>;
   record(repo: string, sha: string): Promise<void>;
-  // After an erasure: the next ingestion of the repository starts from scratch.
+  // After an erasure: the ingestion that follows its readmission starts from scratch.
   forget(repo: string): Promise<void>;
 }
 
@@ -135,6 +135,8 @@ export function createIngester(options: IngesterOptions): Ingester {
       const entry = repositories.get(repo);
       if (entry === undefined) throw new Error(`Unknown repository: ${repo}`);
       const { config, repository } = entry;
+      // Not an error: a failed job would stay queued, and retry until the source is readmitted.
+      if ((await store.erasedSources()).has(repo)) return [];
       const last = await state.last(repo);
       if (last !== undefined && (await repository.contains(target, last))) return [];
       if (last !== undefined && !(await repository.contains(last, target))) {

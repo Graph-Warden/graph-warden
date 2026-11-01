@@ -95,12 +95,13 @@ One graph, five people, five correct views — and nobody configured a filter fo
 | **Answers stay within your rights** | An AI answer is written only from what you may read, and a saved answer is visible only to people who may read everything it was written from. |
 | **Deletion follows summaries** | Deleting a document deletes the summaries built only from it, and only unlinks those built from other documents too. You see the full list and type the name before anything goes. |
 | **Your directory decides** | Users and groups come from your identity provider (Entra ID, Okta, Keycloak, Google Workspace…). No second user base to maintain. |
-| **Erasure of a whole source** | Erasing a source (GDPR article 17) applies the same deletion to every document it brought in. |
+| **Erasure of a whole source** | Erasing a source (GDPR article 17) applies the same deletion to every document it brought in, then keeps the source out, even if it still holds the text, until an operator lets it back in. |
 
 **What it does not guarantee yet.**
 
 - Non-interference is checked by property tests over random graphs, not by a formal proof. Response time is not covered: a search over more hidden nodes takes longer.
 - Local models obey instructions planted in a document ([results](packages/eval/RESULTS.md)). Scopes still bound what they can read, but their answer can be steered by anyone who can write a document the asker reads.
+- Erasure stops a source, not its words: the same text copied into another source stays, and an operator who lets a source back in answers for what it still holds.
 - It has been measured on its example corpus only ([#88](https://github.com/Graph-Warden/graph-warden/issues/88)). Do not load confidential data yet.
 
 ## Who it is for

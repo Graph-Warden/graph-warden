@@ -173,6 +173,15 @@ it("parses pull --watch", () => {
   expect(() => parseCommand(["pull", ...remote, "--watch", "--interval", "0"])).toThrow(/positive/);
 });
 
+it("parses readmit, audited as someone", () => {
+  expect(parseCommand(["readmit", "docs:crm", "--user", "dpo", "--team", "auditors"])).toEqual({
+    name: "readmit",
+    source: "docs:crm",
+    principal: { user: "dpo", teams: ["auditors"] },
+  });
+  expect(() => parseCommand(["readmit", "docs:crm"])).toThrow(/--user/);
+});
+
 it("parses forget, audited as someone", () => {
   expect(parseCommand(["forget", "docs:crm", "--user", "dpo", "--team", "auditors", "--confirm", "docs:crm"])).toEqual({
     name: "forget",

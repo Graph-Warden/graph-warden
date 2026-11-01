@@ -14,7 +14,7 @@ The words below are used with this meaning in code, proposals, issues and review
 | Derived node | A node produced from others, typically by an LLM. Linked with `DERIVED_FROM`; read only by those who read every source (proposal 0010). |
 | Author | The principal a node is derived for. Must be able to read every source. |
 | Traversal | Walking edges from a node. Scopes are checked on every hop, not only on the result. |
-| Erasure | Removal of a source and of everything holding its content (`gwarden forget`): its nodes, the nodes derived only from them, and the nodes derived from them and from others, written again from their other sources by a model, or deleted without one. Ids stay in the event and audit logs; text does not. |
+| Erasure | Removal of a source and of everything holding its content (`gwarden forget`): its nodes, the nodes derived only from them, and the nodes derived from them and from others, written again from their other sources by a model, or deleted without one. Ids stay in the event and audit logs; text does not. The source then stays out of the graph until an operator readmits it (`gwarden readmit`). |
 | Body | A node's text: what `ask` reads and what a filed answer holds. |
 | Deletion plan | What deleting a node would do: the nodes removed (it, and the derived nodes left without a source), the `DERIVED_FROM` edges detached, and a digest. A deletion is made only with the digest of a plan that still matches the graph (proposal 0011). |
 | Detach | Remove a `DERIVED_FROM` edge from a node that keeps other sources. The node keeps its scope. |

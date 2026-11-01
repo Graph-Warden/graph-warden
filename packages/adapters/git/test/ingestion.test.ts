@@ -56,6 +56,31 @@ beforeEach(() => {
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
 describe("git ingestion", () => {
+  it("leaves out a source that was erased, and takes it from scratch once readmitted", async () => {
+    const store = createMemoryStore();
+    const state = createMemoryIngestionState();
+    const ingester = createIngester({
+      store,
+      writer: createWriter(store, createMemoryEventLog()),
+      state,
+      repositories: new Map([[config.name, { config, repository: createGitRepository(dir) }]]),
+      extractors: [createDocumentExtractor()],
+    });
+    write("docs/crm.md", "# Patient 4711\n");
+    const first = commit("docs: patient");
+    await store.markErased(config.name);
+
+    expect(await ingester.ingest(config.name, first)).toEqual([]);
+    expect((await store.snapshot()).nodes.size).toBe(0);
+    expect(await state.last(config.name)).toBeUndefined();
+
+    await store.readmit(config.name);
+    write("docs/crm.md", "# Cleaned\n");
+    const second = commit("docs: clean");
+    await ingester.ingest(config.name, second);
+    expect([...(await store.snapshot()).nodes.values()].map((node) => node.title)).toContain("Cleaned");
+  });
+
   it("gives the graph of sequential ingestion to four merges notified out of order and a replay", async () => {
     write("docs/orders-api.md", "---\nid: orders-api\ntype: endpoint\n---\n# GET /orders\n");
     const base = commit("feat: orders API");

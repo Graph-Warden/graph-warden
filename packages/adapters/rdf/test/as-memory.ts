@@ -16,5 +16,8 @@ export function createMemoryStore(initial?: { readonly nodes: ReadonlyMap<string
     deleteNode: async (id) => ready.then(() => store.deleteNode(id)),
     deleteEdges: async (edges) => ready.then(() => store.deleteEdges(edges)),
     snapshot: async () => ready.then(() => store.snapshot()),
+    erasedSources: async () => ready.then(() => store.erasedSources()),
+    markErased: async (source) => ready.then(() => store.markErased(source)),
+    readmit: async (source) => ready.then(() => store.readmit(source)),
   };
 }

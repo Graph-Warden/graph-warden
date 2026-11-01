@@ -16,4 +16,9 @@ export interface GraphStore {
   // The whole graph, for the domain to traverse. Replaced by per-hop neighbour lookups when
   // graphs outgrow memory.
   snapshot(): Promise<Graph>;
+  // Sources erased and not readmitted, kept with the graph so that every writer sees them. Names
+  // only: nothing keeps the text.
+  erasedSources(): Promise<ReadonlySet<string>>;
+  markErased(source: string): Promise<void>;
+  readmit(source: string): Promise<void>;
 }

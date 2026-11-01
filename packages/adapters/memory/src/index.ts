@@ -20,6 +20,7 @@ import {
 export function createMemoryStore(initial?: { readonly nodes: ReadonlyMap<string, Node>; readonly edges: readonly Edge[] }): GraphStore {
   const nodes = new Map<string, Node>(initial?.nodes ?? []);
   let edges: Edge[] = [...(initial?.edges ?? [])];
+  const erased = new Set<string>();
   const key = (e: Edge) => `${e.type} ${e.from} ${e.to}`;
   return {
     upsertNodes: async (list) => void list.forEach((node) => nodes.set(node.id, node)),
@@ -39,6 +40,9 @@ export function createMemoryStore(initial?: { readonly nodes: ReadonlyMap<string
       edges = edges.filter((e) => !gone.has(key(e)));
     },
     snapshot: async () => createGraph([...nodes.values()], edges),
+    erasedSources: async () => new Set(erased),
+    markErased: async (source) => void erased.add(source),
+    readmit: async (source) => void erased.delete(source),
   };
 }
 

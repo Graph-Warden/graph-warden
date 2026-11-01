@@ -45,7 +45,8 @@ export interface EventLog {
 export interface Writer {
   readonly ontology: Ontology;
   // A node that holds sources with no edge to them keeps them and never widens, whoever writes it:
-  // ingesting a document again rewrites it from a file that knows nothing of them.
+  // ingesting a document again rewrites it from a file that knows nothing of them. A node of an
+  // erased source is refused (`SourceErased`).
   upsertNodes(nodes: readonly Node[]): Promise<void>;
   // Writes the nodes as given, dropping what they held. Only erasure may: it wrote their text again.
   replaceNodes(nodes: readonly Node[]): Promise<void>;
@@ -56,6 +57,10 @@ export interface Writer {
 
 export interface WriterOptions {
   readonly ontology?: Ontology;
+}
+
+export class SourceErased extends Error {
+  override readonly name = "SourceErased";
 }
 
 export function createWriter(store: GraphStore, log: EventLog, options: WriterOptions = {}): Writer {
@@ -70,6 +75,9 @@ export function createWriter(store: GraphStore, log: EventLog, options: WriterOp
     ontology,
     async upsertNodes(nodes) {
       if (nodes.length === 0) return;
+      const erased = await store.erasedSources();
+      const refused = nodes.find((node) => erased.has(node.provenance.source));
+      if (refused !== undefined) throw new SourceErased(`${refused.provenance.source} was erased: readmit it once it no longer holds what was erased`);
       const current = (await store.snapshot()).nodes;
       await write(nodes.map((node) => keepHeld(node, current.get(node.id))));
     },

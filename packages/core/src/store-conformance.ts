@@ -23,6 +23,17 @@ const sorted = (value: unknown): unknown =>
       : value;
 
 const CHECKS: Record<string, (store: GraphStore) => Promise<string | undefined>> = {
+  "remembers an erased source until it is readmitted": async (store) => {
+    if ((await store.erasedSources()).size !== 0) return "a new store has erased sources";
+    await store.markErased("docs:hr");
+    await store.markErased("docs:hr");
+    await store.markErased('odd"source> \\');
+    if (!same([...(await store.erasedSources())].sort(), ['docs:hr', 'odd"source> \\'].sort())) return `got ${JSON.stringify([...(await store.erasedSources())])}`;
+    await store.readmit("docs:hr");
+    await store.readmit("never-erased");
+    if ((await store.snapshot()).nodes.size !== 0) return "an erased source gave a node";
+    return same([...(await store.erasedSources())], ['odd"source> \\']) ? undefined : `after readmission, got ${JSON.stringify([...(await store.erasedSources())])}`;
+  },
   "returns nodes as stored, every scope kind and field": async (store) => {
     const nodes = [
       base("a"),

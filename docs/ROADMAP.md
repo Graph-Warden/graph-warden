@@ -6,7 +6,7 @@ Each line is a GitHub issue under the matching milestone. Labels in brackets.
 
 What decides whether the differentiator holds, written before the evidence exists.
 
-- **Pass:** an outside team runs Graph-Warden on its own documents ([#88](https://github.com/Graph-Warden/graph-warden/issues/88)) and publishes the results, with no read outside a reader's scope, and recall of at least 80% on lexical and linked queries.
+- **Pass:** an outside team runs Graph-Warden on its own documents ([#88](https://github.com/Graph-Warden/graph-warden/issues/88)) and publishes the results, with no read outside a reader's scope, recall of at least 80% on lexical and linked queries, and overall precision of at least 25% at k=8, the level measured on the example corpus. The project is open source, so that team can be anyone with documents and groups of its own, an open-source project with public documents included: nobody has to buy anything, and no confidential data is needed.
 - **Stop or redirect:** no outside team has run it by 2027-01-31, or a leak turns out to come from the design rather than from a bug. Then the project stops adding features and stays a reference implementation of per-hop checks.
 - **Until then:** no new feature starts before the audience ([#89](https://github.com/Graph-Warden/graph-warden/issues/89)) and the measure above are settled. Fixes, documentation and what those two need do not count as features.
 

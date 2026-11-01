@@ -19,6 +19,7 @@ export const USAGE = `Usage:
   gwarden ask "<question>" --api <url> --token <token> [--from <node-id>] [--save [--scope <scope>]]
   gwarden delete <node-id> --api <url> --token <token> [--confirm <node-id>]
   gwarden forget <source> --user <user> [--team <team>]... [--confirm <source>]
+  gwarden readmit <source> --user <user> [--team <team>]...
   gwarden agent-session capture [--transcript <file.jsonl> --id <id>] --api <url> --token <token>
   gwarden agent-session preview <session-id> --api <url> --token <token>
   gwarden agent-session promote <session-id> --scope <scope> --digest <digest> --api <url> --token <token>
@@ -56,7 +57,8 @@ nodes derived only from them, and the nodes derived from them and from others, w
 too. Those are written again from their other sources by the model of GWARDEN_LLM (claude or openai,
 with GWARDEN_LLM_MODEL, GWARDEN_LLM_BASE_URL, OPENAI_API_KEY as for the API), or deleted without one.
 It shows what goes and asks you to type the source; --confirm types it, in scripts. The erasure is
-audited as --user.
+audited as --user. An erased source stays out of the graph: ingestion skips it, even if it still
+holds the text. readmit lets it back in, once it no longer does, audited as --user.
 
 agent-session capture files a coding-agent session as a Session node private to the token's user.
 Without --transcript it reads a Claude Code hook's JSON on stdin (session_id, transcript_path): add it
@@ -125,6 +127,11 @@ export type Command =
       readonly source: string;
       readonly principal: Principal;
       readonly confirm?: string;
+    }
+  | {
+      readonly name: "readmit";
+      readonly source: string;
+      readonly principal: Principal;
     }
   | {
       readonly name: "impact";
@@ -245,6 +252,10 @@ export function parseCommand(argv: readonly string[]): Command {
     case "forget": {
       if (values.user === undefined) throw new Error("--user is required: the erasure is audited as someone");
       return { name, source: target, principal: { user: values.user, teams: values.team }, ...(values.confirm === undefined ? {} : { confirm: values.confirm }) };
+    }
+    case "readmit": {
+      if (values.user === undefined) throw new Error("--user is required: the readmission is audited as someone");
+      return { name, source: target, principal: { user: values.user, teams: values.team } };
     }
     case "impact": {
       if (values.source === undefined) throw new Error("--source is required");
