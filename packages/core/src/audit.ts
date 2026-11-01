@@ -55,6 +55,8 @@ export const AuditEntrySchema = z.discriminatedUnion("action", [
       planned: z.literal(true).optional(),
     })
     .readonly(),
+  // An erased source let back in: someone answers for it no longer holding what was erased.
+  z.object({ ...common, action: z.literal("readmit"), source: z.string().min(1) }).readonly(),
   // A coding-agent session captured, private to its author (issue #27).
   z.object({ ...common, action: z.literal("capture"), target: z.string().min(1) }).readonly(),
   // A session promoted to `scope` after redaction; `planned` marks the preview, `denied` a scope

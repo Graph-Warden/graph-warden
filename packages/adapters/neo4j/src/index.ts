@@ -123,6 +123,20 @@ export function createNeo4jStore(driver: Driver): GraphStore {
         edges.records.map((r): Edge => EdgeSchema.parse({ type: r.get("type"), from: r.get("from"), to: r.get("to") })),
       );
     },
+
+    // (:Erased {source}), outside the :Node label.
+    async erasedSources() {
+      const { records } = await driver.executeQuery("MATCH (e:Erased) RETURN e.source AS source");
+      return new Set(records.map((record) => record.get("source") as string));
+    },
+
+    async markErased(source) {
+      await driver.executeQuery("MERGE (:Erased {source: $source})", { source });
+    },
+
+    async readmit(source) {
+      await driver.executeQuery("MATCH (e:Erased {source: $source}) DELETE e", { source });
+    },
   };
 }
 

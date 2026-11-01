@@ -100,6 +100,11 @@ async function run(command: Command): Promise<void> {
         printAudit(await audit.entries(command.user === undefined ? {} : { user: command.user }));
         break;
       }
+      case "readmit": {
+        await createEraser(store, createWriter(store, createNeo4jEventLog(driver)), audit).readmit(command.principal, command.source);
+        console.log(`Readmitted ${command.source}: the next ingestion takes it from scratch.`);
+        break;
+      }
       case "forget": {
         const llm = await routedFromEnv(audit);
         const eraser = createEraser(store, createWriter(store, createNeo4jEventLog(driver)), audit, {
@@ -261,6 +266,8 @@ function describe(entry: AuditEntry): string {
       return `read ${entry.target}${entry.returned.length === 0 ? " -> nothing" : ""}`;
     case "search":
       return `search "${entry.query}" -> ${count(entry.returned.length, "node")}`;
+    case "readmit":
+      return `readmit ${entry.source}`;
     case "forget":
       return `${entry.planned === true ? "forget preview" : "forget"} ${entry.source} -> ${count(entry.returned.length, "node")} deleted, ${entry.recompiled.length} recompiled`;
     case "related":

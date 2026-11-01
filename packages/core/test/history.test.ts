@@ -49,6 +49,17 @@ describe("history", () => {
     expect(audit.written[0]).toMatchObject({ action: "history", repo: REPO, sha: "abc1234", returned: ["kept", "shared-since", "gone"] });
   });
 
+  it("has no past for an erased repository: git still holds what the graph let go", async () => {
+    const graph = createGraph([], []);
+    const { store, history } = setup({ at: { abc1234: graph }, before: graph, after: graph, commits: ["abc1234"] });
+    await store.markErased(REPO);
+    await expect(history.commits(bob, REPO)).rejects.toThrow(UnknownCommit);
+    await expect(history.at(bob, REPO, "abc1234")).rejects.toThrow(UnknownCommit);
+    await expect(history.impact(bob, REPO, "abc1234", "def5678")).rejects.toThrow(UnknownCommit);
+    await store.readmit(REPO);
+    expect((await history.commits(bob, REPO)).map((n) => n.id)).toEqual([changeId(REPO, "abc1234")]);
+  });
+
   it("refuses an unknown repository or commit", async () => {
     const { history } = setup({});
     await expect(history.at(bob, REPO, "abc1234")).rejects.toThrow(UnknownCommit);

@@ -107,6 +107,19 @@ export function createRdfStore(client: SparqlClient): GraphStore {
         edges.map((row): Edge => ({ type: (row.p ?? "").slice(EDGE.length), from: idOf(row.s ?? ""), to: idOf(row.o ?? "") })),
       );
     },
+
+    async erasedSources() {
+      const rows = await client.select(`${prefixes}SELECT ?source WHERE { GRAPH ${g} { ${g} gw:erased ?source } }`);
+      return new Set(rows.map((row) => row.source ?? ""));
+    },
+
+    async markErased(source) {
+      await client.update(`${prefixes}INSERT DATA { GRAPH ${g} { ${g} gw:erased ${literal(source)} } }`);
+    },
+
+    async readmit(source) {
+      await client.update(`${prefixes}DELETE DATA { GRAPH ${g} { ${g} gw:erased ${literal(source)} } }`);
+    },
   };
 }
 

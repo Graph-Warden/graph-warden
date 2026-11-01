@@ -15,6 +15,9 @@ import type { Graph } from "./traversal.js";
 // what was taken out before sharing it. Now, because a node narrowed since must not reach, through
 // its history, a reader it was taken from. A node gone since is judged on the scope it had and on
 // the repository's scope, which is what anyone may still read in git.
+//
+// An erased repository has no past: git still holds what the graph let go, and replaying it here
+// would serve it again.
 
 // Port for the past of the repositories: git, ingested again.
 export interface PastGraphs {
@@ -66,9 +69,9 @@ export function visiblePast(past: Graph, now: Graph, reader: Principal, reposito
 
 export function createHistory(store: GraphStore, audit: AuditLog, past: PastGraphs, options: { readonly now?: () => Date } = {}): History {
   const record = recorder(audit, options.now);
-  const scopeOf = (repo: string): Scope => {
+  const scopeOf = async (repo: string): Promise<Scope> => {
     const entry = past.repositories.get(repo);
-    if (entry === undefined) throw new UnknownCommit(`Unknown repository: ${repo}`);
+    if (entry === undefined || (await store.erasedSources()).has(repo)) throw new UnknownCommit(`Unknown repository: ${repo}`);
     return entry.scope;
   };
 
@@ -76,7 +79,7 @@ export function createHistory(store: GraphStore, audit: AuditLog, past: PastGrap
     repositories: [...past.repositories.keys()].sort(),
 
     async commits(principal, repo, limit = 100) {
-      const scope = scopeOf(repo);
+      const scope = await scopeOf(repo);
       const graph = await store.snapshot();
       const changes = (await past.commits(repo, limit))
         .map(
@@ -89,7 +92,7 @@ export function createHistory(store: GraphStore, audit: AuditLog, past: PastGrap
     },
 
     async at(principal, repo, sha) {
-      const scope = scopeOf(repo);
+      const scope = await scopeOf(repo);
       const graph = await past.at(repo, sha);
       if (graph === undefined) throw new UnknownCommit(`${repo} has no commit ${sha}`);
       const view = visiblePast(graph, await store.snapshot(), principal, scope);
@@ -98,7 +101,7 @@ export function createHistory(store: GraphStore, audit: AuditLog, past: PastGrap
     },
 
     async impact(principal, repo, base, head) {
-      const scope = scopeOf(repo);
+      const scope = await scopeOf(repo);
       const found = await past.between(repo, base, head);
       if (found === undefined) throw new UnknownCommit(`${repo}: no commits from ${base} to ${head}`);
       const { before, after, changed, commits } = found;
