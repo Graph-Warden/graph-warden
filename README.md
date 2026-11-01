@@ -9,7 +9,9 @@
 
 # Graph-Warden
 
-**For security teams: AI agents get only what the person they act for may read.**
+**One knowledge graph for the teams of a large company, with rights by role and team.**
+
+AI agents get only what the person they act for may read.
 
 Giving AI agents a company's knowledge usually forces a choice: open everything and risk leaks, or wall teams off and lose what crosses them. Graph-Warden links what teams already write (repositories, API specs, docs, agent sessions) into one graph, then decides access on every read, for the person the agent acts for.
 
@@ -21,7 +23,7 @@ Giving AI agents a company's knowledge usually forces a choice: open everything 
 | that HR document is deleted | keeps protecting the text written from it, even after it is ingested again. |
 | an auditor asks who saw what | shows every read. A read that cannot be recorded does not happen. |
 
-Nobody writes a filter per team: rights come from your identity provider. The [demo](#see-it-run) shows one graph giving five people five correct views.
+Nobody writes a filter per team: rights by team and role come from your identity provider. The [demo](#see-it-run) shows one graph giving five people five correct views.
 
 > Status: **alpha**. Milestone M0 is done; M1 and M2 are in progress. Nothing here is ready for production. See [what works today](#what-works-today) and the [roadmap](docs/ROADMAP.md).
 
@@ -103,10 +105,11 @@ One graph, five people, five correct views — and nobody configured a filter fo
 
 ## Who it is for
 
-- **Security teams, first.** Agents get only what the person they act for may read: rights are checked on every step of a traversal, not only on the result.
+The teams of a large company, whose agents should share what the company knows without sharing all of it. Access follows teams and roles: both are groups in your identity provider, so a role such as `dev-leads` is granted there, like a team.
 
-The same graph also serves:
+Each team gets something from the same graph:
 
+- **Security teams: agents that do not leak.** Rights are checked on every step of a traversal, not only on the result.
 - **Engineering teams: cross-team impact before the merge.** When the BFF team changes an endpoint, the front-end teams that consume it are told in the pull request, before it breaks in production, by a GitHub Action that comments the pull request.
 - **Data protection and audit: compliance built in.** Every read an agent makes on behalf of a user is recorded, and erasure reaches everything an LLM derived from the erased source.
 - **Infrastructure teams: it fits a large group's constraints.**
@@ -338,7 +341,7 @@ Every node carries exactly one scope:
 | Scope | Readable by |
 |---|---|
 | `shared` | everyone authenticated |
-| `team:bff` | members of the `bff` group |
+| `team:bff` | members of the `bff` group, a team or a role |
 | `teams:bff,front-a` | members of **both** groups (typically a node derived from both teams) |
 | `private:alice` | Alice only |
 

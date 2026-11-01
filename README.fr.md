@@ -9,7 +9,9 @@
 
 # Graph-Warden
 
-**Pour les équipes sécurité : les agents IA n'obtiennent que ce que la personne pour laquelle ils agissent peut lire.**
+**Un seul graphe de connaissance pour les équipes d'une grande entreprise, avec des droits par rôle et par équipe.**
+
+Les agents IA n'obtiennent que ce que la personne pour laquelle ils agissent peut lire.
 
 Donner à des agents IA le savoir d'une entreprise impose d'habitude un choix : tout ouvrir et risquer les fuites, ou cloisonner les équipes et perdre ce qui les traverse. Graph-Warden relie ce que les équipes écrivent déjà (dépôts, specs d'API, documentation, sessions d'agents) en un seul graphe, puis décide de l'accès à chaque lecture, pour la personne au nom de laquelle l'agent agit.
 
@@ -21,7 +23,7 @@ Donner à des agents IA le savoir d'une entreprise impose d'habitude un choix : 
 | ce document RH est supprimé | continue de protéger le texte écrit à partir de lui, même après une réingestion. |
 | un auditeur demande qui a vu quoi | montre chaque lecture. Une lecture qui ne peut pas être enregistrée n'a pas lieu. |
 
-Personne n'écrit de filtre par équipe : les droits viennent de votre fournisseur d'identité. La [démo](#le-voir-tourner) montre un seul graphe donnant cinq vues correctes à cinq personnes.
+Personne n'écrit de filtre par équipe : les droits par équipe et par rôle viennent de votre fournisseur d'identité. La [démo](#le-voir-tourner) montre un seul graphe donnant cinq vues correctes à cinq personnes.
 
 > Statut : **alpha**. Le jalon M0 est terminé ; M1 et M2 sont en cours. Rien n'est prêt pour la production. Voir [ce qui marche aujourd'hui](#ce-qui-marche-aujourdhui) et la [roadmap](docs/ROADMAP.md) (en anglais).
 >
@@ -105,10 +107,11 @@ Un graphe, cinq personnes, cinq vues correctes — et personne n'a configuré de
 
 ## Pour qui
 
-- **Les équipes sécurité, d'abord.** Les agents n'obtiennent que ce que la personne pour laquelle ils agissent peut lire : les droits sont vérifiés à chaque pas d'une traversée, pas seulement sur le résultat.
+Les équipes d'une grande entreprise, dont les agents doivent partager ce que l'entreprise sait sans tout partager. L'accès suit les équipes et les rôles : les deux sont des groupes de votre fournisseur d'identité, donc un rôle comme `dev-leads` s'y attribue, comme une équipe.
 
-Le même graphe sert aussi :
+Chaque équipe tire quelque chose du même graphe :
 
+- **Équipes sécurité : des agents qui ne fuient pas.** Les droits sont vérifiés à chaque pas d'une traversée, pas seulement sur le résultat.
 - **Équipes de développement : l'impact inter-équipes avant le merge.** Quand l'équipe BFF change un endpoint, les équipes front qui le consomment sont prévenues dans la pull request, avant que ça casse en production, par une GitHub Action qui commente la pull request.
 - **Protection des données et audit : la conformité intégrée.** Chaque lecture faite par un agent au nom d'un utilisateur est enregistrée, et l'effacement atteint tout ce qu'un LLM a dérivé de la source effacée.
 - **Équipes infrastructure : il tient dans les contraintes d'un grand groupe.**
@@ -340,7 +343,7 @@ Chaque nœud porte exactement un scope :
 | Scope | Lisible par |
 |---|---|
 | `shared` | toute personne authentifiée |
-| `team:bff` | les membres du groupe `bff` |
+| `team:bff` | les membres du groupe `bff`, une équipe ou un rôle |
 | `teams:bff,front-a` | les membres des **deux** groupes (typiquement un nœud dérivé des deux équipes) |
 | `private:alice` | Alice seulement |
 
