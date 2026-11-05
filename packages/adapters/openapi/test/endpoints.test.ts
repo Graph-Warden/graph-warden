@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { cpSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -105,7 +105,7 @@ describe("OpenAPI endpoints", () => {
     expect((await consumed(store))["front-c"]).toEqual(["POST /orders/{id}/refund"]);
     expect(await edges(store, "IMPORTS")).toContain(`${module_("apps/front-c/src/home-screen.ts")} -> ${module_("apps/front-c/src/api.ts")}`);
 
-    const spec = execFileSync("cat", [join(dir, "apps/bff/openapi.yaml")], { encoding: "utf8" });
+    const spec = readFileSync(join(dir, "apps/bff/openapi.yaml"), "utf8");
     writeFileSync(join(dir, "apps/bff/openapi.yaml"), spec.replace(/ {2}\/orders\/\{id\}\/refund:\n(?: {4}.*\n)+/, ""));
     await ingest(commit("bff: no more refunds"));
     const graph = await store.snapshot();

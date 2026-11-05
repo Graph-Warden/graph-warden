@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { cpSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { join, relative } from "node:path";
+import { join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createIngester, createWriter, type GraphStore, type RepositoryConfig } from "@graph-warden/core";
@@ -16,6 +16,8 @@ import { createTypeScriptExtractor, moduleId } from "../src/index.js";
 const demo = fileURLToPath(new URL("../../../../examples/shop/repo", import.meta.url));
 const tsc = createRequire(import.meta.url).resolve("typescript/bin/tsc");
 const config: RepositoryConfig = { name: "github:acme/shop", scope: { kind: "shared" }, author: { user: "ci", teams: [] } };
+// Paths as the graph carries them: POSIX, whatever the platform that read the files.
+const posix = (path: string) => path.split(sep).join("/");
 
 let dir: string;
 const git = (...args: string[]) => execFileSync("git", ["-C", dir, ...args], { encoding: "utf8" }).trim();
@@ -44,11 +46,11 @@ const imports = async (store: GraphStore) =>
     .sort();
 
 // What tsc resolves, file to file inside the repository, for each tsconfig. Workspace packages are
-// linked into node_modules as pnpm would.
+// linked into node_modules as pnpm would. A junction, since a symlink needs elevation on Windows.
 function traced(): string[] {
   for (const app of ["front-a", "front-b"]) {
     mkdirSync(join(dir, "apps", app, "node_modules", "@shop"), { recursive: true });
-    symlinkSync(join(dir, "packages", "api-client"), join(dir, "apps", app, "node_modules", "@shop", "api-client"));
+    symlinkSync(join(dir, "packages", "api-client"), join(dir, "apps", app, "node_modules", "@shop", "api-client"), "junction");
   }
   const pairs = new Set<string>();
   for (const project of ["apps/bff", "apps/front-a", "apps/front-b", "apps/front-c", "packages/api-client"]) {
@@ -59,7 +61,7 @@ function traced(): string[] {
       if (resolving !== null) from = resolving[1] ?? "";
       const resolved = /^======== Module name '.*' was successfully resolved to '(.*)'\. ========$/.exec(line);
       if (resolved !== null && !(resolved[1] ?? "").includes("node_modules")) {
-        pairs.add(`${moduleId(config.name, relative(dir, from))} -> ${moduleId(config.name, relative(dir, resolved[1] ?? ""))}`);
+        pairs.add(`${moduleId(config.name, posix(relative(dir, from)))} -> ${moduleId(config.name, posix(relative(dir, resolved[1] ?? "")))}`);
       }
     }
   }

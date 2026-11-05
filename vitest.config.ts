@@ -24,5 +24,7 @@ export default defineConfig({
   },
   test: {
     include: ["packages/**/test/**/*.test.ts"],
+    // git and tsc take far longer than the 5s default on some platforms.
+    testTimeout: 30_000,
   },
 });
