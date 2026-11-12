@@ -7,11 +7,14 @@ import { createGraph, retrieve, type LLMProvider, type Principal } from "@graph-
 import { readDocuments } from "@graph-warden/documents";
 import { createOpenAICompatibleProvider } from "@graph-warden/openai";
 import { loadCases, loadRetrievalCases, retrievalScore, runEval, runRetrievalEval, score } from "./eval.js";
+import { principalsOf, retrieveSearch, runLeakEval } from "./leaks.js";
 
 // gwarden-eval --llm claude [--platform anthropic|google-cloud|vertex] [--model <id>]
 // gwarden-eval --llm openai --model <name> [--base-url http://localhost:11434/v1]
 // gwarden-eval --retrieval [--k 8] [--corpus <dir>] [--queries <yaml>] [--teams a,b]
-// Prints each case, then the scores; --out writes them as JSON. --retrieval needs no model.
+// gwarden-eval --leaks [--k 8] [--corpus <dir>] [--queries <yaml>]
+// Prints each case, then the scores; --out writes them as JSON. --retrieval and --leaks need no
+// model. --leaks derives its readers from the corpus's scopes, so --teams does not apply.
 
 const { values } = parseArgs({
   options: {
@@ -22,6 +25,7 @@ const { values } = parseArgs({
     cases: { type: "string", default: fileURLToPath(new URL("../cases.yaml", import.meta.url)) },
     out: { type: "string" },
     retrieval: { type: "boolean", default: false },
+    leaks: { type: "boolean", default: false },
     k: { type: "string", default: "8" },
     teams: { type: "string" },
     corpus: { type: "string", default: fileURLToPath(new URL("../../../examples/shop/docs", import.meta.url)) },
@@ -63,11 +67,32 @@ async function evaluateRetrieval(): Promise<void> {
 }
 
 try {
-  if (values.retrieval) await evaluateRetrieval();
+  if (values.leaks) await evaluateLeaks();
+  else if (values.retrieval) await evaluateRetrieval();
   else await evaluatePrompts();
 } catch (error) {
   console.error(error instanceof Error ? error.message : error);
   process.exitCode = 1;
+}
+
+// Reads the corpus as every principal its scopes imply, and reports what each one saw that they
+// should not have. The corpus must name its groups: without two of them the measure says nothing.
+async function evaluateLeaks(): Promise<void> {
+  const { nodes, edges } = await readDocuments(values.corpus, { source: "docs:shop", defaultScope: { kind: "shared" } });
+  const graph = createGraph(nodes, edges);
+  const { principals, teams, users } = principalsOf(graph);
+  const cases = await loadRetrievalCases(values.queries);
+  const k = Number(values.k);
+  const report = runLeakEval(graph, cases, principals, retrieveSearch(k));
+  console.log(`${report.nodes} nodes, ${report.principals.length} principals, ${report.queries} queries, k=${k}`);
+  console.log(`teams: ${teams.join(", ") || "none"}${users.length === 0 ? "" : `; private: ${users.join(", ")}`}`);
+  if (teams.length < 2) console.log("warning: fewer than two teams: the corpus cannot show one group reading another's documents");
+  for (const check of report.found) {
+    console.log(`LEAK  ${check.principal}  ${check.query}${check.outside.length === 0 ? "" : `  outside ${check.outside.join(", ")}`}${check.drift.length === 0 ? "" : `  drift ${check.drift.join(", ")}`}`);
+  }
+  const checks = principals.length * cases.queries.length;
+  console.log(`\n${checks} checks (${principals.length} principals x ${cases.queries.length} queries): ${report.found.length} leaked`);
+  if (values.out !== undefined) await writeFile(values.out, `${JSON.stringify({ k, at: new Date().toISOString(), ...report }, null, 2)}\n`);
 }
 
 async function evaluatePrompts(): Promise<void> {
