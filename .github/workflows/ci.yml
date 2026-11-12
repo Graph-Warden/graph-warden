@@ -56,6 +56,29 @@ jobs:
         env:
           GWARDEN_TEST_STORE: rdf
 
+  # The same suite on Windows: the portability bugs Linux cannot see (symlinks needing elevation,
+  # `cat`, path separators) only show up here. No service containers, since GitHub does not offer
+  # them on Windows runners: the Neo4j and Redis adapters skip themselves, being opt-in through
+  # NEO4J_TEST_URI and REDIS_TEST_URL. Every other test runs.
+  windows:
+    name: typecheck, lint, test (windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      # The same suite with every store on RDF (Oxigraph, in process).
+      - run: pnpm test
+        env:
+          GWARDEN_TEST_STORE: rdf
+
   # The Helm chart (issue #25): lint it, and render it with each set of example values.
   helm:
     runs-on: ubuntu-latest
