@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { cpSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join, relative, sep } from "node:path";
@@ -69,7 +69,9 @@ function traced(): string[] {
 }
 
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), "gwarden-ts-"));
+  // The canonical path: on Windows the temp directory can be reached by its 8.3 short name
+  // (`RUNNER~1`), while tsc reports the long one, and `relative()` then finds no common prefix.
+  dir = realpathSync.native(mkdtempSync(join(tmpdir(), "gwarden-ts-")));
   cpSync(demo, dir, { recursive: true });
   writeFileSync(join(dir, ".gitignore"), "node_modules\n");
   git("init", "-q", "-b", "main");

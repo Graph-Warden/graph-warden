@@ -105,7 +105,8 @@ describe("OpenAPI endpoints", () => {
     expect((await consumed(store))["front-c"]).toEqual(["POST /orders/{id}/refund"]);
     expect(await edges(store, "IMPORTS")).toContain(`${module_("apps/front-c/src/home-screen.ts")} -> ${module_("apps/front-c/src/api.ts")}`);
 
-    const spec = readFileSync(join(dir, "apps/bff/openapi.yaml"), "utf8");
+    // Read as LF, whatever the checkout: a CRLF clone must give the same fixture as an LF one.
+    const spec = readFileSync(join(dir, "apps/bff/openapi.yaml"), "utf8").replace(/\r\n/g, "\n");
     writeFileSync(join(dir, "apps/bff/openapi.yaml"), spec.replace(/ {2}\/orders\/\{id\}\/refund:\n(?: {4}.*\n)+/, ""));
     await ingest(commit("bff: no more refunds"));
     const graph = await store.snapshot();

@@ -1,0 +1,4 @@
+# The suite compares file contents and paths across platforms, and git gives POSIX paths. Store and
+# check out LF everywhere, so a Windows checkout tests the same bytes as a Linux one: Git for
+# Windows defaults to core.autocrlf=true, which would otherwise rewrite the fixtures to CRLF.
+* text=auto eol=lf
