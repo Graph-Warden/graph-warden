@@ -76,6 +76,22 @@ node packages/eval/dist/main.js --retrieval --corpus ./docs --queries ./queries.
 
 No model is called and nothing leaves the machine.
 
+### Leaks
+
+The retrieval set says what a reader should find. It does not say what they must not. `--leaks`
+reads the same queries as every principal the corpus's own scopes imply — nobody, each team on its
+own, each person holding a private node, and someone in every team — and reports two things: a node
+returned outside the reader's scope, and a result that changes when the nodes they cannot read are
+taken away. The second is the stronger one: an id, a count or an order that moves gives a hidden
+node away even when every node returned is readable.
+
+```sh
+node packages/eval/dist/main.js --leaks --corpus ./docs --queries ./queries.yaml --out leaks.json
+```
+
+On `examples/shop`: 26 nodes, 10 principals, 22 queries, 220 checks, 0 leaked. A corpus needs at
+least two teams for the measure to say anything, and the harness warns when it has fewer.
+
 ## Gap with Claude
 
 Claude passes every case in both runs, where the 30b fails two to three of ten verdicts and one to
